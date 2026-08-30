@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Delete Budget - Finance - Whole Life Journey{% endblock %}
 
@@ -17,7 +18,7 @@
         <p>Are you sure you want to delete this budget?</p>
         <p class="budget-info">
             <strong>{{ object.category.name }}</strong><br>
-            {{ object.month|date:"F Y" }} &middot; ${{ object.budgeted_amount|floatformat:2 }}
+            {{ object.month|date:"F Y" }} &middot; {{ object.budgeted_amount|money }}
         </p>
 
         <form method="post">

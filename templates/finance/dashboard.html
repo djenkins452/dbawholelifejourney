@@ -1,9 +1,20 @@
 {% extends "base.html" %}
+{% load finance_format %}
 {% load humanize %}
 {% load static %}
 
 {% block title %}Finance - Whole Life Journey
 <style nonce="{{ csp_nonce }}">
+.account-institution-group + .account-institution-group { margin-top: 1rem; }
+.account-institution-name { font-size: .8rem; font-weight: 600; text-transform: uppercase;
+                            letter-spacing: .04em; color: var(--text-muted, #6b7280);
+                            margin: 0 0 .35rem; display: flex; flex-wrap: wrap;
+                            align-items: baseline; gap: .4rem; }
+.account-institution-note { text-transform: none; font-weight: 400; letter-spacing: 0; }
+@media (max-width: 480px) {
+    .account-institution-name { flex-direction: column; align-items: flex-start; gap: .1rem; }
+}
+
     .fin-intel { border: 1px solid var(--border, #e5e7eb); border-radius: 12px;
                  padding: 1rem 1.15rem; margin-bottom: 1.5rem; }
     .fin-intel-title { font-size: 1.05rem; margin: 0 0 .5rem; }
@@ -57,7 +68,7 @@
             <details class="fin-intel-item" data-testid="finance-attention-item">
                 <summary>
                     <span class="fin-intel-label">{{ item.label }}</span>
-                    <span class="fin-intel-facts">{{ item.occurrences }} charge{{ item.occurrences|pluralize }} for {{ item.bearer }}, paid by {{ item.payer }} · est. ${{ item.annual_estimate|floatformat:2 }}/yr</span>
+                    <span class="fin-intel-facts">{{ item.occurrences }} charge{{ item.occurrences|pluralize }} for {{ item.bearer }}, paid by {{ item.payer }} · est. {{ item.annual_estimate|money }}/yr</span>
                 </summary>
                 <p class="fin-intel-why">{{ item.message }}</p>
                 <p class="fin-intel-why">{{ item.why }}</p>
@@ -130,21 +141,21 @@
         <div class="overview-card">
             <span class="overview-label">Net Worth</span>
             <span class="overview-value {% if net_worth >= 0 %}positive{% else %}negative{% endif %}">
-                ${{ net_worth|floatformat:2 }}
+                {{ net_worth|money }}
             </span>
         </div>
         <div class="overview-card">
             <span class="overview-label">Total Assets</span>
-            <span class="overview-value positive">${{ total_assets|floatformat:2 }}</span>
+            <span class="overview-value positive">{{ total_assets|money }}</span>
         </div>
         <div class="overview-card">
             <span class="overview-label">Total Liabilities</span>
-            <span class="overview-value negative">${{ total_liabilities|floatformat:2 }}</span>
+            <span class="overview-value negative">{{ total_liabilities|money }}</span>
         </div>
         <div class="overview-card">
             <span class="overview-label">Monthly Cash Flow</span>
             <span class="overview-value {% if monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
-                {% if monthly_cash_flow >= 0 %}+{% endif %}${{ monthly_cash_flow|floatformat:2 }}
+                {{ monthly_cash_flow|money_signed }}
             </span>
         </div>
     </div>
@@ -159,16 +170,24 @@
 
             {% if accounts %}
             <div class="account-list">
-                {% for account in accounts %}
-                <a href="{% url 'finance:account_detail' account.pk %}" class="account-item">
-                    <div class="account-info">
-                        <span class="account-name">{{ account.name }}</span>
-                        <span class="account-type">{{ account.get_account_type_display }}</span>
-                    </div>
-                    <span class="account-balance {% if account.is_asset %}positive{% else %}negative{% endif %}">
-                        ${{ account.current_balance|floatformat:2 }}
-                    </span>
-                </a>
+                {% for group in account_groups %}
+                <div class="account-institution-group" data-testid="institution-group">
+                    <h3 class="account-institution-name">
+                        {{ group.institution }}
+                        {% if group.is_manual %}<span class="account-institution-note">no linked connection</span>{% endif %}
+                    </h3>
+                    {% for account in group.accounts %}
+                    <a href="{% url 'finance:account_detail' account.pk %}" class="account-item">
+                        <div class="account-info">
+                            <span class="account-name">{{ account.name }}</span>
+                            <span class="account-type">{{ account.get_account_type_display }}</span>
+                        </div>
+                        <span class="account-balance {% if account.is_asset %}positive{% else %}negative{% endif %}">
+                            {{ account.current_balance|money }}
+                        </span>
+                    </a>
+                    {% endfor %}
+                </div>
                 {% endfor %}
             </div>
             {% else %}
@@ -187,16 +206,16 @@
             <div class="monthly-summary">
                 <div class="summary-row">
                     <span class="summary-label">Income</span>
-                    <span class="summary-value positive">+${{ monthly_income|floatformat:2 }}</span>
+                    <span class="summary-value positive">+{{ monthly_income|money_abs }}</span>
                 </div>
                 <div class="summary-row">
                     <span class="summary-label">Expenses</span>
-                    <span class="summary-value negative">-${{ monthly_expenses|floatformat:2 }}</span>
+                    <span class="summary-value negative">-{{ monthly_expenses|money_abs }}</span>
                 </div>
                 <div class="summary-row total">
                     <span class="summary-label">Net</span>
                     <span class="summary-value {% if monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
-                        {% if monthly_cash_flow >= 0 %}+{% endif %}${{ monthly_cash_flow|floatformat:2 }}
+                        {{ monthly_cash_flow|money_signed }}
                     </span>
                 </div>
             </div>
@@ -207,7 +226,7 @@
                 {% for budget in budgets_over %}
                 <div class="budget-alert">
                     <span class="alert-category">{{ budget.category.name }}</span>
-                    <span class="alert-amount">Over by ${{ budget.remaining_amount|floatformat:2|slice:"1:" }}</span>
+                    <span class="alert-amount">Over by {{ budget.remaining_amount|money_abs }}</span>
                 </div>
                 {% endfor %}
             </div>
@@ -232,7 +251,7 @@
                         <span class="transaction-meta">{{ txn.date|date:"M j" }} &middot; {{ txn.account.name }}</span>
                     </div>
                     <span class="transaction-amount {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
-                        {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
+                        {{ txn.amount|money_signed }}
                     </span>
                 </a>
                 {% endfor %}
@@ -265,8 +284,8 @@
                         </div>
                     </div>
                     <div class="goal-stats">
-                        <span class="goal-current">${{ goal.current_value|floatformat:0|intcomma }}</span>
-                        <span class="goal-target">of ${{ goal.target_amount|floatformat:0|intcomma }}</span>
+                        <span class="goal-current">{{ goal.current_value|money }}</span>
+                        <span class="goal-target">of {{ goal.target_amount|money }}</span>
                     </div>
                 </a>
                 {% endfor %}
@@ -294,7 +313,7 @@
                         <span class="recurring-meta">{{ recurring.next_due_date|date:"M j" }} &middot; {{ recurring.account.name }}</span>
                     </div>
                     <span class="recurring-amount {% if recurring.is_expense %}negative{% else %}positive{% endif %}">
-                        {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                        {% if recurring.is_expense %}-{% else %}+{% endif %}{{ recurring.amount|money_abs }}
                     </span>
                 </a>
                 {% endfor %}

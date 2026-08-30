@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}{{ recurring.name }} - Recurring - Finance - Whole Life Journey{% endblock %}
 
@@ -37,7 +38,7 @@
             <div class="detail-card amount-card">
                 <span class="card-label">Amount</span>
                 <span class="card-value {% if recurring.is_expense %}expense{% else %}income{% endif %}">
-                    {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                    {% if recurring.is_expense %}-{% else %}+{% endif %}{{ recurring.amount|money_abs }}
                 </span>
             </div>
 
@@ -138,7 +139,7 @@
                 <div class="upcoming-item">
                     <span class="upcoming-date">{{ date|date:"l, M j, Y" }}</span>
                     <span class="upcoming-amount {% if recurring.is_expense %}expense{% else %}income{% endif %}">
-                        {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                        {% if recurring.is_expense %}-{% else %}+{% endif %}{{ recurring.amount|money_abs }}
                     </span>
                 </div>
                 {% endfor %}
@@ -158,7 +159,7 @@
                         <span class="transaction-account">{{ transaction.account.name }}</span>
                     </div>
                     <span class="transaction-amount {% if transaction.amount < 0 %}expense{% else %}income{% endif %}">
-                        ${{ transaction.amount|floatformat:2 }}
+                        {{ transaction.amount|money }}
                     </span>
                 </a>
                 {% endfor %}

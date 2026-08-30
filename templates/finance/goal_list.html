@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 {% load humanize %}
 
 {% block title %}Financial Goals - Finance - Whole Life Journey{% endblock %}
@@ -40,7 +41,7 @@
                     </div>
                     <div class="progress-labels">
                         <span>{{ goal.progress_percentage|floatformat:0 }}%</span>
-                        <span>${{ goal.current_value|floatformat:0|intcomma }} / ${{ goal.target_amount|floatformat:0|intcomma }}</span>
+                        <span>{{ goal.current_value|money }} / {{ goal.target_amount|money }}</span>
                     </div>
                 </div>
 
@@ -51,7 +52,7 @@
                     </span>
                     {% endif %}
                     {% if goal.monthly_contribution_needed %}
-                    <span class="goal-monthly">${{ goal.monthly_contribution_needed|floatformat:0 }}/mo needed</span>
+                    <span class="goal-monthly">{{ goal.monthly_contribution_needed|money }}/mo needed</span>
                     {% endif %}
                 </div>
             </a>
@@ -75,7 +76,7 @@
                     </div>
                     <span class="completed-badge">Completed</span>
                 </div>
-                <div class="goal-amount">${{ goal.target_amount|floatformat:0 }}</div>
+                <div class="goal-amount">{{ goal.target_amount|money }}</div>
             </a>
             {% endfor %}
         </div>

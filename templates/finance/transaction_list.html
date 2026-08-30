@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 {% load static %}
 
 {% block title %}Transactions - Finance - Whole Life Journey{% endblock %}
@@ -74,7 +75,7 @@
                         {% include "finance/components/category_picker.html" with txn=txn %}
                     </td>
                     <td class="text-right {% if txn.amount >= 0 %}positive{% else %}negative{% endif %}">
-                        {% if txn.amount >= 0 %}+{% endif %}${{ txn.amount|floatformat:2 }}
+                        {{ txn.amount|money_signed }}
                     </td>
                     <td class="actions">
                         <a href="{% url 'finance:transaction_update' txn.pk %}" class="btn btn-sm">Edit</a>

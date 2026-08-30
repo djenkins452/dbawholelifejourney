@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Accounts - Finance - Whole Life Journey{% endblock %}
 
@@ -22,35 +23,41 @@
     <div class="account-summary mb-6">
         <div class="summary-card">
             <span class="summary-label">Total Assets</span>
-            <span class="summary-value positive">${{ total_assets|floatformat:2 }}</span>
+            <span class="summary-value positive">{{ total_assets|money }}</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">Total Liabilities</span>
-            <span class="summary-value negative">${{ total_liabilities|floatformat:2 }}</span>
+            <span class="summary-value negative">{{ total_liabilities|money }}</span>
         </div>
         <div class="summary-card highlight">
             <span class="summary-label">Net Worth</span>
             <span class="summary-value {% if net_worth >= 0 %}positive{% else %}negative{% endif %}">
-                ${{ net_worth|floatformat:2 }}
+                {{ net_worth|money }}
             </span>
         </div>
     </div>
 
-    <!-- Asset Accounts -->
-    {% if asset_accounts %}
-    <div class="account-section mb-6">
-        <h2 class="section-title">Assets</h2>
+    <!-- Accounts, grouped by the institution their connection came from -->
+    {% for group in account_groups %}
+    <div class="account-section mb-6" data-testid="institution-group">
+        <h2 class="section-title institution-heading">
+            {{ group.institution }}
+            {% if group.is_manual %}
+            <span class="institution-note">no linked connection</span>
+            {% endif %}
+            <span class="institution-count">{{ group.accounts|length }} account{{ group.accounts|length|pluralize }}</span>
+        </h2>
         <div class="account-grid">
-            {% for account in asset_accounts %}
-            <div class="account-card">
+            {% for account in group.accounts %}
+            <div class="account-card" data-testid="account-card">
                 <div class="account-header">
                     <span class="account-name">{{ account.name }}</span>
-                    <span class="account-balance positive">${{ account.current_balance|floatformat:2 }}</span>
+                    <span class="account-balance {% if account.is_asset %}positive{% else %}negative{% endif %}">{{ account.current_balance|money }}</span>
                 </div>
                 <div class="account-meta">
                     <span class="account-type">{{ account.get_account_type_display }}</span>
-                    {% if account.institution %}
-                    <span class="account-institution">{{ account.institution }}</span>
+                    {% if account.account_number_last4 %}
+                    <span class="account-mask">••••{{ account.account_number_last4 }}</span>
                     {% endif %}
                 </div>
                 <div class="account-actions">
@@ -61,34 +68,7 @@
             {% endfor %}
         </div>
     </div>
-    {% endif %}
-
-    <!-- Liability Accounts -->
-    {% if liability_accounts %}
-    <div class="account-section">
-        <h2 class="section-title">Liabilities</h2>
-        <div class="account-grid">
-            {% for account in liability_accounts %}
-            <div class="account-card">
-                <div class="account-header">
-                    <span class="account-name">{{ account.name }}</span>
-                    <span class="account-balance negative">${{ account.current_balance|floatformat:2 }}</span>
-                </div>
-                <div class="account-meta">
-                    <span class="account-type">{{ account.get_account_type_display }}</span>
-                    {% if account.institution %}
-                    <span class="account-institution">{{ account.institution }}</span>
-                    {% endif %}
-                </div>
-                <div class="account-actions">
-                    <a href="{% url 'finance:account_detail' account.pk %}" class="btn btn-secondary btn-sm">View</a>
-                    <a href="{% url 'finance:account_update' account.pk %}" class="btn btn-secondary btn-sm">Edit</a>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
+    {% endfor %}
 
     {% if not accounts %}
     <div class="empty-state">
@@ -99,6 +79,18 @@
 </div>
 
 <style nonce="{{ csp_nonce }}">
+.institution-heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: .6rem; }
+.institution-note, .institution-count { font-size: .8rem; font-weight: 400;
+                                        color: var(--text-muted, #6b7280); }
+.account-mask { font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+@media (max-width: 480px) {
+    .institution-heading { flex-direction: column; align-items: flex-start; gap: .15rem; }
+    .account-grid { grid-template-columns: 1fr; }
+    .account-header { flex-wrap: wrap; gap: .25rem; }
+    .account-actions { display: flex; gap: .4rem; }
+    .account-actions .btn { flex: 1 1 auto; min-height: 44px; }
+}
+
 .page-header {
     display: flex;
     justify-content: space-between;

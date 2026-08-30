@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Attribution Review - Finance - Whole Life Journey{% endblock %}
 
@@ -31,7 +32,7 @@
         <article class="attr-row" data-transaction-id="{{ txn.pk }}">
             <div class="attr-main">
                 <span class="attr-desc">{{ txn.payee|default:txn.description }}</span>
-                <span class="attr-meta">{{ txn.date|date:"M j, Y" }} · {{ txn.account.name }} · ${{ txn.absolute_amount|floatformat:2 }}</span>
+                <span class="attr-meta">{{ txn.date|date:"M j, Y" }} · {{ txn.account.name }} · {{ txn.absolute_amount|money }}</span>
             </div>
             <div class="attr-actions">
                 <label class="sr-only" for="entity-{{ txn.pk }}">Entity for {{ txn.description }}</label>
@@ -62,7 +63,7 @@
         <article class="attr-row" data-transaction-id="{{ item.transaction.pk }}">
             <div class="attr-main">
                 <span class="attr-desc">{{ item.transaction.payee|default:item.transaction.description }}</span>
-                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · ${{ item.transaction.absolute_amount|floatformat:2 }}</span>
+                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · {{ item.transaction.absolute_amount|money }}</span>
                 <span class="attr-why">{{ item.attribution.attributed_entity.name }} — {{ item.why }}</span>
             </div>
             <div class="attr-actions">
@@ -94,7 +95,7 @@
         <article class="attr-row attr-row-muted">
             <div class="attr-main">
                 <span class="attr-desc">{{ item.transaction.payee|default:item.transaction.description }}</span>
-                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · ${{ item.transaction.absolute_amount|floatformat:2 }}</span>
+                <span class="attr-meta">{{ item.transaction.date|date:"M j, Y" }} · {{ item.transaction.account.name }} · {{ item.transaction.absolute_amount|money }}</span>
                 <span class="attr-why">{{ item.reason_label }}</span>
             </div>
             <div class="attr-category">

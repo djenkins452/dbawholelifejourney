@@ -29,6 +29,9 @@ from django.views.generic import (
 
 from apps.core.current_context import PageSummaryMixin
 from apps.core.utils import get_user_today
+from apps.finance.services.account_grouping import (
+    group_accounts_by_institution,
+)
 from apps.finance.services.finance_home_summary import build_finance_home_summary
 
 from apps.core.events.domain_events import safe_emit_event, EventTypes
@@ -263,13 +266,17 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
         context["finance_summary"] = build_finance_home_summary(user)
 
         # Accounts summary
-        accounts = FinancialAccount.objects.filter(
+        # `select_related` because every row asks for its institution — without it
+        # the accounts card is one extra query per account.
+        accounts = list(FinancialAccount.objects.filter(
             user=user, status='active', is_hidden=False
-        ).order_by('sort_order', 'name')
+        ).select_related('bank_connection').order_by('sort_order', 'name'))
 
         total_assets = Decimal('0.00')
         total_liabilities = Decimal('0.00')
 
+        # Totals span EVERY account, deliberately computed before grouping so the
+        # figures can never become per-institution subtotals by accident.
         for account in accounts:
             if account.is_asset:
                 total_assets += account.current_balance
@@ -277,6 +284,7 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
                 total_liabilities += abs(account.current_balance)
 
         context['accounts'] = accounts
+        context['account_groups'] = group_accounts_by_institution(accounts)
         context['total_assets'] = total_assets
         context['total_liabilities'] = total_liabilities
         context['net_worth'] = total_assets - total_liabilities
@@ -352,18 +360,22 @@ class AccountListView(FinanceUserMixin, ListView):
     context_object_name = 'accounts'
 
     def get_queryset(self):
-        return super().get_queryset().order_by('sort_order', 'name')
+        # One query for the institutions too — the page groups by them.
+        return (super().get_queryset()
+                .select_related('bank_connection')
+                .order_by('sort_order', 'name'))
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        accounts = context['accounts']
+        accounts = list(context['accounts'])
 
-        # Calculate totals
+        # Totals are taken across EVERY account, never per institution.
         total_assets = sum(
-            a.current_balance for a in accounts if a.is_asset
+            (a.current_balance for a in accounts if a.is_asset), Decimal('0.00')
         )
         total_liabilities = sum(
-            abs(a.current_balance) for a in accounts if a.is_liability
+            (abs(a.current_balance) for a in accounts if a.is_liability),
+            Decimal('0.00')
         )
 
         context['total_assets'] = total_assets
@@ -373,6 +385,7 @@ class AccountListView(FinanceUserMixin, ListView):
         # Group accounts
         context['asset_accounts'] = [a for a in accounts if a.is_asset]
         context['liability_accounts'] = [a for a in accounts if a.is_liability]
+        context['account_groups'] = group_accounts_by_institution(accounts)
 
         return context
 

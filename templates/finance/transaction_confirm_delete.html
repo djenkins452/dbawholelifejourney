@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Delete Transaction - Finance - Whole Life Journey{% endblock %}
 
@@ -17,7 +18,7 @@
         <p>Are you sure you want to delete this transaction?</p>
         <p class="transaction-info">
             <strong>{{ object.description }}</strong><br>
-            {{ object.date|date:"M j, Y" }} &middot; ${{ object.amount|floatformat:2 }}
+            {{ object.date|date:"M j, Y" }} &middot; {{ object.amount|money }}
         </p>
 
         <form method="post">

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Transaction - Finance - Whole Life Journey{% endblock %}
 
@@ -19,7 +20,7 @@
     <div class="detail-card">
         <div class="transaction-header">
             <span class="transaction-amount {% if transaction.amount >= 0 %}positive{% else %}negative{% endif %}">
-                {% if transaction.amount >= 0 %}+{% endif %}${{ transaction.amount|floatformat:2 }}
+                {{ transaction.amount|money_signed }}
             </span>
             <span class="transaction-date">{{ transaction.date|date:"F j, Y" }}</span>
         </div>

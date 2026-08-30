@@ -59863,3 +59863,74 @@ route; every route rejects GET (405); audit for create/rename/archive/restore/de
 with both sides of a rename, and audit failure never blocking the user; shared-authority
 checks; 44px targets, 16px inputs, 480px breakpoint, no fixed layout widths, labelled
 fields, CSRF on every form, no inline handlers.
+
+## 2026-08-30 — Finance presentation: one money formatter, and accounts under their bank
+
+**Both are presentation only.** No stored value, sign, calculation, or anything Plaid
+sends was touched.
+
+### 1. Currency
+
+The dashboard was rendering `$46968.05` — no thousands separator — and, worse,
+`$-396178.58`, a minus stranded between the currency symbol and the digits. Two places
+worked around that with `|floatformat:2|slice:"1:"`, chopping the sign off the rendered
+string: a formatting decision hidden inside a string operation, which silently mangles a
+positive number into `$96,178.58`.
+
+`apps/finance/templatetags/finance_format.py` — three filters, one rule each:
+
+| filter | renders | for |
+|---|---|---|
+| `money` | `$46,968.05` · `-$396,178.58` · `$0.00` | the value as it is |
+| `money_signed` | `+$3,585.85` · `-$2,127.31` | where direction is the point |
+| `money_abs` | `$396,178.58` | where a label already says the direction ("Over by …") |
+
+The minus always precedes the `$`. Semantic colour classes stay in the templates — the
+number says how much, the class says what it means, and neither decides the other.
+
+Rounding is `ROUND_HALF_UP` explicitly: Python's default is banker's rounding, so
+`0.005` would have rendered `$0.00` — right for statistics, surprising for money. Only
+the displayed string is rounded.
+
+A missing value renders `—`, not `$0.00`: no balance and a zero balance are different
+facts, and only one of them is a number.
+
+**Applied to all 19 Finance templates** — dashboard, accounts, transactions, goals,
+budgets, recurring, metrics, attribution, imports, connections and every confirm-delete
+page. Four audit tests now fail the build if any template renders a bare `${{ … }}`,
+reintroduces the `slice:"1:"` hack, uses a filter without loading the library, or puts a
+literal sign in front of a signed amount (`-{{ x|money }}` would render `--$5`).
+
+### 2. Accounts grouped by institution
+
+Chase and First Horizon accounts sat in one undifferentiated list.
+`apps/finance/services/account_grouping.py` groups by
+`account.bank_connection.institution_name` — the **connection relationship**, which the
+provider supplied. Never the account's name or its free-text `institution` field: those
+are labels a person can type anything into, and grouping money by a guess about a string
+is how two "Chase"s and a "chase " become separate banks. A test asserts an account
+*named* "Chase-looking manual account" with no connection does **not** land under Chase.
+
+- Institutions sort by display name (case-insensitively); **`Manually added` sorts last**
+  as the residual group it is, not alphabetically among real banks.
+- Order **within** a group is left exactly as the caller supplied it, preserving the
+  existing `sort_order, name` intent rather than re-deciding it.
+- A connection whose `institution_name` is blank is treated as manual rather than
+  producing an unnamed heading.
+- `select_related('bank_connection')` on both views; a test adds 20 accounts and fails if
+  the query count grows by more than 2.
+- **Totals are computed across every account before grouping**, so they can never become
+  per-institution subtotals by accident.
+- Links, types, balances, masked identifiers and View/Edit actions all preserved; no
+  provider identifier is rendered (asserted).
+
+ONE grouping function serves the dashboard card and the Accounts page, so the two cannot
+drift about which bank an account belongs to.
+
+**Tests (34).** All four reported values; `$-` never appears; separators and exactly two
+decimals; floats/strings/ints accepted; missing ≠ zero; signed and absolute variants; no
+raw `Decimal` or exponent leaks; the filter working through a real template; the four
+template audits; grouping, sorting, manual fallback, blank-institution, every-account-
+exactly-once, within-group order, no-inference, no-merging; rendered headings on both
+surfaces; formatted currency on both; totals across all accounts; no provider ids; the
+N+1 guard; and 375px breakpoints on both templates.

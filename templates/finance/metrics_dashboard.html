@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Financial Metrics - Finance - Whole Life Journey{% endblock %}
 
@@ -24,20 +25,20 @@
         <div class="metric-card highlight">
             <span class="metric-label">Net Worth</span>
             <span class="metric-value {% if current_snapshot.net_worth >= 0 %}positive{% else %}negative{% endif %}">
-                ${{ current_snapshot.net_worth|floatformat:2 }}
+                {{ current_snapshot.net_worth|money }}
             </span>
         </div>
         <div class="metric-card">
             <span class="metric-label">Total Assets</span>
-            <span class="metric-value positive">${{ current_snapshot.total_assets|floatformat:2 }}</span>
+            <span class="metric-value positive">{{ current_snapshot.total_assets|money }}</span>
         </div>
         <div class="metric-card">
             <span class="metric-label">Total Liabilities</span>
-            <span class="metric-value negative">${{ current_snapshot.total_liabilities|floatformat:2 }}</span>
+            <span class="metric-value negative">{{ current_snapshot.total_liabilities|money }}</span>
         </div>
         <div class="metric-card">
             <span class="metric-label">Liquid Assets</span>
-            <span class="metric-value">${{ current_snapshot.liquid_assets|floatformat:2 }}</span>
+            <span class="metric-value">{{ current_snapshot.liquid_assets|money }}</span>
         </div>
     </div>
 
@@ -46,16 +47,16 @@
     <div class="metrics-grid mb-6">
         <div class="metric-card">
             <span class="metric-label">Income</span>
-            <span class="metric-value positive">+${{ current_snapshot.monthly_income|floatformat:2 }}</span>
+            <span class="metric-value positive">+{{ current_snapshot.monthly_income|money_abs }}</span>
         </div>
         <div class="metric-card">
             <span class="metric-label">Expenses</span>
-            <span class="metric-value negative">-${{ current_snapshot.monthly_expenses|floatformat:2 }}</span>
+            <span class="metric-value negative">-{{ current_snapshot.monthly_expenses|money_abs }}</span>
         </div>
         <div class="metric-card">
             <span class="metric-label">Cash Flow</span>
             <span class="metric-value {% if current_snapshot.monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
-                {% if current_snapshot.monthly_cash_flow >= 0 %}+{% endif %}${{ current_snapshot.monthly_cash_flow|floatformat:2 }}
+                {{ current_snapshot.monthly_cash_flow|money_signed }}
             </span>
         </div>
         <div class="metric-card">
@@ -107,10 +108,10 @@
                 <tr>
                     <td>{{ snap.snapshot_date|date:"M j, Y" }}</td>
                     <td class="text-right {% if snap.net_worth >= 0 %}positive{% else %}negative{% endif %}">
-                        ${{ snap.net_worth|floatformat:0 }}
+                        {{ snap.net_worth|money }}
                     </td>
                     <td class="text-right {% if snap.monthly_cash_flow >= 0 %}positive{% else %}negative{% endif %}">
-                        {% if snap.monthly_cash_flow >= 0 %}+{% endif %}${{ snap.monthly_cash_flow|floatformat:0 }}
+                        {{ snap.monthly_cash_flow|money_signed }}
                     </td>
                     <td class="text-right">{{ snap.savings_rate|floatformat:1 }}%</td>
                 </tr>

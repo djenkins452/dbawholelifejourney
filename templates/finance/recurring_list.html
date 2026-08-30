@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Recurring Transactions - Finance - Whole Life Journey{% endblock %}
 
@@ -22,16 +23,16 @@
     <div class="recurring-summary mb-6">
         <div class="summary-card">
             <span class="summary-label">Monthly Income</span>
-            <span class="summary-value income">+${{ monthly_recurring_income|floatformat:0 }}</span>
+            <span class="summary-value income">+{{ monthly_recurring_income|money_abs }}</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">Monthly Expenses</span>
-            <span class="summary-value expense">-${{ monthly_recurring_expenses|floatformat:0 }}</span>
+            <span class="summary-value expense">-{{ monthly_recurring_expenses|money_abs }}</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">Net Recurring</span>
             <span class="summary-value {% if monthly_recurring_net >= 0 %}income{% else %}expense{% endif %}">
-                {% if monthly_recurring_net >= 0 %}+{% endif %}${{ monthly_recurring_net|floatformat:0 }}
+                {{ monthly_recurring_net|money_signed }}
             </span>
         </div>
     </div>
@@ -52,7 +53,7 @@
                 </div>
                 <div class="recurring-right">
                     <span class="recurring-amount {% if recurring.is_expense %}expense{% else %}income{% endif %}">
-                        {% if recurring.is_expense %}-{% else %}+{% endif %}${{ recurring.amount|floatformat:2 }}
+                        {% if recurring.is_expense %}-{% else %}+{% endif %}{{ recurring.amount|money_abs }}
                     </span>
                     <span class="recurring-date">
                         {{ recurring.next_due_date|date:"M j" }}
@@ -82,7 +83,7 @@
                     <span class="recurring-name">{{ recurring.name }}</span>
                     <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
                 </div>
-                <div class="card-amount income">+${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-amount income">+{{ recurring.amount|money_abs }}</div>
                 <div class="card-meta">
                     <span>{{ recurring.account.name }}</span>
                     <span>Next: {{ recurring.next_due_date|date:"M j" }}</span>
@@ -104,7 +105,7 @@
                     <span class="recurring-name">{{ recurring.name }}</span>
                     <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
                 </div>
-                <div class="card-amount expense">-${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-amount expense">-{{ recurring.amount|money_abs }}</div>
                 <div class="card-meta">
                     <span>{{ recurring.account.name }}</span>
                     <span>Next: {{ recurring.next_due_date|date:"M j" }}</span>
@@ -126,7 +127,7 @@
                     <span class="recurring-name">{{ recurring.name }}</span>
                     <span class="recurring-frequency">{{ recurring.get_frequency_display }}</span>
                 </div>
-                <div class="card-amount">${{ recurring.amount|floatformat:2 }}</div>
+                <div class="card-amount">{{ recurring.amount|money }}</div>
                 <div class="card-meta">
                     <span>{{ recurring.account.name }}</span>
                     <span class="paused-badge">Paused</span>

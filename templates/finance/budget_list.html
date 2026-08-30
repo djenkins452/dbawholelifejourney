@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Budgets - Finance - Whole Life Journey{% endblock %}
 
@@ -22,15 +23,15 @@
     <div class="budget-summary mb-6">
         <div class="summary-card">
             <span class="summary-label">Total Budgeted</span>
-            <span class="summary-value">${{ total_budgeted|floatformat:2 }}</span>
+            <span class="summary-value">{{ total_budgeted|money }}</span>
         </div>
         <div class="summary-card">
             <span class="summary-label">Total Spent</span>
-            <span class="summary-value">${{ total_spent|floatformat:2 }}</span>
+            <span class="summary-value">{{ total_spent|money }}</span>
         </div>
         <div class="summary-card {% if total_remaining >= 0 %}positive{% else %}negative{% endif %}">
             <span class="summary-label">Remaining</span>
-            <span class="summary-value">${{ total_remaining|floatformat:2 }}</span>
+            <span class="summary-value">{{ total_remaining|money }}</span>
         </div>
         <div class="summary-card status-summary">
             <span class="status-item on-track">{{ on_track_count }} on track</span>
@@ -53,17 +54,17 @@
                     <div class="progress-fill" style="width: {{ budget.spent_percentage }}%;"></div>
                 </div>
                 <div class="progress-labels">
-                    <span class="spent">${{ budget.spent_amount|floatformat:2 }} spent</span>
-                    <span class="budgeted">of ${{ budget.total_budget|floatformat:2 }}</span>
+                    <span class="spent">{{ budget.spent_amount|money }} spent</span>
+                    <span class="budgeted">of {{ budget.total_budget|money }}</span>
                 </div>
             </div>
 
             <div class="budget-remaining">
                 {% if budget.remaining_amount >= 0 %}
-                <span class="remaining-value positive">${{ budget.remaining_amount|floatformat:2 }}</span>
+                <span class="remaining-value positive">{{ budget.remaining_amount|money }}</span>
                 <span class="remaining-label">remaining</span>
                 {% else %}
-                <span class="remaining-value negative">${{ budget.remaining_amount|floatformat:2|slice:"1:" }}</span>
+                <span class="remaining-value negative">{{ budget.remaining_amount|money_abs }}</span>
                 <span class="remaining-label">over budget</span>
                 {% endif %}
             </div>

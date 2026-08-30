@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Delete Account - Finance - Whole Life Journey{% endblock %}
 
@@ -15,7 +16,7 @@
     <div class="delete-card">
         <h1>Delete Account</h1>
         <p>Are you sure you want to delete <strong>{{ object.name }}</strong>?</p>
-        <p class="text-muted">This account has a balance of ${{ object.current_balance|floatformat:2 }}. All associated transactions will also be deleted.</p>
+        <p class="text-muted">This account has a balance of {{ object.current_balance|money }}. All associated transactions will also be deleted.</p>
 
         <form method="post">
             {% csrf_token %}

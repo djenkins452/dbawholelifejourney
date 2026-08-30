@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Delete Goal - Finance - Whole Life Journey{% endblock %}
 
@@ -18,7 +19,7 @@
         <p class="goal-info">
             <span class="goal-icon">{{ object.icon }}</span>
             <strong>{{ object.name }}</strong><br>
-            Target: ${{ object.target_amount|floatformat:2 }}
+            Target: {{ object.target_amount|money }}
         </p>
 
         <form method="post">

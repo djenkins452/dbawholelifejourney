@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Import Details - Finance - Whole Life Journey{% endblock %}
 
@@ -140,7 +141,7 @@
                     {% endif %}
                 </div>
                 <div class="transaction-amount {% if transaction.amount < 0 %}expense{% else %}income{% endif %}">
-                    {% if transaction.amount < 0 %}-{% endif %}${{ transaction.absolute_amount|floatformat:2 }}
+                    {% if transaction.amount < 0 %}-{% endif %}{{ transaction.absolute_amount|money_abs }}
                 </div>
             </a>
             {% endfor %}

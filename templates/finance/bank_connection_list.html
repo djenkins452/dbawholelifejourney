@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 
 {% block title %}Connected Accounts - Finance - Whole Life Journey{% endblock %}
 
@@ -109,7 +110,7 @@
                 <div class="linked-account">
                     <span class="account-name">{{ account.name }}</span>
                     <span class="account-balance">
-                        {% if account.is_liability %}-{% endif %}${{ account.current_balance|floatformat:2 }}
+                        {% if account.is_liability %}-{% endif %}{{ account.current_balance|money_abs }}
                     </span>
                 </div>
                 {% endfor %}

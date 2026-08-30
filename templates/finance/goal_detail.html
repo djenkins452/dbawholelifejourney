@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load finance_format %}
 {% load humanize %}
 
 {% block title %}{{ goal.name }} - Finance - Whole Life Journey{% endblock %}
@@ -29,15 +30,15 @@
                     <span class="stat-label">Current</span>
                     {# The FULL balance, never truncated to the target — the ring is
                        capped at 100%, the number is not. #}
-                    <span class="stat-value">${{ goal.current_value|floatformat:2|intcomma }}</span>
+                    <span class="stat-value">{{ goal.current_value|money }}</span>
                 </div>
                 <div class="progress-stat">
                     <span class="stat-label">Target</span>
-                    <span class="stat-value">${{ goal.target_amount|floatformat:2|intcomma }}</span>
+                    <span class="stat-value">{{ goal.target_amount|money }}</span>
                 </div>
                 <div class="progress-stat">
                     <span class="stat-label">Remaining</span>
-                    <span class="stat-value">${{ goal.remaining_amount|floatformat:2|intcomma }}</span>
+                    <span class="stat-value">{{ goal.remaining_amount|money }}</span>
                 </div>
             </div>
         </div>
@@ -48,7 +49,7 @@
             {% if goal.is_completed %}
             <span class="badge badge-success">Funded — meeting target</span>
             {% else %}
-            <span class="badge">Underfunded — ${{ goal.remaining_amount|floatformat:2|intcomma }} below target</span>
+            <span class="badge">Underfunded — {{ goal.remaining_amount|money }} below target</span>
             {% endif %}
             Balance from <a href="{% url 'finance:account_detail' goal.linked_account.pk %}">{{ goal.linked_account.name }}</a>{% if goal.balance_as_of %}, as of {{ goal.balance_as_of|date:"M j, Y g:i A" }}{% else %}, not yet refreshed{% endif %}.
         </p>
@@ -86,7 +87,7 @@
 
             {% if goal.monthly_contribution_needed %}
             <dt>Monthly Contribution Needed</dt>
-            <dd>${{ goal.monthly_contribution_needed|floatformat:2 }}</dd>
+            <dd>{{ goal.monthly_contribution_needed|money }}</dd>
             {% endif %}
 
             {% if goal.linked_account %}

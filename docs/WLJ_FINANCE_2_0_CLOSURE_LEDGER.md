@@ -74,8 +74,34 @@ is `PENDING` or `IN PROGRESS`.
 | R.5 | CoS grounding + redaction tests | DONE | Finance CoS evidence/redaction tests green in the full suite. | `544531a0` |
 | R.6 | Full Finance + request-path-safety suites | DONE | 1,390 tests, **OK (skipped=4)**, 0 failures — `apps.finance`, request-path safety contract, celery contract, help. | `544531a0` |
 | R.7 | Migration rehearsal | DONE | `makemigrations --check --dry-run` → **No changes detected**. No new migration was needed: the closure work changed calculation and pairing logic, not schema. | `544531a0` |
-| R.8 | Web/worker same commit; migrations applied | DONE | web `544531a0aaa8`, worker `544531a0aaa8` (truth-probe `worker_build`), database `connected`. | `544531a0` |
-| R.9 | Scheduler healthy | DONE | `/_health/`: `scheduler: ALIVE`, `redis: connected`. | `544531a0` |
-| R.10 | Temporary operator endpoints 404 | PENDING | | |
+| R.8 | Web/worker same commit; migrations applied | DONE | Final: web `2abf10c668f5`, worker `2abf10c668f5`, database `connected`. No migration was pending (R.7). | `2abf10c6` |
+| R.9 | Scheduler healthy | DONE | Final `/_health/`: `status: healthy`, `scheduler: ALIVE`, `redis: connected` (the `circuit_open` seen seconds after deploy cleared on its own, as it always does). | `2abf10c6` |
+| R.10 | Temporary operator endpoints 404 | DONE | `FinanceClosureAPIView`, its URL and both analysis modules removed in ONE commit. All six actions return **404**; `ready-tasks` and `truth-probe` still 200, so the removal was surgical. | `2abf10c6` |
 | R.11 | No paid product / provider call / financial action | DONE | No Plaid product change, no Link token, no billed refresh, no institution change, no provider call, no outward financial action. Reconciliation and audit modules are read-only by construction (`read_only_proof`). | — |
 | R.12 | Production data reconciled | DONE | Net worth 532,421.42 proven from real records (see 1.x); arithmetic balances; zero artifacts; zero foreign rows. | `544531a0` |
+
+---
+
+## Closed
+
+Every item above is `DONE`. Nothing is `PENDING`, `IN PROGRESS` or `BLOCKED`.
+
+Three things are worth carrying forward, because each was found by verification rather
+than by design:
+
+1. **The net worth was real.** The suspicion in the brief was reasonable and wrong. Danny
+   entered seven assets by hand over seventeen minutes on the morning of 2026-08-31, and
+   the earlier "no tangible assets" state simply predates that. Nothing was removed. The
+   artifact detector requires two independent signals and *still* only flags — a real boat
+   can be called "Test Boat", and deleting a person's actual asset is a far worse failure
+   than leaving a stray row.
+
+2. **A label that answers two questions is a defect even when every number is right.**
+   `cash_outflow` meant external economic outflow in some places and liquid-cash reduction
+   in others, and so omitted 294,391.76 of real account movement while looking correct.
+   The fix was a second name, not a better definition.
+
+3. **Fixing the readers is not fixing the defect.** The one-directional pair read was
+   corrected in the pairing pass, and then found again in the counting, in five more
+   modules that had each written the predicate by hand. There is one `paired_q()` now and
+   a contract test that fails if a sixth appears.

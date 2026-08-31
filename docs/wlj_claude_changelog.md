@@ -60957,3 +60957,9 @@ Removed: `FinanceClosureAPIView` + its URL, `finance_calc/reconciliation.py`,
 Unrelated observation, not fixed here: `admin_console.tests.test_admin_console`
 `CodebaseMetricsServiceTest` walks the entire repository and does not finish in
 seven minutes. Pre-existing; nothing in this work touches it.
+
+## 2026-08-31 — Finance 2.0 accounting and pairing closure: ledger closed
+
+`docs/WLJ_FINANCE_2_0_CLOSURE_LEDGER.md` — all 40 items DONE, nothing pending.
+Final state: web and worker both `2abf10c668f5`, scheduler ALIVE, redis connected,
+no pending migration, temporary endpoint 404, production identities 9/9 holding.

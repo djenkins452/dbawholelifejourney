@@ -61026,3 +61026,57 @@ seven minutes. Pre-existing; nothing in this work touches it.
 `docs/WLJ_FINANCE_2_0_CLOSURE_LEDGER.md` — all 40 items DONE, nothing pending.
 Final state: web and worker both `2abf10c668f5`, scheduler ALIVE, redis connected,
 no pending migration, temporary endpoint 404, production identities 9/9 holding.
+
+## 2026-08-31 — the dashboard stops calling three things one thing
+
+**The label was the defect.** The Finance dashboard showed one figure called Monthly Cash
+Flow, computed in `views.py` as the sum of positive amounts minus the sum of negative
+amounts over `financial_activity` — every account, every role, no view taken on meaning.
+That is meaning #5 in the architecture's six (§5.1), *account-level movement*, and it is
+none of the three things a person actually wants to know. It counted a card purchase and
+the payment settling it whenever the payment was unpaired, treated mortgage principal as
+an expense, and read a refund as income.
+
+Replaced by three named answers in `finance_calc/monthly_views.py`, each composed from
+the existing measure authority — no second classifier:
+
+* **Spending surplus or deficit** — income less net spending.
+* **Liquid cash movement** — cash in less cash out, measured only where cash is held.
+* **Credit-card activity** — charges + interest − payments − credits, positive means the
+  debt grew.
+
+Card activity is labelled **activity-based**: WLJ stores no per-account statement balance,
+so it cannot reconcile opening to closing and does not pretend to.
+
+The old figure is still computed and shown at the bottom of Spending & Cash Flow, named
+honestly, with its role composition — a number that changes without explanation is a
+number nobody trusts again.
+
+**A real defect the inspection found.** A return credited back to a credit card carries
+the provider's own REFUND detail, but the rule separating "a payment arrived" from "I
+borrowed more" on a revolving account fired first and held the row as `uncertain`. Money
+came back and no measure showed it: net spending did not fall and card debt did not fall.
+The rule now exempts explicit refund evidence, exactly as it already exempted INCOME —
+`_refund_evidence` is evidence-only, so this cannot readmit the LOAN_DISBURSEMENTS credits
+it exists to catch. Classifier 1.2.1 → **1.2.2**. Six shadow tests pin what must not have
+moved.
+
+**Liabilities.** `asset_registry.liability_breakdown` names the largest four debts under
+the total, sorted descending, each linking to its account, with an "and X more" line
+carrying the exact remainder. It reads the same accounts under the same filters as the
+headline, and derives the remainder by subtraction, so `reconciles` means something.
+
+**Month-to-date.** An incomplete month is labelled as such on both surfaces. A low number
+on the 3rd is not a quiet month.
+
+**CoS.** New `monthly_views` truth entity + `monthly_views_packet`. Every view arrives with
+the question it answers, and with explicit instruction never to describe one as another.
+
+Files: `finance_calc/monthly_views.py` (new), `roles.py`, `measures.py`, `cos_evidence.py`,
+`finance_domain_truth.py`, `asset_registry.py`, `views.py`, `views_money.py`,
+`templates/finance/dashboard.html`, `templates/finance/money_overview.html`,
+`tests/test_monthly_views.py` (new, 56 tests).
+
+Not fixed here, flagged: nine `apps/dashboard` tests assert the retired
+`dashboard_v2/home.html`; the app renders v3. Pre-existing — no file under `apps/dashboard`
+was touched by this change.

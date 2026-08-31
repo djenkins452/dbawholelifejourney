@@ -80,6 +80,16 @@ class _SignedInFinanceView(FinanceEnabledRequiredMixin, PageSummaryMixin,
         return super().get(request, *args, **kwargs)
 
 
+def _monthly_views(user):
+    """This month's three answers, month-to-date, over the same period the dashboard
+    uses — so a person clicking through from a figure lands on that same figure."""
+    from apps.core.utils import get_user_today
+    from apps.finance.services.finance_calc.monthly_views import monthly_views
+
+    today = get_user_today(user)
+    return monthly_views(user, today.replace(day=1), today, today=today)
+
+
 class MoneyOverviewView(_SignedInFinanceView):
     """The nine measures, each with its assumptions and its gaps."""
 
@@ -105,6 +115,10 @@ class MoneyOverviewView(_SignedInFinanceView):
             # and "what left my account" disagree, decides one is wrong, and stops
             # trusting both.
             "money_bridge": M.money_bridge(user, measures=results),
+            # The three dashboard answers, each with its full walk. The dashboard shows
+            # the totals; this is where "why is that the number?" is answered, which is
+            # the only reason the dashboard is allowed to be brief.
+            "monthly_views": _monthly_views(user),
             "measures": [{
                 "key": key,
                 "label": MEASURE_LABELS[key],

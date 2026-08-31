@@ -89,7 +89,7 @@ class FinanceEntityTruthTests(TestCase):
              "obligations", "controllable_costs", "savings_opportunities",
              "financial_snapshot", "data_health", "forecast", "affordability",
              "net_worth", "net_worth_history", "plan_results",
-             "data_health_detail", "money_bridge"),
+             "data_health_detail", "money_bridge", "monthly_views"),
         )
 
     def test_unknown_entity_type_is_rejected(self):

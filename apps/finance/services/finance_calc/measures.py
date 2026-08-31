@@ -708,9 +708,15 @@ ALL_MEASURES = (
 )
 
 
-def all_measures(user, start=None, end=None, transactions=None):
-    """Every measure over ONE classification pass — the rows are classified once."""
-    rows = _rows(user, start, end, transactions=transactions)
+def all_measures(user, start=None, end=None, transactions=None, rows=None):
+    """Every measure over ONE classification pass — the rows are classified once.
+
+    `rows` lets a caller that has ALREADY classified (the monthly views, which also need
+    the same rows for the card view) hand them straight in, so the pass happens once for
+    the whole page rather than once per consumer.
+    """
+    rows = rows if rows is not None else _rows(user, start, end,
+                                               transactions=transactions)
     return {
         "cash_inflow": cash_inflow(user, start, end, rows),
         "cash_outflow": cash_outflow(user, start, end, rows),

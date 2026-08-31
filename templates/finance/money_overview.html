@@ -134,6 +134,49 @@
         <p class="money-card-version">calculation {{ bridge.calculation_version }}</p>
     </section>
 
+    <section class="monthly-answers" aria-labelledby="answers-heading" data-testid="monthly-answers">
+        <h2 id="answers-heading">This month{% if monthly_views.period.is_partial %} <span class="monthly-answers-qualifier">{{ monthly_views.period.qualifier }}</span>{% endif %}</h2>
+        <p class="money-bridge-intro">{{ monthly_views.explains_the_difference }}</p>
+
+        {% for view in monthly_views.views %}
+        <div class="monthly-answer" data-answer="{{ view.key }}" id="view-{{ view.key }}">
+            <h3 class="monthly-answer-question">{{ view.question }}</h3>
+            <p class="monthly-answer-headline">
+                <span class="monthly-answer-label">{{ view.label }}</span>
+                <strong class="monthly-answer-amount">{{ view.amount|money_abs }}</strong>
+            </p>
+            <table class="monthly-answer-walk">
+                <tbody>
+                {% for line in view.lines %}
+                <tr{% if line.is_subtotal %} class="monthly-answer-subtotal"{% endif %}>
+                    <th scope="row">{{ line.label }}</th>
+                    <td>{% if line.sign == 1 %}+{% else %}&minus;{% endif %}{{ line.amount|money_abs }}</td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            <p class="money-view-means">{{ view.means }}</p>
+            {% if view.sign_convention %}<p class="money-view-means">{{ view.sign_convention }}</p>{% endif %}
+            {% if view.basis_note %}<p class="money-view-means" data-testid="card-basis">{{ view.basis_note }}</p>{% endif %}
+            {% if view.current_balance %}<p class="money-view-means">Current card balance: {{ view.current_balance|money }}</p>{% endif %}
+        </div>
+        {% endfor %}
+
+        <details class="monthly-answer-superseded" data-testid="superseded">
+            <summary>What happened to &ldquo;Monthly Cash Flow&rdquo;?</summary>
+            <p class="money-view-means">
+                {{ monthly_views.superseded_account_movement.means }}
+            </p>
+            <p class="money-view-means">
+                It came to {{ monthly_views.superseded_account_movement.amount|money_signed }}
+                this month &mdash; {{ monthly_views.superseded_account_movement.credits|money }} in
+                credits less {{ monthly_views.superseded_account_movement.debits|money }} in debits.
+                {{ monthly_views.superseded_account_movement.why_superseded }}
+            </p>
+        </details>
+        <p class="money-card-version">calculation {{ monthly_views.calculation_version }}</p>
+    </section>
+
     <section class="money-views" aria-labelledby="views-heading" data-testid="money-bridge">
         <h2 id="views-heading">Six views of the same money</h2>
         <p class="money-bridge-intro">
@@ -239,6 +282,28 @@
   align-items: baseline; margin: 0.75rem 0 0; padding: 0 0.85rem;
   font-size: 1.05rem; }
 .money-walk-total strong { font-variant-numeric: tabular-nums; font-size: 1.3rem; }
+.monthly-answers { margin-top: 2rem; }
+.monthly-answers-qualifier { font-size: .72rem; font-weight: 500; text-transform: uppercase;
+                             letter-spacing: .04em; color: var(--color-text-muted, #6b7280); }
+.monthly-answer { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px;
+                  padding: 1rem 1.1rem; margin-top: 1rem; }
+.monthly-answer-question { font-size: .95rem; margin: 0 0 .5rem; }
+.monthly-answer-headline { display: flex; justify-content: space-between; gap: 1rem;
+                           align-items: baseline; flex-wrap: wrap; margin: 0 0 .6rem; }
+.monthly-answer-label { font-weight: 600; }
+.monthly-answer-amount { font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.monthly-answer-walk { width: 100%; border-collapse: collapse; margin-bottom: .6rem; }
+.monthly-answer-walk th { text-align: left; font-weight: 400; padding: .3rem 0;
+                          font-size: .88rem; }
+.monthly-answer-walk td { text-align: right; padding: .3rem 0; font-size: .88rem;
+                          font-variant-numeric: tabular-nums; white-space: nowrap; }
+.monthly-answer-subtotal th, .monthly-answer-subtotal td {
+                          border-top: 1px solid var(--color-border, #e5e7eb);
+                          font-weight: 600; }
+.monthly-answer-superseded { margin-top: 1rem; font-size: .88rem; }
+.monthly-answer-superseded summary { cursor: pointer; padding: .5rem 0; min-height: 44px;
+                                     display: flex; align-items: center; }
+
 .money-views { margin-top: 2rem; }
 .money-view-list { margin: 1rem 0 0; display: grid; gap: 0.6rem;
   grid-template-columns: 1fr; }

@@ -212,6 +212,68 @@ def active_assets(user):
             .order_by("asset_type", "name"))
 
 
+#: How many liabilities the dashboard names before it stops and offers a link. Four is
+#: the point where a summary stops summarising.
+LIABILITY_PREVIEW_LIMIT = 4
+
+
+def liability_breakdown(user, *, limit=LIABILITY_PREVIEW_LIMIT):
+    """The largest few debts, and honest arithmetic for everything else.
+
+    Lives beside `net_worth_breakdown` and reads the SAME accounts under the same
+    filters, so "Total Liabilities" and the list beneath it cannot disagree — the
+    remainder is derived by subtraction rather than by a second query, which is what
+    makes `reconciles` meaningful instead of decorative.
+
+    Exposes a display name, the account type, and the last four digits the user already
+    sees elsewhere in Finance. Never a Plaid account id, connection id, or access token.
+    """
+    from apps.finance.models import FinancialAccount
+
+    accounts = [a for a in FinancialAccount.objects
+                .filter(user=user, status="active", is_hidden=False)
+                .select_related("bank_connection")
+                if a.is_liability]
+
+    total = sum((abs(a.current_balance or ZERO) for a in accounts), ZERO)
+    ranked = sorted(accounts, key=lambda a: abs(a.current_balance or ZERO),
+                    reverse=True)
+    shown = ranked[:limit]
+
+    items = []
+    for account in shown:
+        items.append({
+            "id": account.pk,
+            "name": account.name,
+            "type": account.get_account_type_display(),
+            "account_type": account.account_type,
+            "institution": account.institution or "",
+            # The user's own last four, already shown on the account pages. Never a
+            # provider identifier.
+            "mask": (f"••{account.account_number_last4}"
+                     if account.account_number_last4 else ""),
+            "balance": abs(account.current_balance or ZERO),
+        })
+
+    shown_total = sum((item["balance"] for item in items), ZERO)
+    remaining_count = len(ranked) - len(shown)
+    remaining_total = total - shown_total
+
+    return {
+        "items": items,
+        "total": total,
+        "shown_total": shown_total,
+        "remaining_count": remaining_count,
+        "remaining_total": remaining_total,
+        "count": len(ranked),
+        "has_more": remaining_count > 0,
+        # Re-derived from the parts. If the named debts plus the remainder ever fail to
+        # equal the headline, the page says so rather than showing a total nobody can
+        # account for.
+        "reconciles": (shown_total + remaining_total) == total,
+    }
+
+
 def net_worth_breakdown(user):
     """Every number on the dashboard, and the arithmetic that ties them together.
 

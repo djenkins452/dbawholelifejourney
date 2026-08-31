@@ -106,6 +106,90 @@ def money_bridge_packet(user, start=None, end=None):
     }
 
 
+def monthly_views_packet(user, start=None, end=None):
+    """The three monthly questions, kept apart.
+
+    The failure this prevents is a specific one: the model being handed a single
+    "cash flow" figure and describing it as spending, or describing a spending deficit
+    as the user's cash going down. Those are different claims about a person's money and
+    only one of them is ever true. So each view arrives with the QUESTION it answers
+    attached, and the note explaining why they differ arrives with them.
+
+    The Chief of Staff may report any of these. She may never present one as another.
+    """
+    from datetime import date as _date
+
+    from apps.core.utils import get_user_today
+    from apps.finance.services.finance_calc import monthly_views as V
+
+    today = get_user_today(user)
+    start = start or today.replace(day=1)
+    end = end or today
+    if isinstance(start, str):
+        start = _date.fromisoformat(start)
+    if isinstance(end, str):
+        end = _date.fromisoformat(end)
+
+    views = V.monthly_views(user, start, end, today=today)
+    period = views["period"]
+
+    def _view(view):
+        out = {
+            "key": view["key"],
+            "answers": view["question"],
+            "label": view["label"],
+            "amount": str(view["amount"]),
+            "means": view["means"],
+            "lines": [{"label": line["label"], "amount": str(line["amount"]),
+                       "sign": line["sign"]} for line in view["lines"]],
+        }
+        if view.get("excludes"):
+            out["excludes"] = list(view["excludes"])
+        if view.get("basis"):
+            out["basis"] = view["basis"]
+            out["basis_note"] = view["basis_note"]
+        if view.get("sign_convention"):
+            out["sign_convention"] = view["sign_convention"]
+        if view.get("current_balance") is not None:
+            out["current_card_balance"] = str(view["current_balance"])
+        return out
+
+    return {
+        "packet": "monthly_views",
+        "period": {
+            "start": period["start"].isoformat(), "end": period["end"].isoformat(),
+            "label": period["label"], "is_partial": period["is_partial"],
+            "qualifier": period["qualifier"],
+            "days_elapsed": period["days_elapsed"],
+            "days_in_month": period["days_in_month"],
+        },
+        "spending_result": _view(views["spending_result"]),
+        "liquid_cash": _view(views["liquid_cash"]),
+        "card_activity": _view(views["card_activity"]),
+        "explains_the_difference": views["explains_the_difference"],
+        "never_do_this": (
+            "Do not describe a spending surplus or deficit as cash flow, do not "
+            "describe liquid-cash movement as spending, and do not describe either as "
+            "credit-card debt. They answer different questions and disagreeing is "
+            "normal."),
+        "superseded": {
+            "label": views["superseded_account_movement"]["label"],
+            "amount": str(views["superseded_account_movement"]["amount"]),
+            "credits": str(views["superseded_account_movement"]["credits"]),
+            "debits": str(views["superseded_account_movement"]["debits"]),
+            "credits_by_role": {k: str(v) for k, v in sorted(
+                views["superseded_account_movement"]["credits_by_role"].items())},
+            "debits_by_role": {k: str(v) for k, v in sorted(
+                views["superseded_account_movement"]["debits_by_role"].items())},
+            "why_superseded": views["superseded_account_movement"]["why_superseded"],
+            "note": ("The dashboard used to show this figure as \"Monthly Cash Flow\". "
+                     "It is kept only to explain a number the user may remember."),
+        },
+        "reconciliation": V.reconcile_views(views),
+        "envelope": _envelope(calculation_version=views["calculation_version"]),
+    }
+
+
 def coverage_packet(user):
     """How complete the underlying classification is. Freshness for the measures."""
     from apps.finance.models import Transaction
@@ -507,6 +591,7 @@ def snapshot_packet(user):
         },
         "debt": debt,
         "money_bridge": money_bridge_packet(user),
+        "monthly_views": monthly_views_packet(user),
         "obligations": obligations,
         "net_worth": net_worth_packet(user),
         "forecast": forecast_packet(user),

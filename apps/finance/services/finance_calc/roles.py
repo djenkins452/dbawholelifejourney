@@ -33,7 +33,7 @@ from typing import Optional
 
 #: Bump when the RULES change. A different version is a new opinion, which is what makes
 #: reclassification explicable rather than mysterious.
-CLASSIFIER_VERSION = "1.2.1"
+CLASSIFIER_VERSION = "1.2.2"
 
 ZERO = Decimal("0.00")
 
@@ -296,11 +296,23 @@ def classify(txn) -> RoleAssignment:
     # So the provider category cannot separate "a payment arrived" from "I borrowed
     # more" on a revolving account. The INSTRUMENT can:
     if amount > 0 and _is_liability_account(txn) \
-            and _primary(txn) not in INCOME_PRIMARIES:
-        # An explicit INCOME classification is exempt. The provider's unreliability here
-        # is specifically about payment-versus-draw; "this is earnings" is a different
-        # claim and is not confusable with a card payment. Card rewards land exactly
-        # this way, and sweeping them into review would lose real income.
+            and _primary(txn) not in INCOME_PRIMARIES \
+            and _refund_evidence(txn) is None:
+        # TWO exemptions, both for the same reason: the provider's unreliability here is
+        # specifically about payment-versus-draw, and neither of these is confusable
+        # with a card payment.
+        #
+        # An explicit INCOME classification is a different claim. Card rewards land
+        # exactly this way, and sweeping them into review would lose real income.
+        #
+        # Explicit refund evidence is also a different claim, and one this rule was
+        # silently destroying: a return credited back to the card carries the provider's
+        # own REFUND/RETURN detail, was held as `uncertain`, and so reduced neither net
+        # spending nor card debt. Money genuinely came back and no measure showed it.
+        # `_refund_evidence` is evidence-only — a linked purchase or the provider's own
+        # word, never the generous upstream shape — so this cannot readmit the
+        # LOAN_DISBURSEMENTS credits the rule exists to catch.
+        #
         liability_type = _account_type(txn)
         if liability_type in CLOSED_END_LIABILITY_TYPES:
             # Nothing can be drawn on a closed-end loan, so this is a payment received.

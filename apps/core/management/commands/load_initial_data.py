@@ -744,6 +744,7 @@ class Command(BaseCommand):
         # One-time: Reset fixtures for the Finance 2.0 completion — budgets and
         # reserves, assets and net worth, data health.
         self._reset_finance_2_0_completion(DataLoadConfig, force, verbosity)
+        self._reset_dashboard_financial_clarity(DataLoadConfig, force, verbosity)
 
         # One-time: Reset fixtures for CoS consolidation (PK 70 release note, help_topics PK 17)
         self._reset_cos_consolidation_fixtures(DataLoadConfig, force, verbosity)
@@ -8945,6 +8946,33 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset Finance 2.0 completion fixtures FAILED: {e}'))
+
+    def _reset_dashboard_financial_clarity(self, DataLoadConfig, force=False,
+                                           verbosity=1):
+        """One-time reset for the three monthly views + liability breakdown."""
+        reset_tracker_name = 'reset_dashboard_financial_clarity_2026_08_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            for loader in ('release_notes', 'help_topics'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(
+                                f'  Reset {loader} for dashboard financial clarity')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for dashboard financial clarity', 'command',
+                'One-time reset: spending result, liquid cash, card activity')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset dashboard financial clarity fixtures FAILED: {e}'))
 
     def _reset_m4_get_to_know_me(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes + help_topics + teaching_destinations

@@ -29,7 +29,10 @@ from django.views.generic import (
 
 from apps.core.current_context import PageSummaryMixin
 from apps.core.utils import get_user_today
-from apps.finance.services.asset_registry import net_worth_breakdown
+from apps.finance.services.asset_registry import (
+    liability_breakdown,
+    net_worth_breakdown,
+)
 from apps.finance.services.account_grouping import (
     group_accounts_by_institution,
 )
@@ -304,19 +307,28 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
             user=user, status='active'
         ).select_related('account', 'category')[:10]
 
-        # Monthly summary — F4 convergence: the ONE shared population authority, so the
-        # dashboard, budgets, history, the metric snapshots, and the Chief of Staff can no
-        # longer disagree about transfers or opening balances (Article III.1).
-        from apps.finance.services.attribution_population import financial_activity
+        # The three monthly questions, each answered separately and never as each other:
+        # did I outspend my income, did my available cash move, did my card debt move.
+        # ONE classification pass feeds all three plus the drill-down (Article III.1).
+        #
+        # This replaced a single figure labelled "Monthly Cash Flow" that was actually
+        # every credit minus every debit across every account — which double-counted a
+        # card purchase and the payment settling it, read mortgage principal as an
+        # expense, and read a refund as income. The old figure is still computed, named
+        # honestly, and shown in the drill-down.
+        from apps.finance.services.finance_calc.monthly_views import monthly_views
 
-        activity = financial_activity(user, start=month_start, end=today)
-        monthly_income = activity.filter(amount__gt=0).aggregate(
-            total=Sum('amount')
-        )['total'] or Decimal('0.00')
+        views = monthly_views(user, month_start, today, today=today)
+        context['monthly_views'] = views
+        context['spending_result'] = views['spending_result']
+        context['liquid_cash'] = views['liquid_cash']
+        context['card_activity'] = views['card_activity']
+        context['month_period'] = views['period']
 
-        monthly_expenses = abs(activity.filter(amount__lt=0).aggregate(
-            total=Sum('amount')
-        )['total'] or Decimal('0.00'))
+        _lines = {line['key']: line['amount']
+                  for line in views['spending_result']['lines']}
+        monthly_income = _lines['income']
+        monthly_expenses = _lines['net_spending']
 
         # Finance intelligence (F1–F3) — ONE deterministic source, also feeding the
         # Current Context summary. Bounded, indexed reads only; no provider call.
@@ -327,7 +339,12 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
 
         context['monthly_income'] = monthly_income
         context['monthly_expenses'] = monthly_expenses
-        context['monthly_cash_flow'] = monthly_income - monthly_expenses
+        # Income less net spending — a spending surplus or deficit, NOT cash flow.
+        context['monthly_cash_flow'] = views['spending_result']['amount']
+
+        # The largest debts under the Total Liabilities card, from the same accounts
+        # and the same filters that produced the total.
+        context['liability_breakdown'] = liability_breakdown(user)
 
         # Budget summary
         budgets = Budget.objects.filter(

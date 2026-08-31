@@ -445,6 +445,10 @@ class ShadowIsolationTests(RoleBase):
             "apps/finance/tests/test_forecast.py",
             "apps/finance/tests/test_debt_usability.py",
             "apps/finance/tests/test_money_workspaces.py",
+            # The monthly-view tests build rows with a known role to prove the three
+            # views separate them. The service itself never touches the field — it
+            # composes measures, which is the point.
+            "apps/finance/tests/test_monthly_views.py",
             # The review queue template renders the CURRENT role in its select so the
             # person can see what WLJ decided before overriding it. It reads the field;
             # it does not decide one.

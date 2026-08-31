@@ -307,3 +307,60 @@ class MortgageSemanticsTests(RoleBase):
 
     def test_identities_hold(self):
         self.assertTrue(M.reconcile(self.m)["all_hold"])
+
+
+class MoneyBridgeTests(RoleBase):
+    """Six views, and the sentence that stops a person concluding one is broken."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.services import transfer_detection as TD
+        from apps.finance.services.finance_calc import backfill
+        self._txn(-1500, account=self.card, primary="GENERAL_MERCHANDISE")
+        self._txn(1500, account=self.card, primary="TRANSFER_IN",
+                  detailed="TRANSFER_IN_ACCOUNT_TRANSFER")
+        self._txn(-1500, primary="LOAN_PAYMENTS",
+                  detailed="LOAN_PAYMENTS_CREDIT_CARD_PAYMENT")
+        self._txn(4000, primary="INCOME")
+        TD.pair_all(self.user)
+        backfill.run(self.user, commit=True)
+        self.bridge = M.money_bridge(self.user)
+
+    def test_all_six_views_are_present(self):
+        keys = {v["key"] for v in self.bridge["views"]}
+        self.assertEqual(keys, {"net_spending", "debt_service",
+                                "transfers_and_allocations", "cash_outflow",
+                                "cash_inflow", "economic_outflow"})
+
+    def test_every_view_says_what_it_means(self):
+        for view in self.bridge["views"]:
+            with self.subTest(view=view["key"]):
+                self.assertTrue(view["means"])
+
+    def test_it_reports_the_change_in_liquid_cash(self):
+        self.assertEqual(self.bridge["net_liquid_cash_change"], Decimal("2500.00"))
+
+    def test_it_reports_the_debt_reduced_once_not_twice(self):
+        self.assertEqual(self.bridge["liability_reduction"], Decimal("1500.00"))
+
+    def test_paying_principal_does_not_change_net_worth(self):
+        self.assertEqual(self.bridge["net_worth_effect_of_debt_payments"],
+                         Decimal("0.00"))
+        self.assertIn("unchanged by it", self.bridge["explains_net_worth"])
+
+    def test_it_explains_the_gap_rather_than_leaving_it(self):
+        self.assertIn("answer different questions", self.bridge["explains_the_gap"])
+
+    def test_the_page_renders_it(self):
+        from django.urls import reverse
+        response = self.client.get(reverse("finance:money_overview"))
+        self.assertContains(response, 'data-testid="money-bridge"')
+        self.assertContains(response, 'data-view="economic_outflow"')
+        self.assertContains(response, "different on purpose")
+
+    def test_the_cos_packet_carries_the_same_relationship(self):
+        from apps.finance.services.finance_calc import cos_evidence as E
+        packet = E.money_bridge_packet(self.user)
+        self.assertEqual(len(packet["views"]), 6)
+        self.assertEqual(packet["net_worth_effect_of_debt_payments"], "0.00")
+        self.assertIn("Do not recompute", packet["envelope"]["arithmetic_note"])

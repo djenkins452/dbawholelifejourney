@@ -51,6 +51,9 @@ PROVIDER_CARD_PAYMENT_DETAILED = frozenset({
 })
 #: Provider transaction codes that mean a transfer.
 PROVIDER_TRANSFER_CODES = frozenset({"transfer", "bank transfer"})
+#: Provider PRIMARY values that mean the money was EARNED, not moved. A credit like
+#: this is never paired away — see `_looks_like_earnings`.
+INCOME_PRIMARIES = frozenset({"INCOME"})
 
 LIABILITY_TYPES = (
     FinancialAccount.TYPE_CREDIT_CARD,
@@ -258,8 +261,9 @@ def _propose_pairs(user, *, window_days=PAIRING_WINDOW_DAYS, population=None):
 
     counts = {"population": len(rows), "eligible_outflows": 0,
               "already_paired": 0, "proposed": 0, "ambiguous": 0,
-              "unmatched": 0, "skipped_user_confirmed": 0}
-    proposals, ambiguous = [], []
+              "unmatched": 0, "skipped_user_confirmed": 0,
+              "held_income_counterpart": 0}
+    proposals, ambiguous, held_income = [], [], []
 
     free = [t for t in rows if not is_paired(t)]
     counts["already_paired"] = len(rows) - len(free)
@@ -313,10 +317,25 @@ def _propose_pairs(user, *, window_days=PAIRING_WINDOW_DAYS, population=None):
             ambiguous.append((txn, back or candidates))
             continue
 
+        if _looks_like_earnings(counterpart):
+            # PAIRING MUST NEVER DESTROY INCOME. A credit the provider calls earnings,
+            # matched to an outflow of the same size, is either a transfer the provider
+            # mislabelled or a genuine salary that happens to equal a payment made
+            # days earlier. WLJ cannot tell those apart, and one of the two mistakes
+            # silently deletes real income from every total. Held.
+            counts["held_income_counterpart"] += 1
+            held_income.append((txn, counterpart))
+            continue
+
         proposals.append((txn, counterpart))
         counts["proposed"] += 1
 
-    return proposals, ambiguous, counts
+    return proposals, ambiguous, counts, held_income
+
+
+def _looks_like_earnings(txn):
+    """Does the provider call this money EARNED, rather than moved?"""
+    return (txn.provider_category_primary or "").upper() in INCOME_PRIMARIES
 
 
 def pair_all(user, *, window_days=PAIRING_WINDOW_DAYS, limit=None, batch_size=500):
@@ -334,7 +353,7 @@ def pair_all(user, *, window_days=PAIRING_WINDOW_DAYS, limit=None, batch_size=50
     else:
         skipped = 0
 
-    proposals, ambiguous, counts = _propose_pairs(
+    proposals, ambiguous, counts, _held_income = _propose_pairs(
         user, window_days=window_days, population=population)
 
     paired, lost_race = 0, 0
@@ -363,7 +382,7 @@ def rehearse_pairing(user, *, window_days=PAIRING_WINDOW_DAYS, sample=4):
     different plan from the one that runs.
     """
     population = _eligible_population(user)
-    proposals, ambiguous, counts = _propose_pairs(
+    proposals, ambiguous, counts, held_income = _propose_pairs(
         user, window_days=window_days, population=population)
 
     def _redacted(txn, other=None):
@@ -398,6 +417,7 @@ def rehearse_pairing(user, *, window_days=PAIRING_WINDOW_DAYS, sample=4):
         "samples": {
             "proposed": [_redacted(t, o) for t, o in proposals[:sample]],
             "ambiguous": [_redacted(t) for t, _ in ambiguous[:sample]],
+            "held_income_counterpart": [_redacted(t, o) for t, o in held_income],
         },
         "note": ("Report only. The proposals come from the SAME function the apply "
                  "pass runs, so a rehearsal cannot describe a different plan."),

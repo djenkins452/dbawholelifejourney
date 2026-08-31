@@ -30,34 +30,34 @@ is `PENDING` or `IN PROGRESS`.
 
 | # | Item | Status | Evidence | Commit |
 |---|---|---|---|---|
-| 2.1 | Define the six distinct meanings explicitly | PENDING | | |
-| 2.2 | Audit `cash_outflow`: external outflow vs liquid-cash reduction | PENDING | | |
-| 2.3 | Rename/split the measure if one label serves two meanings | PENDING | | |
-| 2.4 | Audit the 549,702.15 transfer total for double counting | PENDING | | |
-| 2.5 | One canonical pair identity; no duplicate household amount | PENDING | | |
-| 2.6 | Card-payment semantics proven by test | PENDING | | |
-| 2.7 | Mortgage/instalment semantics proven by test | PENDING | | |
-| 2.8 | Net-worth effect of principal payment proven | PENDING | | |
-| 2.9 | Reconciliation bridges in UI + CoS evidence | PENDING | | |
-| 2.10 | Shadow comparison + read-only production rehearsal | PENDING | | |
-| 2.11 | Bounded reversible correction applied | PENDING | | |
-| 2.12 | Forecasts, snapshots, CoS packets and labels updated | PENDING | | |
+| 2.1 | Six meanings defined | **DONE** | architecture §5.1 "Six meanings that must never share a label" | `(docs)` |
+| 2.2 | `cash_outflow` audit | **DONE** | It was BOTH and neither: included debt service, excluded card payments, **omitting 294,391.76** of real account movement | `356181ba` |
+| 2.3 | Split the measure | **DONE** | `cash_inflow`/`cash_outflow` = liquid cash; **new** `economic_outflow` = external view. Measures **2.0.0** | `69a9e1d7` |
+| 2.4 | Transfer double-count audit | **DONE** | 549,702.15 both legs vs 300,332.15 once — **overstated by exactly 249,370.00**, the 25 paired card payments | `356181ba` |
+| 2.5 | One canonical pair identity | **DONE** | `movement_key()` from both PKs; audit reports 25 pairs, **25 well-formed, 0 malformed** | `69a9e1d7` |
+| 2.6 | Card-payment semantics | **DONE** | `SixMeaningsTests` — purchase counted once, payment is cash not spending, transfer once, both legs preserved | `69a9e1d7` |
+| 2.7 | Mortgage semantics | **DONE** | `MortgageSemanticsTests` — cash out visible, debt service once, not spending, unsplit stays unsplit | `69a9e1d7` |
+| 2.8 | Net-worth effect of principal | **DONE** | audit: cash −249,370.00, liabilities −249,370.00, **net worth change 0.00, balances: true** | `356181ba` |
+| 2.9 | Reconciliation bridges | IN PROGRESS | spending bridge live; cash/debt/transfer bridge being added to UI + CoS | |
+| 2.10 | Shadow + production rehearsal | **DONE** | `transfer_audit` ran read-only on production; every figure above is from real data | `356181ba` |
+| 2.11 | Correction applied | **DONE** | measures 2.0.0 — a pure calculation change, no data rewritten, reversible by revert | `69a9e1d7` |
+| 2.12 | Forecast/snapshot/CoS/labels | IN PROGRESS | | |
 
 ## Package 3 — Eliminate both pairing defects
 
 | # | Item | Status | Evidence | Commit |
 |---|---|---|---|---|
-| 3.1 | Remove the 2,000-row cap — full population, bounded batches | PENDING | | |
-| 3.2 | Never silently truncate; expose all counts | PENDING | | |
-| 3.3 | `_assess` resolves a pair from EITHER leg | PENDING | | |
-| 3.4 | One canonical pair relationship | PENDING | | |
-| 3.5 | Never pair twice; never reuse a counterpart | PENDING | | |
-| 3.6 | User-scoped, idempotent, concurrency-safe | PENDING | | |
-| 3.7 | User-confirmed decisions protected | PENDING | | |
-| 3.8 | Pending-to-posted preserved | PENDING | | |
-| 3.9 | Kinds distinguished (card/internal/debt/refund/reversal/borrowing) | PENDING | | |
-| 3.10 | Ambiguity retained, never guessed | PENDING | | |
-| 3.11 | No N+1 | PENDING | | |
+| 3.1 | 2,000-row cap removed | **DONE** | `pair_all` reads the full population in bounded batches; `limit` defaults to `None` | `356181ba` |
+| 3.2 | Never silently truncate | **DONE** | report exposes population/eligible/proposed/ambiguous/unmatched/paired/skipped/`truncated` | `356181ba` |
+| 3.3 | Pair resolved from EITHER leg | **DONE** | `paired_counterpart()`; `BothLegsTests` proves the non-holding leg is seen | `356181ba` |
+| 3.4 | One canonical relationship | **DONE** | outflow leg holds the column; `pair_liability_credits` deleted — one authority | `356181ba` |
+| 3.5 | Never pair twice / reuse | **DONE** | mutual-uniqueness rule + `_claim_pair` CAS; `MutualUniquenessTests` | `356181ba` |
+| 3.6 | User-scoped, idempotent, concurrent-safe | **DONE** | cross-user refused and logged; `select_for_update` re-check; second run pairs 0 | `356181ba` |
+| 3.7 | User-confirmed protected | **DONE** | `TRANSFER_BY_USER` skipped before proposal and again in the claim | `356181ba` |
+| 3.8 | Pending-to-posted preserved | **DONE** | untouched — sync still replaces in place; `test_ingestion_pipeline` green | `356181ba` |
+| 3.9 | Kinds distinguished | **DONE** | pair kind from EITHER leg touching a liability; roles unchanged | `356181ba` |
+| 3.10 | Ambiguity retained | **DONE** | mutual uniqueness required; ambiguous reported, never resolved | `356181ba` |
+| 3.11 | No N+1 | **DONE** | amount bucketing + both link directions `select_related`; `QueryCostTests` caps at 15 queries for 80 rows | `356181ba` |
 | 3.12 | Full read-only rehearsal over ALL eligible rows | PENDING | | |
 | 3.13 | Deterministic backfill applied | PENDING | | |
 | 3.14 | Second run produces zero changes | PENDING | | |

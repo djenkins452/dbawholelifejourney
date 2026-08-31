@@ -30,7 +30,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-EVIDENCE_VERSION = "1.1.0"
+EVIDENCE_VERSION = "2.0.0"
 
 ZERO = Decimal("0.00")
 
@@ -78,6 +78,31 @@ def measures_packet(user, start=None, end=None):
         "envelope": _envelope(
             calculation_version=M.MEASURES_VERSION,
             classifier_version=results["net_spending"].classifier_version),
+    }
+
+
+def money_bridge_packet(user, start=None, end=None):
+    """How spending, debt, transfers and cash relate. The anti-confusion packet.
+
+    Given only the measures, a model asked "why is what I spent different from what
+    left my account?" has to reason its way to an answer and may reason wrongly. This
+    hands it the relationship as a fact.
+    """
+    from apps.finance.services.finance_calc import measures as M
+
+    bridge = M.money_bridge(user, start=start, end=end)
+    return {
+        "packet": "money_bridge",
+        "views": [{"key": v["key"], "label": v["label"],
+                   "amount": str(v["amount"]), "means": v["means"]}
+                  for v in bridge["views"]],
+        "net_liquid_cash_change": str(bridge["net_liquid_cash_change"]),
+        "liability_reduction": str(bridge["liability_reduction"]),
+        "net_worth_effect_of_debt_payments": str(
+            bridge["net_worth_effect_of_debt_payments"]),
+        "explains_net_worth": bridge["explains_net_worth"],
+        "explains_the_gap": bridge["explains_the_gap"],
+        "envelope": _envelope(calculation_version=bridge["calculation_version"]),
     }
 
 
@@ -481,6 +506,7 @@ def snapshot_packet(user):
                          "are a cost of consumption but are not purchases."),
         },
         "debt": debt,
+        "money_bridge": money_bridge_packet(user),
         "obligations": obligations,
         "net_worth": net_worth_packet(user),
         "forecast": forecast_packet(user),

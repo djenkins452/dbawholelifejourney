@@ -101,6 +101,10 @@ class MoneyOverviewView(_SignedInFinanceView):
             # purchases?" is the first question this page provokes, and a number a
             # person has to reverse-engineer to believe is one they will not believe.
             "bridge": M.spending_bridge(results["net_spending"]),
+            # Six views of the same period. Without this, a person sees "what it cost"
+            # and "what left my account" disagree, decides one is wrong, and stops
+            # trusting both.
+            "money_bridge": M.money_bridge(user, measures=results),
             "measures": [{
                 "key": key,
                 "label": MEASURE_LABELS[key],

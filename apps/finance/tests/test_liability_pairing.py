@@ -377,3 +377,43 @@ class MutualUniquenessTests(PairingBase):
         self._held_credit(2500, on=JAN)
         self._payment(2500, on=JAN)
         self.assertEqual(TD.pair_all(self.user)["paired"], 2)
+
+
+class IncomeIsNeverPairedAwayTests(PairingBase):
+    """Pairing must never delete earnings.
+
+    A credit the provider calls INCOME, matched to an outflow of the same size, is
+    either a transfer the provider mislabelled or a genuine salary that happens to equal
+    a payment made days earlier. WLJ cannot tell those apart, and one of the two
+    mistakes silently removes real income from every total. So it is held.
+    """
+
+    def test_an_income_counterpart_is_held_not_paired(self):
+        self._payment(3000)
+        self._txn(3000, account=self.savings, on=JAN, primary="INCOME",
+                  detailed="INCOME_WAGES")
+        report = TD.pair_all(self.user)
+        self.assertEqual(report["paired"], 0)
+        self.assertEqual(report["held_income_counterpart"], 1)
+
+    def test_income_survives_a_full_pairing_pass(self):
+        from apps.finance.services.finance_calc import backfill
+        self._payment(3000)
+        self._txn(3000, account=self.savings, on=JAN, primary="INCOME",
+                  detailed="INCOME_WAGES")
+        TD.pair_all(self.user)
+        backfill.run(self.user, commit=True)
+        self.assertEqual(M.all_measures(self.user)["income"].value,
+                         Decimal("3000.00"))
+
+    def test_a_plain_transfer_counterpart_still_pairs(self):
+        self._payment(3000)
+        self._txn(3000, account=self.savings, on=JAN, primary="TRANSFER_IN")
+        self.assertEqual(TD.pair_all(self.user)["paired"], 1)
+
+    def test_the_rehearsal_reports_what_it_held_and_why(self):
+        self._payment(3000)
+        self._txn(3000, account=self.savings, on=JAN, primary="INCOME")
+        report = TD.rehearse_pairing(self.user)
+        self.assertEqual(report["counts"]["held_income_counterpart"], 1)
+        self.assertEqual(len(report["samples"]["held_income_counterpart"]), 1)

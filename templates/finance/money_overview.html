@@ -134,6 +134,34 @@
         <p class="money-card-version">calculation {{ bridge.calculation_version }}</p>
     </section>
 
+    <section class="money-views" aria-labelledby="views-heading" data-testid="money-bridge">
+        <h2 id="views-heading">Six views of the same money</h2>
+        <p class="money-bridge-intro">
+            These numbers are different on purpose. They answer different questions, and
+            a gap between them is information rather than an error.
+        </p>
+        <dl class="money-view-list">
+            {% for view in money_bridge.views %}
+            <div class="money-view" data-view="{{ view.key }}">
+                <dt>{{ view.label }}</dt>
+                <dd class="money-view-amount">{{ view.amount|money }}</dd>
+                <dd class="money-view-means">{{ view.means }}</dd>
+            </div>
+            {% endfor %}
+        </dl>
+
+        <div class="money-effects">
+            <p><strong>Change in liquid cash:</strong>
+                {{ money_bridge.net_liquid_cash_change|money_signed }}</p>
+            <p><strong>Debt reduced by payments:</strong>
+                {{ money_bridge.liability_reduction|money }}</p>
+            <p><strong>Net-worth effect of those debt payments:</strong>
+                {{ money_bridge.net_worth_effect_of_debt_payments|money }}</p>
+            <p class="money-view-means">{{ money_bridge.explains_net_worth }}</p>
+            <p class="money-view-means">{{ money_bridge.explains_the_gap }}</p>
+        </div>
+    </section>
+
     <section class="money-recon" aria-labelledby="recon-heading">
         <h2 id="recon-heading">The identities WLJ checks</h2>
         <p class="money-recon-intro">
@@ -211,6 +239,18 @@
   align-items: baseline; margin: 0.75rem 0 0; padding: 0 0.85rem;
   font-size: 1.05rem; }
 .money-walk-total strong { font-variant-numeric: tabular-nums; font-size: 1.3rem; }
+.money-views { margin-top: 2rem; }
+.money-view-list { margin: 1rem 0 0; display: grid; gap: 0.6rem;
+  grid-template-columns: 1fr; }
+.money-view { border: 1px solid var(--border, #dee2e6); border-radius: 10px;
+  padding: 0.7rem 0.85rem; }
+.money-view dt { font-weight: 600; }
+.money-view dd { margin: 0; }
+.money-view-amount { font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+.money-view-means { font-size: 0.82rem; color: var(--muted, #667); max-width: 62ch; }
+.money-effects { margin-top: 1rem; padding: 0.85rem;
+  background: var(--surface-2, #f1f3f5); border-radius: 10px; }
+.money-effects p { margin: 0.2rem 0; font-variant-numeric: tabular-nums; }
 .money-recon { margin-top: 2rem; }
 .money-recon-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 60ch; }
 .money-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -223,6 +263,7 @@
 .money-links .btn { min-height: 44px; display: inline-flex; align-items: center; }
 @media (min-width: 769px) {
   .money-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .money-view-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   /* The running total only earns its column where there is room for it. */
   .money-walk-line { grid-template-columns: 1.5rem 1fr 10rem 10rem; }
   .money-walk-running { display: block; }

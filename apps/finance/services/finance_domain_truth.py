@@ -45,7 +45,7 @@ class FinanceDomainTruth(DomainTruth):
                     "obligations", "controllable_costs", "savings_opportunities",
                     "financial_snapshot", "data_health", "forecast", "affordability",
                     "net_worth", "net_worth_history", "plan_results",
-                    "data_health_detail")
+                    "data_health_detail", "money_bridge")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -176,6 +176,9 @@ class FinanceDomainTruth(DomainTruth):
             return [E.plan_results_packet(self.user)]
         if entity_type == "data_health_detail":
             return [E.data_health_packet(self.user)]
+        if entity_type == "money_bridge":
+            return [E.money_bridge_packet(
+                self.user, filters.get("start"), filters.get("end"))]
         return None
 
     @staticmethod

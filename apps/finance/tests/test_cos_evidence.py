@@ -67,6 +67,7 @@ class RedactionTests(RoleBase):
             "net_worth_history": E.net_worth_history_packet(self.user),
             "plan_results": E.plan_results_packet(self.user),
             "data_health_detail": E.data_health_packet(self.user),
+            "money_bridge": E.money_bridge_packet(self.user),
         }
 
     def test_no_packet_carries_a_forbidden_key(self):
@@ -233,7 +234,8 @@ class DomainTruthExposureTests(RoleBase):
     PACKETS = ("measures", "debt", "payoff", "payoff_comparison", "obligations",
                "controllable_costs", "savings_opportunities", "financial_snapshot",
                "data_health", "forecast", "affordability", "net_worth",
-               "net_worth_history", "plan_results", "data_health_detail")
+               "net_worth_history", "plan_results", "data_health_detail",
+               "money_bridge")
 
     def test_every_packet_is_declared_as_an_entity_type(self):
         for entity_type in self.PACKETS:

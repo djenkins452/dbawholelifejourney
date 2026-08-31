@@ -703,6 +703,84 @@ def all_measures(user, start=None, end=None, transactions=None):
     }
 
 
+def money_bridge(user, measures=None, rows=None, start=None, end=None):
+    """Six views of the same period, and how they relate. For humans, not for maths.
+
+    Reading a set of measures without this, a person reasonably asks why "what it cost"
+    and "what left my account" are different numbers, concludes one of them is wrong,
+    and stops trusting both. The answer is that they are answers to different questions,
+    and the difference is itself informative: a large gap means a lot went on a card.
+    """
+    from apps.finance.models import Transaction as T
+
+    measures = measures if measures is not None else all_measures(user, start, end)
+    rows = rows if rows is not None else _rows(user, start, end)
+
+    spending = measures["net_spending"].value
+    debt = measures["debt_service"].value
+    transfers = measures["transfers_and_allocations"].value
+    cash_in = measures["cash_inflow"].value
+    cash_out = measures["cash_outflow"].value
+    economic = measures["economic_outflow"].value
+
+    # A paired liability payment reduces what is owed. Only the leg landing ON the
+    # liability is counted, so the movement is read once.
+    liability_reduction, seen = ZERO, set()
+    for txn, assignment in rows:
+        if assignment.role not in (T.ROLE_CARD_PAYMENT, T.ROLE_DEBT_SERVICE):
+            continue
+        if (txn.amount or ZERO) <= ZERO:
+            continue
+        if _on_cash_account(txn):
+            continue
+        key = movement_key(txn)
+        if key in seen:
+            continue
+        seen.add(key)
+        liability_reduction += txn.amount
+
+    return {
+        "views": [
+            {"key": "net_spending", "label": "What it cost you",
+             "amount": spending,
+             "means": "Purchases and fees, less anything that came back. A card "
+                      "payment is NOT here — the purchases it settles were counted "
+                      "when you made them."},
+            {"key": "debt_service", "label": "Paid towards debt",
+             "amount": debt,
+             "means": "Loan and card payments, counted once across both legs. Principal "
+                      "is not an expense; it moves your balance sheet."},
+            {"key": "transfers_and_allocations", "label": "Money you moved",
+             "amount": transfers,
+             "means": "Your own money between your own accounts, counted once per "
+                      "movement rather than once per leg."},
+            {"key": "cash_outflow", "label": "Left your accounts",
+             "amount": cash_out,
+             "means": "Every debit on an account that holds money — including card "
+                      "payments and transfers. This is liquidity, not spending."},
+            {"key": "cash_inflow", "label": "Arrived in your accounts",
+             "amount": cash_in,
+             "means": "Every credit landing in a cash account, whatever it meant."},
+            {"key": "economic_outflow", "label": "Paid out to the world",
+             "amount": economic,
+             "means": "Purchases, fees, debt service and cash, wherever they were paid "
+                      "from. A card purchase is here the day you make it."},
+        ],
+        "net_liquid_cash_change": cash_in - cash_out,
+        "liability_reduction": liability_reduction,
+        "net_worth_effect_of_debt_payments": ZERO,
+        "explains_net_worth": (
+            "Paying down principal moves cash down and debt down by the same amount, so "
+            "net worth is unchanged by it. Only fees and interest are an expense, and "
+            "only when WLJ has authoritative figures for them."),
+        "explains_the_gap": (
+            "\"What it cost\" and \"what left your accounts\" differ by what you put "
+            "on a card and did not pay off, plus the money you merely moved. Neither "
+            "number is wrong; they answer different questions."),
+        "calculation_version": MEASURES_VERSION,
+    }
+
+
 def reconcile(measures):
     """The identities that must hold. A set that fails is not presented as fact."""
     ns = measures["net_spending"]

@@ -89,16 +89,14 @@ def _is_liability(txn):
 
 
 def _counterpart_free(txn):
-    """True when nothing already claims this row as its pair, from either direction."""
-    from django.core.exceptions import ObjectDoesNotExist
+    """Nothing claims this row as its pair, from either direction.
 
-    if txn.transfer_pair_id:
-        return False
-    try:
-        txn.transfer_counterpart
-    except ObjectDoesNotExist:
-        return True
-    return False
+    Delegated to the pairing authority so the diagnosis and the pass cannot disagree
+    about what "already paired" means.
+    """
+    from apps.finance.services.transfer_detection import is_paired
+
+    return not is_paired(txn)
 
 
 def _pool(user):

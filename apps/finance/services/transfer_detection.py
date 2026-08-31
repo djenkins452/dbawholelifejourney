@@ -29,7 +29,9 @@ No model call. No per-transaction inference.
 from __future__ import annotations
 
 import logging
+from collections import Counter, defaultdict
 from datetime import timedelta
+from decimal import Decimal
 
 from django.db.models import Q
 
@@ -82,11 +84,40 @@ def classify(transaction, *, liability_names=None, save=True):
     return transaction
 
 
+def paired_counterpart(txn):
+    """The other leg of a matched transfer, from EITHER side.
+
+    `transfer_pair` is a OneToOne, so only ONE of the two rows physically carries the
+    column; the other reaches back through the reverse accessor. Reading a single
+    direction — which `_assess` did until 2026-08-31 — means the leg without the column
+    is not recognised as paired at all, and a settled card payment stays classified as
+    an ordinary purchase. That is a card payment silently becoming spending.
+    """
+    from django.core.exceptions import ObjectDoesNotExist
+
+    pair = getattr(txn, "transfer_pair", None)
+    if pair is not None:
+        return pair
+    try:
+        return txn.transfer_counterpart
+    except ObjectDoesNotExist:
+        return None
+
+
+def is_paired(txn):
+    return paired_counterpart(txn) is not None
+
+
 def _assess(txn, liability_names):
-    # 2 — a matched pair is conclusive.
-    if txn.transfer_pair_id:
+    # 2 — a matched pair is conclusive, whichever leg holds the link.
+    counterpart = paired_counterpart(txn)
+    if counterpart is not None:
+        # The KIND is decided by the pair as a whole: if EITHER leg touches a
+        # liability, the movement settled a debt. Asking only about this leg makes the
+        # chequing side of a card payment look like a plain internal transfer.
+        touches = _touches_liability(txn) or _touches_liability(counterpart)
         kind = (Transaction.TRANSFER_KIND_CARD_PAYMENT
-                if _touches_liability(txn) else Transaction.TRANSFER_KIND_INTERNAL)
+                if touches else Transaction.TRANSFER_KIND_INTERNAL)
         return (Transaction.TRANSFER_STATE_CONFIRMED, kind,
                 Transaction.TRANSFER_BY_PAIRING)
 
@@ -182,45 +213,241 @@ def _names_own_liability(txn, liability_names):
     return any(name and name in haystack for name in liability_names)
 
 
-def pair_transfers(user, *, window_days=PAIRING_WINDOW_DAYS, limit=2000):
-    """Match unpaired legs of the same movement across the user's own accounts.
+def pair_transfers(user, *, window_days=PAIRING_WINDOW_DAYS, limit=None):
+    """Compatibility wrapper. Pairs the FULL population unless a limit is forced.
 
-    Conservative by construction: exactly one candidate counterpart, or no pairing. An
-    ambiguous match is left for review rather than guessed at.
+    The old signature defaulted to `limit=2000` and silently stopped there — on a
+    3,800-row history that dropped the most recent third, which is precisely where the
+    still-unpaired legs live. The default is now "all of it"; a caller that genuinely
+    wants a bounded slice has to ask for one.
     """
-    unpaired = list(
-        Transaction.objects.filter(user=user, transfer_pair__isnull=True)
-        .exclude(is_opening_balance=True)
-        .select_related("account")
-        .order_by("date")[:limit]
-    )
-    by_id = {t.id: t for t in unpaired}
-    paired = 0
+    return pair_all(user, window_days=window_days, limit=limit)["paired"]
 
-    for txn in unpaired:
-        if txn.transfer_pair_id or txn.amount >= 0:
-            continue                            # drive from the OUTflow leg only
+
+def _eligible_population(user):
+    """Every row that could take part in a pair. ONE query, no cap.
+
+    `select_related` covers the account and BOTH directions of the pair link, because
+    deciding whether a row is already paired reads the reverse accessor — and doing that
+    lazily is one query per row over the whole history.
+    """
+    return list(
+        Transaction.objects.filter(user=user)
+        .exclude(is_opening_balance=True)
+        .select_related("account", "category",
+                        "transfer_pair", "transfer_pair__account",
+                        "transfer_counterpart", "transfer_counterpart__account")
+        .order_by("date", "id")
+    )
+
+
+def _propose_pairs(user, *, window_days=PAIRING_WINDOW_DAYS, population=None):
+    """Work out every deterministic pair. Pure — decides, writes nothing.
+
+    Shared by the rehearsal and the apply pass so the two can never disagree about what
+    would happen.
+
+    **A match must be mutually unique.** It is not enough that an outflow has exactly one
+    candidate: that candidate must also have exactly one candidate outflow. Checking only
+    one direction makes pairing order-dependent — one credit that could belong to either
+    of two payments gets silently attached to whichever payment is processed first, which
+    is guessing dressed up as determinism. Ambiguity has to be visible from both sides to
+    be honoured.
+    """
+    rows = population if population is not None else _eligible_population(user)
+
+    counts = {"population": len(rows), "eligible_outflows": 0,
+              "already_paired": 0, "proposed": 0, "ambiguous": 0,
+              "unmatched": 0, "skipped_user_confirmed": 0}
+    proposals, ambiguous = [], []
+
+    free = [t for t in rows if not is_paired(t)]
+    counts["already_paired"] = len(rows) - len(free)
+
+    # Bucket by absolute amount so each row inspects only same-magnitude rows instead of
+    # the whole history. Without this the pass is O(n^2) on a real ledger.
+    by_amount = defaultdict(list)
+    for row in free:
+        if (row.amount or 0) != 0 and \
+                row.transfer_classified_by != Transaction.TRANSFER_BY_USER:
+            by_amount[abs(row.amount)].append(row)
+
+    def candidates_for(txn):
         window_start = txn.date - timedelta(days=window_days)
         window_end = txn.date + timedelta(days=window_days)
-        candidates = [
-            other for other in by_id.values()
+        target = -txn.amount
+        return [
+            other for other in by_amount.get(abs(txn.amount or 0), ())
             if other.id != txn.id
-            and other.transfer_pair_id is None
             and other.account_id != txn.account_id
-            and other.amount == -txn.amount
+            and other.amount == target
             and window_start <= other.date <= window_end
         ]
-        if len(candidates) != 1:
-            continue                            # zero or ambiguous — do not guess
+
+    outflows = [t for t in free if (t.amount or 0) < 0]
+    counts["eligible_outflows"] = len(
+        [t for t in outflows
+         if t.transfer_classified_by != Transaction.TRANSFER_BY_USER])
+
+    for txn in outflows:
+        if txn.transfer_classified_by == Transaction.TRANSFER_BY_USER:
+            # A decision the person made is not a hypothesis for pairing to overturn.
+            counts["skipped_user_confirmed"] += 1
+            continue
+
+        candidates = candidates_for(txn)
+        if not candidates:
+            counts["unmatched"] += 1
+            continue
+        if len(candidates) > 1:
+            counts["ambiguous"] += 1
+            ambiguous.append((txn, candidates))
+            continue
+
         counterpart = candidates[0]
-        txn.transfer_pair = counterpart
-        counterpart.transfer_pair = txn
-        txn.save(update_fields=["transfer_pair", "updated_at"])
-        counterpart.save(update_fields=["transfer_pair", "updated_at"])
-        classify(txn)
-        classify(counterpart)
-        paired += 1
-    return paired
+        back = candidates_for(counterpart)
+        if len(back) != 1 or back[0].id != txn.id:
+            # The counterpart could equally belong to another payment. Attaching it to
+            # this one would be arbitrary, and arbitrary is what the review queue is for.
+            counts["ambiguous"] += 1
+            ambiguous.append((txn, back or candidates))
+            continue
+
+        proposals.append((txn, counterpart))
+        counts["proposed"] += 1
+
+    return proposals, ambiguous, counts
+
+
+def pair_all(user, *, window_days=PAIRING_WINDOW_DAYS, limit=None, batch_size=500):
+    """Pair the whole eligible population. Bounded batches, never a silent cap.
+
+    `limit` exists only so a caller can deliberately bound a run; when it bites, the
+    report says so in `skipped_over_limit` rather than quietly returning a smaller
+    number. Idempotent: a second run proposes nothing because every row it paired is
+    now paired.
+    """
+    population = _eligible_population(user)
+    if limit is not None:
+        skipped = max(0, len(population) - limit)
+        population = population[:limit]
+    else:
+        skipped = 0
+
+    proposals, ambiguous, counts = _propose_pairs(
+        user, window_days=window_days, population=population)
+
+    paired, lost_race = 0, 0
+    for start in range(0, len(proposals), batch_size):
+        for txn, counterpart in proposals[start:start + batch_size]:
+            if _claim_pair(txn.pk, counterpart.pk):
+                paired += 1
+            else:
+                lost_race += 1
+
+    counts.update({
+        "paired": paired,
+        "lost_race": lost_race,
+        "skipped_over_limit": skipped,
+        "truncated": bool(skipped),
+        "window_days": window_days,
+        "batch_size": batch_size,
+    })
+    return counts
+
+
+def rehearse_pairing(user, *, window_days=PAIRING_WINDOW_DAYS, sample=4):
+    """What full-population pairing WOULD do. Writes nothing.
+
+    The same `_propose_pairs` the apply pass uses, so a rehearsal cannot describe a
+    different plan from the one that runs.
+    """
+    population = _eligible_population(user)
+    proposals, ambiguous, counts = _propose_pairs(
+        user, window_days=window_days, population=population)
+
+    def _redacted(txn, other=None):
+        row = {
+            "month": f"{txn.date.year:04d}-{txn.date.month:02d}",
+            "magnitude": _magnitude(txn.amount),
+            "direction": "in" if (txn.amount or 0) > 0 else "out",
+            "account_type": getattr(getattr(txn, "account", None), "account_type", ""),
+            "provider_primary": (txn.provider_category_primary or "")[:32],
+            "role": txn.economic_role,
+        }
+        if other is not None:
+            row["counterpart_account_type"] = getattr(
+                getattr(other, "account", None), "account_type", "")
+            row["counterpart_primary"] = (other.provider_category_primary or "")[:32]
+            row["counterpart_role"] = other.economic_role
+        return row
+
+    counterpart_roles = Counter()
+    driver_roles = Counter()
+    for txn, other in proposals:
+        counterpart_roles[other.economic_role or "unclassified"] += 1
+        driver_roles[txn.economic_role or "unclassified"] += 1
+
+    return {
+        "counts": counts,
+        "would_pair_amount": str(sum(
+            (abs(t.amount or 0) for t, _ in proposals), Decimal("0.00"))),
+        "driver_roles": dict(driver_roles),
+        "counterpart_roles": dict(counterpart_roles),
+        "ambiguity_sizes": dict(Counter(len(c) for _, c in ambiguous)),
+        "samples": {
+            "proposed": [_redacted(t, o) for t, o in proposals[:sample]],
+            "ambiguous": [_redacted(t) for t, _ in ambiguous[:sample]],
+        },
+        "note": ("Report only. The proposals come from the SAME function the apply "
+                 "pass runs, so a rehearsal cannot describe a different plan."),
+    }
+
+
+def _magnitude(amount):
+    value = abs(amount or Decimal("0"))
+    for edge, label in ((10, "<$10"), (50, "$10–50"), (200, "$50–200"),
+                        (1000, "$200–1k"), (5000, "$1k–5k")):
+        if value < edge:
+            return label
+    return ">$5k"
+
+
+def _claim_pair(txn_pk, counterpart_pk):
+    """Link two legs atomically, or refuse.
+
+    The read that chose the counterpart and the write that claims it are not one step,
+    so both rows are re-read FOR UPDATE and re-checked here. The OUTflow leg carries the
+    column, matching the convention every other reader expects.
+    """
+    from django.db import transaction as db_transaction
+
+    with db_transaction.atomic():
+        rows = {row.pk: row for row in
+                Transaction.objects.select_for_update()
+                .filter(pk__in=[txn_pk, counterpart_pk])
+                .select_related("account")}
+        first, second = rows.get(txn_pk), rows.get(counterpart_pk)
+        if first is None or second is None:
+            return False
+        if first.user_id != second.user_id:
+            logger.error("Refused a cross-user transfer pair: %s / %s",
+                         txn_pk, counterpart_pk)
+            return False
+        if is_paired(first) or is_paired(second):
+            return False
+        if Transaction.TRANSFER_BY_USER in (first.transfer_classified_by,
+                                            second.transfer_classified_by):
+            return False
+
+        holder, other = ((first, second) if (first.amount or 0) < 0
+                         else (second, first))
+        holder.transfer_pair = other
+        holder.save(update_fields=["transfer_pair", "updated_at"])
+        names = liability_account_names(holder.user)
+        classify(holder, liability_names=names)
+        classify(other, liability_names=names)
+        return True
 
 
 def classify_user_transactions(user, *, queryset=None):
@@ -251,13 +478,12 @@ def confirm_transfer(user, transaction, *, is_transfer, kind=""):
 
 
 # ---------------------------------------------------------------------------
-# Liability-credit pairing (Finance 2.0 completion)
+# Pairing support
 # ---------------------------------------------------------------------------
 
-#: Liabilities where a credit can ONLY be a payment received — you cannot draw more on
-#: a closed-end loan. Pairing never reclassifies these: they are already debt service,
-#: and turning a mortgage payment into a card payment is the defect that removed it
-#: from every measure once before.
+#: Liabilities where a credit can ONLY be a payment received — nothing can be drawn on
+#: a closed-end loan. Classification relies on this; pairing never needs to special-case
+#: it, because `_assess` reads the settled liability from the pair.
 CLOSED_END_TYPES = frozenset({
     FinancialAccount.TYPE_LOAN,
     FinancialAccount.TYPE_MORTGAGE,
@@ -265,161 +491,9 @@ CLOSED_END_TYPES = frozenset({
 })
 
 
-def _counterpart_free(txn):
-    """Nothing claims this row as its pair, from either direction.
-
-    `transfer_pair` is a OneToOne, so only one leg carries the column. Checking a
-    single direction is how a row gets claimed twice.
-    """
-    from django.core.exceptions import ObjectDoesNotExist
-
-    if txn.transfer_pair_id:
-        return False
-    try:
-        txn.transfer_counterpart
-    except ObjectDoesNotExist:
-        return True
-    return False
-
-
 def _is_liability(txn):
     account = getattr(txn, "account", None)
     return bool(account is not None and getattr(account, "is_liability", False))
-
-
-def pair_liability_credits(user, *, window_days=PAIRING_WINDOW_DAYS):
-    """Match credits on revolving liabilities to the payment that produced them.
-
-    The narrow residual left by the P1 work: a credit lands on a credit card and WLJ
-    cannot tell a payment arriving from new borrowing, because the provider category
-    does not distinguish them. When the funding leg is visible and unambiguous, it does.
-
-    Deliberately conservative, in the same way `pair_transfers` is:
-
-    * **Exactly one** candidate, or nothing happens. Several possible counterparts stay
-      held — picking one is precisely the error the review queue exists to prevent.
-    * **Closed-end debt is never touched.** A mortgage credit is already debt service.
-    * **A row is claimed once.** Both legs are re-read `FOR UPDATE` and re-checked
-      inside the transaction, so two concurrent runs cannot both claim the same leg.
-    * **Idempotent.** An already-paired row is skipped, so running it twice pairs
-      nothing the second time.
-
-    Returns a report. Roles are NOT re-derived here — that is the caller's decision,
-    because reclassification is a separate, auditable step.
-    """
-    from django.db import transaction as db_transaction
-
-    held = list(
-        Transaction.objects.filter(
-            user=user,
-            economic_role=Transaction.ROLE_UNCERTAIN,
-            role_reason="unmatched_liability_credit")
-        .select_related("account")
-        .order_by("date", "id"))
-
-    pool = list(
-        Transaction.objects.filter(user=user)
-        .exclude(is_opening_balance=True)
-        .select_related("account")
-        .order_by("date", "id"))
-
-    report = {"considered": len(held), "paired": 0, "ambiguous": 0,
-              "no_counterpart": 0, "skipped_closed_end": 0, "skipped_already": 0,
-              "lost_race": 0, "window_days": window_days}
-
-    for txn in held:
-        account_type = getattr(getattr(txn, "account", None), "account_type", "")
-        if account_type in CLOSED_END_TYPES:
-            report["skipped_closed_end"] += 1
-            continue
-        if not _counterpart_free(txn):
-            report["skipped_already"] += 1
-            continue
-
-        window_start = txn.date - timedelta(days=window_days)
-        window_end = txn.date + timedelta(days=window_days)
-        target = -txn.amount
-        # The counterpart must look like the leg that FUNDED the payment: money
-        # leaving an account that holds money. Every one of the 25 unambiguous matches
-        # in the 2026-08-31 production rehearsal was exactly that — a chequing outflow
-        # the provider called LOAN_PAYMENTS facing a card credit it called
-        # LOAN_DISBURSEMENTS. Requiring it costs nothing today and refuses a whole
-        # class of wrong match later: a card-to-card balance transfer stays held rather
-        # than being asserted as a payment.
-        candidates = [
-            other for other in pool
-            if other.id != txn.id
-            and other.account_id != txn.account_id
-            and other.amount == target
-            and (other.amount or 0) < 0
-            and not _is_liability(other)
-            and window_start <= other.date <= window_end
-            and _counterpart_free(other)
-        ]
-        if not candidates:
-            report["no_counterpart"] += 1
-            continue
-        if len(candidates) > 1:
-            report["ambiguous"] += 1
-            continue
-
-        counterpart = candidates[0]
-        if not _claim(txn.pk, counterpart.pk):
-            # Another worker took one of the legs between the read and the write.
-            report["lost_race"] += 1
-            continue
-
-        report["paired"] += 1
-        # Keep the in-memory pool honest so the NEXT row cannot propose the same leg.
-        # Which row physically holds the column does not matter here — what matters is
-        # that neither is offered again.
-        txn.transfer_pair_id = counterpart.pk
-        counterpart.transfer_pair_id = txn.pk
-
-    return report
-
-
-def _claim(txn_pk, counterpart_pk):
-    """Link two legs atomically, or refuse. Returns True when the claim succeeded.
-
-    The read that found the candidate and the write that claims it are not one step, so
-    both rows are re-read `FOR UPDATE` and re-checked here. Without this, two concurrent
-    passes — a manual run and a scheduled one — can each believe a leg is free.
-    """
-    from django.db import transaction as db_transaction
-
-    with db_transaction.atomic():
-        rows = {
-            row.pk: row for row in
-            Transaction.objects.select_for_update()
-            .filter(pk__in=[txn_pk, counterpart_pk])
-            .select_related("account")
-        }
-        txn, counterpart = rows.get(txn_pk), rows.get(counterpart_pk)
-        if txn is None or counterpart is None:
-            return False
-        if txn.user_id != counterpart.user_id:
-            # Cannot happen through this path, and would be a serious defect if it did.
-            logger.error("Refused a cross-user transfer pair: %s / %s",
-                         txn_pk, counterpart_pk)
-            return False
-        if not _counterpart_free(txn) or not _counterpart_free(counterpart):
-            return False
-
-        # The OUTFLOW leg carries the link, exactly as `pair_transfers` does it.
-        # `transfer_pair` is a OneToOne, so only one row can hold the column, and
-        # `_assess` reads `transfer_pair_id` in one direction only — put the link on
-        # the leg that convention already expects to find it on, or the payment leg
-        # stays classified as an ordinary purchase and the card payment becomes
-        # spending.
-        holder, other = ((txn, counterpart) if (txn.amount or 0) < 0
-                         else (counterpart, txn))
-        holder.transfer_pair = other
-        holder.save(update_fields=["transfer_pair", "updated_at"])
-        names = liability_account_names(holder.user)
-        classify(holder, liability_names=names)
-        classify(other, liability_names=names)
-        return True
 
 
 def pairing_coverage(user):
@@ -439,10 +513,9 @@ def pairing_coverage(user):
     return {
         "transactions": total,
         "unpaired": unpaired,
-        "pass_reads_at_most": 2000,
-        "limit_truncates": unpaired > 2000,
+        "reads_full_population": True,
         "window_days": PAIRING_WINDOW_DAYS,
-        "note": ("`pair_transfers` reads at most 2,000 unpaired rows ordered by date. "
-                 "Above that it silently stops looking, and the rows it drops are the "
-                 "most recent ones."),
+        "note": ("The pass reads the whole eligible population in bounded batches. The "
+                 "old 2,000-row cap silently dropped the most recent third of a long "
+                 "history — exactly where unpaired legs collect."),
     }

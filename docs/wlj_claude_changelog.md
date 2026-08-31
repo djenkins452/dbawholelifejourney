@@ -60809,3 +60809,40 @@ what someone says when they are wrong.
 
 The `finance-ops` endpoint, its URL and its allow-list entry are removed in this commit,
 as promised. Its rehearsals are done and its writes are applied.
+
+## 2026-08-31 — closure: both pairing defects removed; audit modules added
+
+**Defect 1 — the 2,000-row cap is gone.** `pair_all` reads the whole eligible population
+in bounded batches. `limit` still exists so a caller can deliberately bound a run, but
+when it bites the report says `truncated: true` and `skipped_over_limit`, so a short
+answer can never be mistaken for a complete one. `pair_transfers` keeps its name as a
+wrapper and now defaults to no limit.
+
+**Defect 2 — `_assess` reads the pair from EITHER leg.** `paired_counterpart()` checks
+`transfer_pair` and then the reverse accessor. The leg that does not physically carry
+the OneToOne column was previously not recognised as paired at all, which is how a
+settled card payment stayed classified as an ordinary purchase. The pair's KIND is now
+decided by whether EITHER leg touches a liability — asking only about one leg made the
+chequing side of a card payment look like a plain internal transfer.
+
+**A defect in the first version of the fix, caught by its own tests.** Driving only from
+outflows made pairing order-dependent: one credit that could belong to either of two
+payments was silently attached to whichever payment was processed first. A match must now
+be **mutually unique** — the outflow has exactly one candidate AND that candidate has
+exactly one candidate outflow — or it is reported as ambiguous. Guessing dressed up as
+determinism is still guessing.
+
+**One authority.** `pair_liability_credits` is removed; `pair_all` subsumes it. Two
+pairing functions is precisely the drift the architecture forbids. `pairing_rehearsal`
+now delegates its "already paired" predicate to the authority so the diagnosis cannot
+describe a rule nobody runs.
+
+Amount bucketing keeps the pass off O(n²), and both link directions are `select_related`
+so deciding "already paired?" is not one query per row.
+
+**Two read-only audit modules**, both writing nothing: `reconciliation.py` walks the
+net-worth total back to every source record (redacted) and flags — never deletes —
+records that look like verification artifacts; `transfer_audit.py` computes current
+versus proposed transfer and cash semantics side by side.
+
+37 pairing tests.

@@ -33,7 +33,7 @@ from typing import Optional
 
 #: Bump when the RULES change. A different version is a new opinion, which is what makes
 #: reclassification explicable rather than mysterious.
-CLASSIFIER_VERSION = "1.2.0"
+CLASSIFIER_VERSION = "1.2.1"
 
 ZERO = Decimal("0.00")
 
@@ -295,7 +295,12 @@ def classify(txn) -> RoleAssignment:
     #
     # So the provider category cannot separate "a payment arrived" from "I borrowed
     # more" on a revolving account. The INSTRUMENT can:
-    if amount > 0 and _is_liability_account(txn):
+    if amount > 0 and _is_liability_account(txn) \
+            and _primary(txn) not in INCOME_PRIMARIES:
+        # An explicit INCOME classification is exempt. The provider's unreliability here
+        # is specifically about payment-versus-draw; "this is earnings" is a different
+        # claim and is not confusable with a card payment. Card rewards land exactly
+        # this way, and sweeping them into review would lose real income.
         liability_type = _account_type(txn)
         if liability_type in CLOSED_END_LIABILITY_TYPES:
             # Nothing can be drawn on a closed-end loan, so this is a payment received.

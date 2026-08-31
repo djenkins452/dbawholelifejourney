@@ -44,8 +44,12 @@ GAP_TOLERANCE_DAYS = {
 #: Amounts within this fraction of the median are "the same amount".
 AMOUNT_TOLERANCE = Decimal("0.05")
 
-#: Wider than that, and it is a genuinely variable obligation rather than a bad match.
-VARIABLE_TOLERANCE = Decimal("0.60")
+#: Beyond this RATIO between the largest and smallest occurrence, the payee is not one
+#: commitment — it is several things sharing a name. A power bill runs 80 to 210 (2.6x)
+#: and is a real variable obligation; a supermarket runs 8 to 310 (39x) and is a place
+#: you shop. Ratio separates those far more cleanly than spread-around-the-median does,
+#: which is dominated by whichever single month was unusual.
+MAX_AMOUNT_RATIO = Decimal("4.0")
 
 
 def normalise_payee(txn):
@@ -157,11 +161,10 @@ def _propose(payee, direction, role, items, min_occurrences):
     amounts = [abs(t.amount) for t in items]
     median_amount = Decimal(str(statistics.median(amounts))).quantize(Decimal("0.01"))
     lo, hi = min(amounts), max(amounts)
-    amount_spread = ((hi - lo) / median_amount) if median_amount else Decimal("1")
-    if amount_spread > VARIABLE_TOLERANCE:
-        # Too wide to be one commitment — this is probably several things sharing a
-        # payee (a supermarket is not a subscription).
+    if lo <= ZERO or (hi / lo) > MAX_AMOUNT_RATIO:
+        # Several things sharing a payee, not one commitment.
         return None
+    amount_spread = ((hi - lo) / median_amount) if median_amount else Decimal("1")
 
     gap_spread = (statistics.pstdev(gaps) if len(gaps) > 1 else 0)
     is_variable = amount_spread > AMOUNT_TOLERANCE

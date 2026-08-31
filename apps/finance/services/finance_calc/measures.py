@@ -397,20 +397,64 @@ def debt_service(user, start=None, end=None, rows=None):
 
 
 def recurring_obligations(user, start=None, end=None, rows=None):
-    """Committed forward cash need.
+    """Committed monthly cash need, from series the person has CONFIRMED.
 
-    P1 ships the CONTRACT, not the answer: recurring detection is P4 and there are zero
-    recurring rows in production. Reporting a number here would be inventing one, so it
-    reports zero with the missing input named.
+    Detected candidates are excluded on purpose. A wrong bill in a forward plan is
+    worse than a missing one: the missing one shows up as an obvious gap, while the
+    invented one silently makes the plan unachievable and nobody can see why.
+
+    A variable obligation contributes its upper bound. Planning to the top of a range
+    is the conservative direction — being pleasantly surprised is survivable, being
+    short is not.
     """
+    from apps.finance.models import RecurringSeries as RS
+    from apps.finance.services.finance_calc import recurring as REC
+
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("recurring_obligations", rows, start, end)
-    result.value = ZERO
-    result.confidence = "low"
-    result.inputs_missing.append("recurring_detection (P4)")
-    result.assumptions.append(
-        "no recurring obligations are known yet — this is an absence of data, "
-        "not a household with no bills")
+
+    total, unknown = REC.monthly_obligation_total(user)
+    result.value = total
+
+    confirmed = REC.confirmed_obligations(user)
+    by_kind = {}
+    for series in confirmed:
+        monthly = series.monthly_equivalent(
+            use='max' if series.is_variable else 'expected')
+        if monthly is None:
+            continue
+        by_kind[series.kind] = by_kind.get(series.kind, ZERO) + monthly
+    result.components = by_kind
+
+    candidates = RS.objects.filter(
+        user=user, status="active", review_state=RS.REVIEW_CANDIDATE,
+        kind__in=RS.OBLIGATION_KINDS).count()
+
+    if not confirmed:
+        result.confidence = "low"
+        result.inputs_missing.append("confirmed_recurring_obligations")
+        result.assumptions.append(
+            f"no recurring obligation has been confirmed yet — this is an absence of "
+            f"decisions, NOT a household with no bills"
+            + (f"; {candidates} candidate(s) are waiting for review" if candidates
+               else ""))
+        return result
+
+    variable = [s for s in confirmed if s.is_variable]
+    if variable:
+        result.assumptions.append(
+            f"{len(variable)} obligation(s) vary; each is counted at the TOP of its "
+            f"observed range, so this is a ceiling rather than a likely bill")
+    if unknown:
+        result.inputs_missing.append("expected_amount_for_irregular_series")
+        result.assumptions.append(
+            f"{len(unknown)} confirmed obligation(s) have no monthly equivalent "
+            f"(irregular, or no amount recorded) and are NOT in this figure")
+        result.confidence = "medium"
+    if candidates:
+        result.assumptions.append(
+            f"{candidates} detected candidate(s) are not counted until confirmed")
+        result.confidence = "medium" if result.confidence == "high" else result.confidence
     return result
 
 

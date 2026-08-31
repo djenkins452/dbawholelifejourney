@@ -255,15 +255,20 @@ class MeasureTests(RoleBase):
     def test_unimplemented_measures_say_so_instead_of_reporting_zero_as_fact(self):
         """A zero that means "not built yet" must never read as "none exist".
 
-        `controllable_spending` graduated out of this list when P2 landed — it now
-        computes from the taxonomy. Its own honesty (silence is neither controllable
-        nor uncontrollable) is covered in `test_controllability.py`.
+        Both measures that once lived here have graduated: `controllable_spending`
+        when P2 landed, `recurring_obligations` when P3 did. Each now computes from
+        real user decisions, and each keeps its own honesty test in its own file —
+        `test_controllability.py` and `test_recurring.py`. The empty list is the point:
+        no measure is currently reporting a placeholder zero as if it were a fact.
         """
-        for name, missing in (("recurring_obligations", "recurring_detection (P4)"),):
-            with self.subTest(measure=name):
-                result = self.m[name]
-                self.assertEqual(result.confidence, "low")
-                self.assertIn(missing, result.inputs_missing)
+        placeholders = []
+        for name in M.ALL_MEASURES:
+            result = self.m[name]
+            if result.value == Decimal("0.00") and not result.inputs_missing \
+                    and result.confidence == "low":
+                placeholders.append(name)
+        self.assertEqual(placeholders, [],
+                         "a zero with no named missing input reads as a fact")
 
 
 class OpeningBalanceTests(RoleBase):
@@ -415,6 +420,7 @@ class ShadowIsolationTests(RoleBase):
             "apps/admin_console/views.py",
             "apps/finance/tests/test_p1_operator_endpoint.py",
             "apps/finance/tests/test_controllability.py",
+            "apps/finance/tests/test_recurring.py",
         }
         unexpected = [p for p in out
                       if p not in allowed and "migrations" not in p]
@@ -877,3 +883,25 @@ class CashMovementSurvivesUncertaintyTests(RoleBase):
         self._txn(-50, primary="FOOD_AND_DRINK")
         self._txn(3000, primary="INCOME")
         self.assertTrue(M.reconcile(M.all_measures(self.user))["all_hold"])
+
+
+class IncomeOnALiabilityTests(RoleBase):
+    """Card rewards land as a credit on a card. They are still earnings.
+
+    The liability-credit rule exists because the provider cannot tell a payment from a
+    draw. "This is income" is a different claim, and is not confusable with either — so
+    it is exempt, or the rule would quietly eat real income.
+    """
+
+    def test_provider_income_on_a_card_is_still_income(self):
+        t = self._txn(45, account=self.card, primary="INCOME",
+                      detailed="INCOME_OTHER_INCOME")
+        self.assertEqual(self._role(t), Transaction.ROLE_INCOME)
+
+    def test_it_counts_as_income_in_the_measures(self):
+        self._txn(45, account=self.card, primary="INCOME")
+        self.assertEqual(M.all_measures(self.user)["income"].value, Decimal("45.00"))
+
+    def test_a_disbursement_on_the_same_card_is_still_held(self):
+        t = self._txn(15000, account=self.card, primary="LOAN_DISBURSEMENTS")
+        self.assertEqual(self._role(t), Transaction.ROLE_UNCERTAIN)

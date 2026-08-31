@@ -220,18 +220,27 @@ def _gates(rows, measures, population):
         T.ROLE_INVESTMENT_CONTRIBUTION, T.ROLE_UNCERTAIN, T.ROLE_CASH_WITHDRAWAL,
         T.ROLE_DEBT_SERVICE})
     uncertain = sum(1 for _, a in rows if a.role == T.ROLE_UNCERTAIN)
-    uncertain_amount = sum((abs(t.amount or ZERO) for t, a in rows
-                            if a.role == T.ROLE_UNCERTAIN), ZERO)
+
+    # Uncertainty is measured against the side of the ledger it actually sits on. An
+    # earlier version divided ALL uncertain value by cash outflow and reported 75%,
+    # which said nothing true: most of that value was credits arriving on a card.
+    uncertain_out = sum((abs(t.amount) for t, a in rows
+                         if a.role == T.ROLE_UNCERTAIN and (t.amount or ZERO) < 0), ZERO)
+    uncertain_in = sum(((t.amount) for t, a in rows
+                        if a.role == T.ROLE_UNCERTAIN and (t.amount or ZERO) > 0), ZERO)
     outflow = measures["cash_outflow"].value or Decimal("1")
+    inflow = measures["cash_inflow"].value or Decimal("1")
 
     return {
         "reclassified_as_non_spending_pct": round(non_spending * 100.0 / total, 2),
         "reclassified_gate_5pct_exceeded": (non_spending * 100.0 / total) > 5,
         "uncertain_pct_of_rows": round(uncertain * 100.0 / total, 2),
         "uncertain_gate_10pct_exceeded": (uncertain * 100.0 / total) > 10,
-        "uncertain_pct_of_outflow": round(float(uncertain_amount * 100 / outflow), 2),
+        "uncertain_outflow": str(uncertain_out),
+        "uncertain_inflow_side": str(uncertain_in),
+        "uncertain_pct_of_outflow": round(float(uncertain_out * 100 / outflow), 2),
         "uncertain_gate_15pct_outflow_exceeded":
-            float(uncertain_amount * 100 / outflow) > 15,
+            float(uncertain_out * 100 / outflow) > 15,
         "note": ("Gates are WARNINGS, never approval. Every backfill requires Danny's "
                  "explicit authorisation regardless of how small the change is."),
     }

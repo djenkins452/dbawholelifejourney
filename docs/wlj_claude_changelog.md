@@ -60887,3 +60887,28 @@ answers; if an existing measure answers a DIFFERENT question, add a name rather 
 widening it.
 
 1,248 tests green.
+
+## 2026-08-31 — full-population pairing applied; transfer components fixed
+
+**Full-population rehearsal**, read-only (paired 25 before, 25 after): 3,796 rows
+examined — the old cap would have stopped at 2,000 — **25 deterministic pairs, zero
+ambiguous**, 3,504 unmatched, 5 held.
+
+The 25 are the pairs both defects had been hiding: 23 mortgage payments (a chequing
+`TRANSFER_OUT` facing a mortgage `TRANSFER_IN`), one internal transfer and one savings
+allocation. Applied; 50 rows reclassified; **a second run proposed 0, paired 0, wrote 0.**
+
+**Five pairs held rather than applied.** Each is a chequing `LOAN_PAYMENTS` outflow facing
+a credit-card credit the provider classified as `INCOME`. That is either a card payment
+whose credit was mislabelled or genuine rewards that happen to equal a payment made days
+earlier — and one of those two readings silently deletes real income from every total. WLJ
+cannot tell them apart, so it holds them and says so.
+
+**A defect I introduced, caught by production.** After pairing, the transfers identity
+failed. Bucketing components per role independently counted one movement in TWO components
+when its legs carried different roles — a savings-side allocation facing a chequing-side
+internal transfer. The total was right and the composition was not, which is worse: it
+looks like it adds up until you check. Components now come from the SAME single pass, and
+each movement is attributed to its outflow leg.
+
+Held for review: 130 → **109**. Paired: 25 → **50**.

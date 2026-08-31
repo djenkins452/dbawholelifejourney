@@ -137,24 +137,46 @@ def movement_key(txn):
     return ("pair", min(txn.pk, other.pk), max(txn.pk, other.pk))
 
 
-def _sum_once_per_movement(rows, roles):
-    """Sum a household movement ONCE, however many legs of it WLJ can see.
+def _movements(rows, roles):
+    """Household movements, each counted ONCE and attributed to ONE role.
 
-    Both legs of a pair carry the same magnitude, so keeping either is the household
-    amount. Account-level movement is still fully visible per account — this is the
-    household view, and at that level the same money appearing twice is wrong.
+    Both legs of a pair carry the same magnitude, so keeping either gives the household
+    amount. Account-level movement stays fully visible per account — this is the
+    household view, where the same money appearing twice would be wrong.
+
+    **The two legs can carry DIFFERENT roles** — a transfer out of savings that lands as
+    a savings allocation, say. Bucketing per role independently then counts that one
+    movement in two components, and the components stop summing to the total. So the
+    movement is attributed once, to the OUTflow leg's role where there is one, matching
+    the convention that the outflow leg carries the pair link.
+
+    Returns `(total, {role: amount}, movement_count, mixed_role_count)`.
     """
-    seen, total, count = {}, ZERO, 0
+    chosen = {}
     for txn, assignment in rows:
         if assignment.role not in roles:
             continue
         key = movement_key(txn)
-        if key in seen:
+        existing = chosen.get(key)
+        outflow = (txn.amount or ZERO) < ZERO
+        if existing is None:
+            chosen[key] = {"amount": _abs(txn.amount), "role": assignment.role,
+                           "from_outflow": outflow, "roles": {assignment.role}}
             continue
-        seen[key] = True
-        total += _abs(txn.amount)
-        count += 1
-    return total, count
+        existing["roles"].add(assignment.role)
+        # The outflow leg wins. Whichever leg arrived first, the answer is the same.
+        if outflow and not existing["from_outflow"]:
+            existing["role"] = assignment.role
+            existing["from_outflow"] = True
+
+    total, by_role, mixed = ZERO, {}, 0
+    for movement in chosen.values():
+        total += movement["amount"]
+        by_role[movement["role"]] = by_role.get(movement["role"], ZERO) \
+            + movement["amount"]
+        if len(movement["roles"]) > 1:
+            mixed += 1
+    return total, by_role, len(chosen), mixed
 
 
 def _on_cash_account(txn):
@@ -510,24 +532,24 @@ def transfers_and_allocations(user, start=None, end=None, rows=None):
     # ONCE PER MOVEMENT, not once per leg. A 1,500 card payment is two rows of 1,500
     # and one household movement; summing both legs read as 3,000 of transfers and
     # overstated Danny's total by 249,370.00.
-    result.value, movements = _sum_once_per_movement(
+    #
+    # Components come from the SAME single pass, so a movement whose two legs carry
+    # different roles lands in exactly one component. Bucketing per role independently
+    # put it in two, and the components stopped summing to the total.
+    result.value, by_role, movements, mixed = _movements(
         rows, {T.ROLE_INTERNAL_TRANSFER, T.ROLE_CARD_PAYMENT,
                T.ROLE_SAVINGS_ALLOCATION, T.ROLE_INVESTMENT_CONTRIBUTION})
-    result.components = {
-        "internal_transfers": _sum_once_per_movement(
-            rows, {T.ROLE_INTERNAL_TRANSFER})[0],
-        "card_payments": _sum_once_per_movement(rows, {T.ROLE_CARD_PAYMENT})[0],
-        "savings_allocations": _sum_once_per_movement(
-            rows, {T.ROLE_SAVINGS_ALLOCATION})[0],
-        "investment_contributions": _sum_once_per_movement(
-            rows, {T.ROLE_INVESTMENT_CONTRIBUTION})[0],
-    }
+    result.components = dict(by_role)
     result.assumptions.append(
         "moving money is not spending it — these are in no spending measure")
     result.assumptions.append(
         f"{movements} household movement(s), each counted ONCE. Both legs keep their "
         f"rows and both are visible per account; at household level the same money "
         f"appearing twice would be wrong")
+    if mixed:
+        result.assumptions.append(
+            f"{mixed} movement(s) have legs classified differently on each side — each "
+            f"is attributed to its outflow leg, so it appears in exactly one component")
     return result
 
 

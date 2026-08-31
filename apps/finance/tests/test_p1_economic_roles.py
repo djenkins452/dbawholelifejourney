@@ -185,7 +185,8 @@ class MeasureTests(RoleBase):
         self.assertEqual(self.m["gross_purchases"].value, Decimal("150.00"))
         self.assertNotIn("200", str(self.m["gross_purchases"].value))
         self.assertEqual(self.m["transfers_and_allocations"]
-                         .components["card_payments"], Decimal("200.00"))
+                         .components[Transaction.ROLE_CARD_PAYMENT],
+                         Decimal("200.00"))
 
     def test_refund_offsets_and_is_not_income(self):
         self.assertEqual(self.m["net_spending"].value, Decimal("120.00"))
@@ -253,7 +254,8 @@ class MeasureTests(RoleBase):
         m = M.all_measures(self.user)
         self.assertEqual(m["net_spending"].value, Decimal("120.00"))
         self.assertEqual(m["transfers_and_allocations"]
-                         .components["savings_allocations"], Decimal("500.00"))
+                         .components[Transaction.ROLE_SAVINGS_ALLOCATION],
+                         Decimal("500.00"))
 
     def test_unimplemented_measures_say_so_instead_of_reporting_zero_as_fact(self):
         """A zero that means "not built yet" must never read as "none exist".

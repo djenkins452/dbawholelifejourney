@@ -244,7 +244,8 @@ class SixMeaningsTests(RoleBase):
 
     def test_3_the_household_transfer_is_counted_once_not_twice(self):
         self.assertEqual(
-            self.m["transfers_and_allocations"].components["card_payments"],
+            self.m["transfers_and_allocations"].components[
+                Transaction.ROLE_CARD_PAYMENT],
             Decimal("1500.00"), "two legs, one movement")
 
     def test_4_economic_outflow_holds_the_purchase_not_the_payment(self):
@@ -364,3 +365,40 @@ class MoneyBridgeTests(RoleBase):
         self.assertEqual(len(packet["views"]), 6)
         self.assertEqual(packet["net_worth_effect_of_debt_payments"], "0.00")
         self.assertIn("Do not recompute", packet["envelope"]["arithmetic_note"])
+
+
+class MixedRolePairTests(RoleBase):
+    """A pair whose legs carry DIFFERENT roles must land in exactly one component.
+
+    Production caught this: after full-population pairing the transfers identity failed,
+    because bucketing per role independently counted one movement in two components. The
+    total was right; the composition was not, which is worse — it looks like it adds up
+    until you check.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.services import transfer_detection as TD
+        from apps.finance.services.finance_calc import backfill
+        # Savings -> chequing. The savings leg reads as an allocation, the chequing leg
+        # as a plain internal move: one movement, two different roles.
+        self._txn(-1200, account=self.savings, primary="TRANSFER_OUT")
+        self._txn(1200, account=self.checking, primary="TRANSFER_IN")
+        TD.pair_all(self.user)
+        backfill.run(self.user, commit=True)
+        self.m = M.all_measures(self.user)
+
+    def test_the_components_still_sum_to_the_total(self):
+        transfers = self.m["transfers_and_allocations"]
+        self.assertEqual(sum(transfers.components.values(), Decimal("0.00")),
+                         transfers.value)
+
+    def test_the_identity_holds(self):
+        check = M.reconcile(self.m)["checks"]["transfers_and_allocations_identity"]
+        self.assertTrue(check["passed"])
+
+    def test_the_movement_is_counted_once(self):
+        self.assertEqual(self.m["transfers_and_allocations"].value, Decimal("1200.00"))
+
+    def test_every_identity_holds_together(self):
+        self.assertTrue(M.reconcile(self.m)["all_hold"])

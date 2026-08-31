@@ -43,7 +43,9 @@ class FinanceDomainTruth(DomainTruth):
     entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity",
                     "connection", "measures", "debt", "payoff", "payoff_comparison",
                     "obligations", "controllable_costs", "savings_opportunities",
-                    "financial_snapshot", "data_health")
+                    "financial_snapshot", "data_health", "forecast", "affordability",
+                    "net_worth", "net_worth_history", "plan_results",
+                    "data_health_detail")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -158,6 +160,22 @@ class FinanceDomainTruth(DomainTruth):
             return [E.snapshot_packet(self.user)]
         if entity_type == "data_health":
             return [E.coverage_packet(self.user)]
+        if entity_type == "forecast":
+            return [E.forecast_packet(
+                self.user, horizon_days=int(filters.get("horizon_days") or 30))]
+        if entity_type == "affordability":
+            return [E.affordability_packet(
+                self.user, _decimal("monthly_amount"),
+                horizon_days=int(filters.get("horizon_days") or 90))]
+        if entity_type == "net_worth":
+            return [E.net_worth_packet(self.user)]
+        if entity_type == "net_worth_history":
+            return [E.net_worth_history_packet(
+                self.user, days=int(filters.get("days") or 365))]
+        if entity_type == "plan_results":
+            return [E.plan_results_packet(self.user)]
+        if entity_type == "data_health_detail":
+            return [E.data_health_packet(self.user)]
         return None
 
     @staticmethod

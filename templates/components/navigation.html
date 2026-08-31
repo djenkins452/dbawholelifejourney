@@ -692,12 +692,47 @@
                             </svg>
                             Spending &amp; Cash Flow
                         </a>
+                        <a href="{% url 'finance:money_review' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11l3 3L22 4"/>
+                                <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
+                            </svg>
+                            Money Review
+                        </a>
+                        <a href="{% url 'finance:money_budget' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"/>
+                                <rect x="7" y="10" width="3" height="8"/>
+                                <rect x="13" y="6" width="3" height="12"/>
+                            </svg>
+                            Budgets &amp; Reserves
+                        </a>
+                        <a href="{% url 'finance:money_networth' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2l9 5v10l-9 5-9-5V7z"/>
+                                <path d="M12 12l9-5M12 12v10M12 12L3 7"/>
+                            </svg>
+                            Assets &amp; Net Worth
+                        </a>
+                        <a href="{% url 'finance:money_control' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3"/>
+                                <path d="M1 14h6M9 8h6M17 16h6"/>
+                            </svg>
+                            Opportunities
+                        </a>
                         <a href="{% url 'finance:money_debt' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M12 1v22"/>
                                 <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
                             </svg>
                             Debts &amp; Payoff
+                        </a>
+                        <a href="{% url 'finance:money_health' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                            </svg>
+                            Data Health
                         </a>
                         <a href="{% url 'finance:budget_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

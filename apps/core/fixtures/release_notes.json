@@ -4934,5 +4934,101 @@
       "created_at": "2026-08-31T06:00:00Z",
       "updated_at": "2026-08-31T06:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 310,
+    "fields": {
+      "title": "Why your spending total finally makes sense",
+      "description": "Your Spending page now shows the walk from what you bought to what it actually cost \u2014 purchases, plus fees and interest, minus anything that came back \u2014 with each step and its running total. If \"what it cost\" is higher than \"what I bought\", the page explains why instead of leaving you to work it out.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 311,
+    "fields": {
+      "title": "$40,500 of card payments were being counted as spending",
+      "description": "WLJ found two large credit-card payments that looked like ordinary purchases because it could not see the other half of each one. It can now, so your spending totals dropped by $40,500 \u2014 money you moved, not money you spent. Twenty-five more card credits left the review queue at the same time.",
+      "entry_type": "fix",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 312,
+    "fields": {
+      "title": "Review your uncertain transactions in groups, not one by one",
+      "description": "The review queue now clusters transactions that share a reason and a payee, ranks them by how much they actually move your totals, and lets you decide a whole group at once \u2014 with a preview of exactly what will change, and an undo afterwards. There is a \"start here\" list so you get value without working through everything.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 313,
+    "fields": {
+      "title": "See what is actually free, not just what is in the account",
+      "description": "A new Budgets and Reserves page separates your balance from your income, your spending, and your free cash flow \u2014 the only one that answers \"can I afford this\". Set an emergency-fund floor or a sinking fund for a cost you know is coming, and both come off what is genuinely available.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 314,
+    "fields": {
+      "title": "Track your net worth over time, honestly",
+      "description": "A new Assets and Net Worth page brings your accounts, property and debts together, shows the equity in each asset, and records a snapshot a day so a trend builds up. It will not invent history it never saw, and an asset nobody has valued is shown as unknown rather than counted as zero.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 315,
+    "fields": {
+      "title": "Know how much of your finances to trust",
+      "description": "A new Data Health page lists everything stale, missing or unresolved \u2014 worst first, each with a link straight to the fix. It tells you a valuation is fourteen months old; it never tells you your net worth is wrong.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-08-31",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-08-31T18:00:00Z",
+      "updated_at": "2026-08-31T18:00:00Z"
+    }
   }
 ]

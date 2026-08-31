@@ -1348,6 +1348,40 @@ CELERY_BEAT_SCHEDULE = {
         "task": "apps.finance.tasks.reconcile_stale_bank_connections",
         "schedule": crontab(minute=35),  # hourly, off the top of the hour
     },
+    # ---- Finance 2.0 scheduled intelligence (P11/P12) ----------------------
+    # All CRONTAB, never intervals: Railway's ephemeral filesystem resets
+    # PersistentScheduler on restart and starves long interval tasks. None of these
+    # calls a provider — no /transactions/refresh, nothing billed. Each holds a
+    # per-user lock, processes a bounded batch, and is safe to run twice.
+    "finance-recurring-detection-daily-415am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_recurring_detection",
+        "schedule": crontab(hour=4, minute=15),
+    },
+    # Classifies anything unclassified and REPORTS classifier drift without rewriting
+    # it — a silent mass reclassification is not something a cron job gets to do.
+    "finance-role-reconciliation-daily-420am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_role_reconciliation",
+        "schedule": crontab(hour=4, minute=20),
+    },
+    # One snapshot per user per day, updated in place. History cannot be reconstructed
+    # afterwards, so the value of taking it daily is the value of having taken it.
+    "finance-net-worth-snapshot-daily-425am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_net_worth_snapshots",
+        "schedule": crontab(hour=4, minute=25),
+    },
+    "finance-opportunity-reevaluation-daily-430am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_opportunities",
+        "schedule": crontab(hour=4, minute=30),
+    },
+    # Weekly: an accepted plan's result changes over a 60-day window, not overnight.
+    "finance-plan-outcomes-weekly-mon-435am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_plan_outcomes",
+        "schedule": crontab(hour=4, minute=35, day_of_week=1),
+    },
+    "finance-data-health-daily-440am-utc": {
+        "task": "apps.finance.tasks_intelligence.sweep_data_health",
+        "schedule": crontab(hour=4, minute=40),
+    },
     "meals-expire-leftovers-4am-utc": {
         "task": "apps.meals.tasks.expire_leftovers_task",
         "schedule": crontab(hour=4, minute=0),  # 4:00 AM UTC, after the health summary

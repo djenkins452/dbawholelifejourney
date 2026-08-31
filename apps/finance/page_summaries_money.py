@@ -92,3 +92,63 @@ def money_debt_summary(user):
                 for d in debts if d.missing],
         },
     }
+
+
+@register_page_summary("finance.money_budget")
+def money_budget_summary(user):
+    from apps.finance.models import CashReserve
+    from apps.finance.services.finance_calc import forecast as F
+
+    result = F.build(user)
+    return {
+        "title": "Budgets and Reserves",
+        "facts": {
+            "projectable": result["projectable"],
+            "starting_liquid": str(result["starting_liquid"]),
+            "committed_outflow": str(result["committed_outflow"]),
+            "free_cash_flow": str(result["free_cash_flow"]),
+            "reserve_floor": str(result["reserve_floor"]),
+            "reserves_configured": CashReserve.objects.filter(
+                user=user, status="active").count(),
+            "missing_inputs": result["inputs_missing"],
+        },
+        "calculation_version": F.FORECAST_VERSION,
+    }
+
+
+@register_page_summary("finance.money_networth")
+def money_networth_summary(user):
+    from apps.finance.services.finance_calc import net_worth as NW
+
+    position = NW.compose(user)
+    history = NW.history(user)
+    return {
+        "title": "Assets and Net Worth",
+        "facts": {
+            "net_worth": str(position["net_worth"]),
+            "gross_assets": str(position["gross_assets"]),
+            "liabilities": str(position["liabilities"]),
+            "unvalued_assets": position["unvalued_assets"],
+            "stale_valuations": position["stale_valuations"],
+            "snapshots": len(history["points"]),
+            "confidence": position["confidence"],
+        },
+        "calculation_version": NW.NET_WORTH_VERSION,
+    }
+
+
+@register_page_summary("finance.money_health")
+def money_health_summary(user):
+    from apps.finance.services.finance_calc import data_health as DH
+
+    report = DH.evaluate(user)
+    return {
+        "title": "Finance Data Health",
+        "facts": {
+            "healthy": report["healthy"],
+            "counts": report["counts"],
+            "issues": [{"code": i["code"], "severity": i["severity"],
+                        "title": i["title"]} for i in report["issues"]],
+        },
+        "calculation_version": DH.DATA_HEALTH_VERSION,
+    }

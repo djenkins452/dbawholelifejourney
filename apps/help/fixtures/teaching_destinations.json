@@ -3308,5 +3308,56 @@
       "created_at": "2026-08-31T00:00:00Z",
       "updated_at": "2026-08-31T00:00:00Z"
     }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 200,
+    "fields": {
+      "destination_id": "finance-money-budget",
+      "name": "Budgets & Reserves",
+      "path_description": "Finance - Budgets and Reserves",
+      "explanation": "Free cash flow over 30, 60 or 90 days, plus reserve floors and sinking funds. Shows starting cash, expected income, committed outflows, the reserve held back and what is genuinely free. Use it for \"how much can I actually spend\", \"can I afford this\", \"what is my free cash flow\", or to set an emergency-fund floor.",
+      "url": "/finance/money/budget/",
+      "keywords": "budget,forecast,cash flow,free cash,can i afford,emergency fund,reserve,sinking fund,savings target,projection,committed,available cash",
+      "module": "finance",
+      "sort_order": 310,
+      "is_active": true,
+      "created_at": "2026-08-31T00:00:00Z",
+      "updated_at": "2026-08-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 201,
+    "fields": {
+      "destination_id": "finance-money-networth",
+      "name": "Assets & Net Worth",
+      "path_description": "Finance - Assets and Net Worth",
+      "explanation": "Net worth composed from accounts, tangible assets and liabilities, with per-asset equity, valuation freshness and snapshot history. Use it for \"what am I worth\", \"how has my net worth changed\", \"how much equity is in the house\", or to record today's position.",
+      "url": "/finance/money/net-worth/",
+      "keywords": "net worth,assets,equity,house value,car value,liabilities,what am i worth,wealth,snapshot,net worth history,valuation",
+      "module": "finance",
+      "sort_order": 311,
+      "is_active": true,
+      "created_at": "2026-08-31T00:00:00Z",
+      "updated_at": "2026-08-31T00:00:00Z"
+    }
+  },
+  {
+    "model": "help.teachingdestination",
+    "pk": 202,
+    "fields": {
+      "destination_id": "finance-money-health",
+      "name": "Data Health",
+      "path_description": "Finance - Data Health",
+      "explanation": "Everything stale, missing or unresolved in your Finance data, worst first, each with a link to fix it. Use it for \"is my data fresh enough to trust\", \"what is missing\", or \"why is this number uncertain\".",
+      "url": "/finance/money/health/",
+      "keywords": "data health,stale,missing,fresh,trust,uncertain,incomplete,out of date,gaps,needs attention,quality",
+      "module": "finance",
+      "sort_order": 312,
+      "is_active": true,
+      "created_at": "2026-08-31T00:00:00Z",
+      "updated_at": "2026-08-31T00:00:00Z"
+    }
   }
 ]

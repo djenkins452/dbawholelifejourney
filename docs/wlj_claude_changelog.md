@@ -60718,3 +60718,48 @@ Provisional never mixes with committed: unconfirmed candidates are computed and 
 their own column, and excluded from every committed total.
 
 27 forecast tests.
+
+## 2026-08-31 — P11/P12 scheduled intelligence, outcomes, and the remaining pages
+
+**Six background jobs**, all crontab (Railway resets `PersistentScheduler` and starves
+intervals), all registered on `CELERY_BEAT_SCHEDULE`: recurring detection, role
+reconciliation, net-worth snapshots, opportunity re-evaluation, plan outcomes (weekly),
+and data health.
+
+Four properties on every one: **no provider calls** (asserted by parsing the AST rather
+than grepping prose — the docstring names `/transactions/refresh` precisely to promise it
+is never called); **per-user locks** via atomic `cache.add`, where a colliding pass steps
+aside rather than queueing behind and doing the work twice; **bounded batches** whose cap
+is reported, never silently truncating; and **idempotent** by construction.
+
+`sweep_role_reconciliation` classifies the genuinely unclassified and REPORTS classifier
+drift without rewriting it. A silent mass reclassification of a person's financial
+history is not something a cron job gets to do.
+
+Every job is allowed to find nothing and say so. A scheduled sweep that produces output
+because it ran is how a system starts manufacturing findings.
+
+**P11 outcomes.** `decision` is what the person said; `outcome` is what the world did,
+and they are separate fields — merging them is how a system congratulates someone for a
+saving they never made. Full lifecycle (suggested → accepted/rejected/snoozed → planned →
+done/abandoned) with four honest non-success outcomes: too early (not a failure),
+unmeasurable (no series to watch, so no claim either way), partially achieved, and not
+achieved — said plainly, because noticing is the entire point of measuring. Savings can be
+DIRECTED at a debt or goal; WLJ initiates no payment.
+
+**P12 data health.** Every issue names what is wrong, how much it affects, and the exact
+route to fix it, ordered worst first. It states that a valuation is fourteen months old;
+it never says a figure is wrong.
+
+**Pages.** Budgets & Reserves (forecast, reserve/sinking CRUD, budgets), Assets & Net
+Worth (composition, per-asset equity with the never-double-subtract rule stated, snapshot
+history), Data Health. Three more Current Context providers, navigation entries for all
+seven money destinations, three help topics, three teaching destinations, six release
+notes, and a `load_initial_data` reset.
+
+A constitutional guard fired and was right: `pairing_rehearsal` queried
+`transfer_pair__isnull`, which no surface outside the population authority may write.
+Moved to `transfer_detection.pairing_coverage` — the pairing authority is allowed to
+describe itself; a surface is not allowed to describe it for it.
+
+22 scheduled-intelligence tests, 18 outcome tests, 29 page tests.

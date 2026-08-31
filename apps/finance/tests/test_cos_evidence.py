@@ -61,6 +61,12 @@ class RedactionTests(RoleBase):
             "find": E.find_amount_packet(self.user, 100),
             "opportunities": E.opportunities_packet(self.user),
             "snapshot": E.snapshot_packet(self.user),
+            "forecast": E.forecast_packet(self.user),
+            "affordability": E.affordability_packet(self.user, 300),
+            "net_worth": E.net_worth_packet(self.user),
+            "net_worth_history": E.net_worth_history_packet(self.user),
+            "plan_results": E.plan_results_packet(self.user),
+            "data_health_detail": E.data_health_packet(self.user),
         }
 
     def test_no_packet_carries_a_forbidden_key(self):
@@ -224,19 +230,18 @@ class DomainTruthExposureTests(RoleBase):
         from apps.finance.services.finance_domain_truth import FinanceDomainTruth
         self.truth = FinanceDomainTruth(self.user)
 
+    PACKETS = ("measures", "debt", "payoff", "payoff_comparison", "obligations",
+               "controllable_costs", "savings_opportunities", "financial_snapshot",
+               "data_health", "forecast", "affordability", "net_worth",
+               "net_worth_history", "plan_results", "data_health_detail")
+
     def test_every_packet_is_declared_as_an_entity_type(self):
-        for entity_type in ("measures", "debt", "payoff", "payoff_comparison",
-                            "obligations", "controllable_costs",
-                            "savings_opportunities", "financial_snapshot",
-                            "data_health"):
+        for entity_type in self.PACKETS:
             with self.subTest(entity_type=entity_type):
                 self.assertIn(entity_type, self.truth.entity_types)
 
     def test_every_declared_packet_actually_resolves(self):
-        for entity_type in ("measures", "debt", "payoff", "payoff_comparison",
-                            "obligations", "controllable_costs",
-                            "savings_opportunities", "financial_snapshot",
-                            "data_health"):
+        for entity_type in self.PACKETS:
             with self.subTest(entity_type=entity_type):
                 result = self.truth.describe(entity_type)
                 self.assertEqual(len(result), 1)
@@ -273,3 +278,74 @@ class DomainTruthExposureTests(RoleBase):
     def test_an_unknown_entity_type_is_still_refused(self):
         with self.assertRaises(KeyError):
             self.truth.describe("crystal_ball")
+
+
+class NewPacketTests(RoleBase):
+    """The packets added to finish Finance 2.0, and what they refuse to claim."""
+
+    def test_the_forecast_packet_carries_its_setup_state(self):
+        packet = E.forecast_packet(self.user)
+        self.assertFalse(packet["projectable"])
+        self.assertTrue(packet["setup"]["steps"])
+        self.assertIn("route", packet["setup"]["steps"][0])
+
+    def test_affordability_refuses_without_a_forecast(self):
+        packet = E.affordability_packet(self.user, 300)
+        self.assertFalse(packet["answerable"])
+        self.assertEqual(packet["reason"], "no_forecast")
+        self.assertIn("will not guess", packet["detail"])
+
+    def test_affordability_refuses_without_a_reserve_target(self):
+        """'Without dropping below my emergency fund' needs an emergency fund."""
+        from apps.finance.models import RecurringSeries
+        RecurringSeries.objects.create(
+            user=self.user, name="Salary", payee="salary",
+            kind=RecurringSeries.KIND_INCOME, amount_expected=Decimal("4000"),
+            review_state=RecurringSeries.REVIEW_CONFIRMED)
+        packet = E.affordability_packet(self.user, 300)
+        self.assertFalse(packet["answerable"])
+        self.assertEqual(packet["reason"], "no_reserve_target")
+
+    def test_affordability_answers_once_a_floor_exists(self):
+        from apps.finance.models import CashReserve, RecurringSeries
+        RecurringSeries.objects.create(
+            user=self.user, name="Salary", payee="salary",
+            kind=RecurringSeries.KIND_INCOME, amount_expected=Decimal("4000"),
+            review_state=RecurringSeries.REVIEW_CONFIRMED)
+        CashReserve.objects.create(
+            user=self.user, name="Emergency", kind=CashReserve.KIND_RESERVE,
+            target_amount=Decimal("1000"))
+        packet = E.affordability_packet(self.user, 300)
+        self.assertTrue(packet["answerable"])
+        self.assertIn("fits", packet)
+
+    def test_the_net_worth_packet_carries_no_identifying_detail(self):
+        from apps.finance.models import TangibleAsset
+        TangibleAsset.objects.create(
+            user=self.user, name="Truck", asset_type="vehicle",
+            vin="1FTFW1ET5DFA12345", street_address="12 Elm Street")
+        packet = E.net_worth_packet(self.user)
+        blob = str(packet)
+        self.assertNotIn("1FTFW1ET5DFA12345", blob)
+        self.assertNotIn("Elm Street", blob)
+        self.assertIn("Truck", blob)
+
+    def test_net_worth_history_explains_an_empty_series(self):
+        packet = E.net_worth_history_packet(self.user)
+        self.assertFalse(packet["has_history"])
+        self.assertIn("fiction", packet["explanation"])
+
+    def test_plan_results_keep_projected_and_realized_apart(self):
+        packet = E.plan_results_packet(self.user)
+        self.assertIn("never merged", packet["note"])
+
+    def test_data_health_detail_routes_every_issue_somewhere(self):
+        self._txn(-50, primary="FOOD_AND_DRINK")
+        for issue in E.data_health_packet(self.user)["issues"]:
+            with self.subTest(code=issue["code"]):
+                self.assertTrue(issue["route"])
+
+    def test_the_snapshot_explains_the_gross_to_net_gap(self):
+        packet = E.snapshot_packet(self.user)
+        self.assertIn("spending_bridge", packet)
+        self.assertIn("are not purchases", packet["spending_bridge"]["explains"])

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Budgets and Reserves - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-budget">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Budgets and reserves</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">What is actually free</h1>
+            <p class="page-subtitle">Cash you have is not cash you can use.</p>
+        </div>
+    </div>
+
+    <section class="mb-forecast" aria-labelledby="fc-heading">
+        <h2 id="fc-heading" class="mb-heading">Cash-flow forecast</h2>
+
+        <form method="get" class="mb-horizons" role="group" aria-label="Forecast horizon">
+            {% for option in horizons %}
+            <button type="submit" name="horizon" value="{{ option }}"
+                    class="btn {% if option == horizon %}btn-primary{% else %}btn-secondary{% endif %} mb-btn">
+                {{ option }} days
+            </button>
+            {% endfor %}
+        </form>
+
+        {% if forecast.projectable %}
+        <div class="mb-figures" data-testid="forecast-figures">
+            <div class="mb-figure"><span>Starting cash</span><strong>{{ forecast.starting_liquid|money }}</strong></div>
+            <div class="mb-figure"><span>Expected in</span><strong>{{ forecast.expected_inflow|money }}</strong></div>
+            <div class="mb-figure"><span>Committed out</span><strong>{{ forecast.committed_outflow|money }}</strong></div>
+            <div class="mb-figure"><span>Projected ending cash</span><strong>{{ forecast.projected_ending_cash|money }}</strong></div>
+            <div class="mb-figure mb-figure-key">
+                <span>Free cash flow</span>
+                <strong data-testid="free-cash">{{ forecast.free_cash_flow|money }}</strong>
+            </div>
+            <div class="mb-figure"><span>Lowest point</span><strong>{{ forecast.lowest_projected_balance|money }}</strong></div>
+        </div>
+
+        <details class="mb-details">
+            <summary>What is committed</summary>
+            <dl class="mb-components">
+                {% for name, amount in forecast.committed_breakdown.items %}
+                <div><dt>{{ name }}</dt><dd>{{ amount|money }}</dd></div>
+                {% endfor %}
+                <div><dt>reserve floor held back</dt><dd>{{ forecast.reserve_floor|money }}</dd></div>
+            </dl>
+        </details>
+
+        {% if forecast.provisional_outflow %}
+        <div class="mb-provisional" data-testid="provisional">
+            <p><strong>{{ forecast.provisional_outflow|money }}</strong> of detected but
+                unconfirmed bills is <em>not</em> in the committed figure.</p>
+            <p class="mb-note">{{ forecast.provisional_note }}</p>
+            <a class="btn btn-secondary mb-btn" href="{% url 'finance:money_review' %}">
+                Confirm {{ forecast.provisional_count }} recurring pattern{{ forecast.provisional_count|pluralize }}
+            </a>
+        </div>
+        {% endif %}
+        {% else %}
+        <div class="mb-setup" data-testid="forecast-setup">
+            <p class="mb-setup-lead">
+                Your cash today is <strong>{{ forecast.starting_liquid|money }}</strong>.
+                Beyond that WLJ will not project, because nothing is confirmed yet and a
+                forecast built on guesses looks exactly like a real one.
+            </p>
+            <p class="mb-setup-title">To make this real, WLJ needs:</p>
+            <ol class="mb-steps">
+                {% for step in setup.steps %}
+                <li>
+                    <p>{{ step.detail }}</p>
+                    {% if step.route %}<a class="btn btn-secondary mb-btn" href="{% url step.route %}">Go there</a>{% endif %}
+                </li>
+                {% endfor %}
+            </ol>
+        </div>
+        {% endif %}
+
+        {% if forecast.assumptions %}
+        <details class="mb-details">
+            <summary>What WLJ assumed</summary>
+            <ul>{% for a in forecast.assumptions %}<li>{{ a }}</li>{% endfor %}</ul>
+        </details>
+        {% endif %}
+        {% if forecast.debts_without_a_minimum %}
+        <p class="mb-warn" data-testid="debts-missing">
+            Not in the committed figure &mdash; no minimum payment recorded:
+            {% for name in forecast.debts_without_a_minimum %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            <a href="{% url 'finance:money_debt' %}">Add the terms</a>.
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="mb-section" aria-labelledby="res-heading">
+        <h2 id="res-heading" class="mb-heading">Reserves and sinking funds</h2>
+        <p class="mb-intro">
+            A <strong>reserve</strong> is a floor you do not go below. A <strong>sinking
+            fund</strong> builds towards a cost you know is coming. Both reduce what is
+            genuinely free.
+        </p>
+
+        {% if reserves or sinking_funds %}
+        <ul class="mb-list">
+            {% for reserve in reserves %}{% include "finance/_reserve_row.html" with reserve=reserve %}{% endfor %}
+            {% for reserve in sinking_funds %}{% include "finance/_reserve_row.html" with reserve=reserve %}{% endfor %}
+        </ul>
+        {% else %}
+        <p class="mb-empty" data-testid="no-reserves">
+            Nothing is set aside, so free cash flow has no floor under it. That is an
+            absent decision, not a judgement that you need no buffer.
+        </p>
+        {% endif %}
+
+        <form method="post" action="{% url 'finance:money_save_reserve' %}" class="mb-form">
+            {% csrf_token %}
+            <div class="mb-field">
+                <label for="r-name">Name</label>
+                <input type="text" id="r-name" name="name" required
+                       placeholder="Emergency fund, car insurance, new tyres">
+            </div>
+            <div class="mb-field">
+                <label for="r-kind">What kind?</label>
+                <select id="r-kind" name="kind">
+                    {% for value, label in kinds %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="mb-field">
+                <label for="r-target">Target amount (optional)</label>
+                <input type="number" id="r-target" name="target_amount" step="0.01" min="0">
+            </div>
+            <div class="mb-field">
+                <label for="r-monthly">Monthly contribution (optional)</label>
+                <input type="number" id="r-monthly" name="monthly_contribution" step="0.01" min="0">
+            </div>
+            <div class="mb-field">
+                <label for="r-goal">Link an existing goal (optional)</label>
+                <select id="r-goal" name="goal">
+                    <option value="">&mdash; none &mdash;</option>
+                    {% for goal in goals %}<option value="{{ goal.pk }}">{{ goal.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="mb-field">
+                <label for="r-account">Held in (optional)</label>
+                <select id="r-account" name="account">
+                    <option value="">&mdash; none &mdash;</option>
+                    {% for account in accounts %}<option value="{{ account.pk }}">{{ account.name }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="mb-field">
+                <label for="r-due">Due date (optional)</label>
+                <input type="date" id="r-due" name="due_date">
+            </div>
+            <button type="submit" class="btn btn-primary mb-btn">Save</button>
+        </form>
+    </section>
+
+    <section class="mb-section" aria-labelledby="bud-heading">
+        <h2 id="bud-heading" class="mb-heading">Category budgets</h2>
+        {% if budgets %}
+        <table class="mb-table">
+            <caption class="sr-only">Budgets by month and category</caption>
+            <thead><tr><th scope="col">Month</th><th scope="col">Category</th>
+                <th scope="col">Budgeted</th><th scope="col">Spent</th></tr></thead>
+            <tbody>
+            {% for budget in budgets %}
+            <tr>
+                <th scope="row">{{ budget.month|date:"M Y" }}</th>
+                <td>{{ budget.category.name|default:"All" }}</td>
+                <td>{{ budget.total_budget|money }}</td>
+                <td>{{ budget.spent_amount|money }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="mb-empty">
+            No budgets yet. <a href="{% url 'finance:budget_create' %}">Create one</a> to
+            plan a category rather than only observing it.
+        </p>
+        {% endif %}
+        <a class="btn btn-secondary mb-btn" href="{% url 'finance:budget_list' %}">Manage budgets</a>
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.mb-section, .mb-forecast { margin-bottom: 2.5rem; }
+.mb-heading { font-size: 1.1rem; }
+.mb-intro, .mb-note { font-size: 0.88rem; color: var(--muted, #667); max-width: 66ch; }
+.mb-horizons { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.mb-btn { min-height: 44px; }
+.mb-figures { display: grid; gap: 0.6rem; grid-template-columns: 1fr; }
+.mb-figure { display: flex; justify-content: space-between; gap: 1rem;
+  align-items: baseline; border: 1px solid var(--border, #dee2e6);
+  border-radius: 10px; padding: 0.6rem 0.85rem; }
+.mb-figure strong { font-variant-numeric: tabular-nums; font-size: 1.15rem; }
+.mb-figure-key { background: var(--info-bg, #e7f0fd); }
+.mb-figure-key strong { font-size: 1.4rem; }
+.mb-details { margin-top: 0.75rem; font-size: 0.85rem; }
+.mb-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.mb-components div { display: flex; justify-content: space-between; gap: 1rem;
+  padding: 0.15rem 0; }
+.mb-components dd { margin: 0; font-variant-numeric: tabular-nums; }
+.mb-provisional { background: var(--warning-bg, #fdf1dc); border-radius: 10px;
+  padding: 0.85rem; margin-top: 1rem; }
+.mb-setup { background: var(--surface-2, #f1f3f5); border-radius: 12px; padding: 1rem; }
+.mb-setup-lead { font-size: 0.95rem; max-width: 66ch; }
+.mb-setup-title { font-weight: 600; margin-bottom: 0.3rem; }
+.mb-steps { padding-left: 1.2rem; }
+.mb-steps li { margin-bottom: 0.6rem; }
+.mb-steps p { margin: 0 0 0.3rem; font-size: 0.88rem; }
+.mb-warn { font-size: 0.85rem; color: var(--warning-fg, #7a4b00); max-width: 66ch; }
+.mb-list { list-style: none; margin: 0 0 1rem; padding: 0; }
+.mb-form { display: grid; gap: 0.9rem; max-width: 40rem; margin-top: 1rem; }
+.mb-field label { display: block; font-weight: 600; margin-bottom: 0.3rem;
+  font-size: 0.9rem; }
+.mb-field input, .mb-field select { width: 100%; max-width: 100%; min-height: 44px;
+  font-size: 16px; }
+.mb-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.mb-table th, .mb-table td { text-align: left; padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #dee2e6); }
+.mb-table td { font-variant-numeric: tabular-nums; }
+.mb-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 66ch; }
+@media (min-width: 769px) {
+  .mb-figures { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+{% endblock %}

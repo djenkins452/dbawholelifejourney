@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Assets and Net Worth - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-networth">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Assets and net worth</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">What you are worth</h1>
+            <p class="page-subtitle">And exactly which parts of it are unknown.</p>
+        </div>
+    </div>
+
+    <section class="nw-headline" aria-labelledby="nw-heading">
+        <h2 id="nw-heading" class="sr-only">Current position</h2>
+        <p class="nw-value" data-testid="net-worth">{{ position.net_worth|money }}</p>
+        <p class="nw-meta">as at {{ position.as_of }} &middot;
+            {{ position.confidence }} confidence &middot;
+            calculation {{ position.calculation_version }}</p>
+    </section>
+
+    <div class="nw-grid">
+        <div class="nw-card"><span>Cash and financial</span><strong>{{ position.cash_and_financial|money }}</strong></div>
+        <div class="nw-card"><span>Investments</span><strong>{{ position.investments|money }}</strong></div>
+        <div class="nw-card"><span>Tangible assets</span><strong>{{ position.tangible_assets|money }}</strong></div>
+        <div class="nw-card"><span>Gross assets</span><strong>{{ position.gross_assets|money }}</strong></div>
+        <div class="nw-card"><span>Liabilities</span><strong>{{ position.liabilities|money }}</strong></div>
+    </div>
+
+    {% if position.unvalued_assets or position.stale_valuations %}
+    <section class="nw-gaps" data-testid="nw-gaps" aria-labelledby="gap-heading">
+        <h2 id="gap-heading" class="nw-heading">What is missing from this number</h2>
+        {% if position.unvalued_assets %}
+        <p><strong>{{ position.unvalued_assets|length }}</strong> asset{{ position.unvalued_assets|length|pluralize }}
+            {{ position.unvalued_assets|length|pluralize:"has,have" }} never been valued, so
+            {{ position.unvalued_assets|length|pluralize:"it is,they are" }} counted as
+            <em>unknown</em> rather than as zero:
+            {% for name in position.unvalued_assets %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            Your net worth is understated by whatever they are worth.</p>
+        {% endif %}
+        {% if position.stale_valuations %}
+        <p><strong>{{ position.stale_valuations|length }}</strong> valuation{{ position.stale_valuations|length|pluralize }}
+            over a year old:
+            {% for name in position.stale_valuations %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}.
+            Real numbers about how things were.</p>
+        {% endif %}
+        <a class="btn btn-secondary nw-btn" href="{% url 'finance:asset_list' %}">Update valuations</a>
+    </section>
+    {% endif %}
+
+    <section class="nw-section" aria-labelledby="assets-heading">
+        <h2 id="assets-heading" class="nw-heading">Assets</h2>
+        {% if position.asset_rows %}
+        <table class="nw-table">
+            <caption class="sr-only">Tangible assets and their contribution</caption>
+            <thead><tr>
+                <th scope="col">Asset</th><th scope="col">Value</th>
+                <th scope="col">Linked debt</th><th scope="col">Equity</th>
+                <th scope="col">Counted</th>
+            </tr></thead>
+            <tbody>
+            {% for asset in position.asset_rows %}
+            <tr>
+                <th scope="row">{{ asset.name }}</th>
+                <td>{% if asset.value %}{{ asset.value|money }}{% else %}<span class="nw-unknown">unknown</span>{% endif %}</td>
+                <td>{% if asset.linked_debt %}{{ asset.linked_debt|money }}{% else %}&mdash;{% endif %}</td>
+                <td>{% if asset.equity %}{{ asset.equity|money }}{% else %}&mdash;{% endif %}</td>
+                <td>{% if asset.included %}yes{% else %}<span class="nw-unknown">{{ asset.reason }}</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <p class="nw-note">
+            Equity is shown to explain the position and is <strong>never</strong> added
+            into the total &mdash; the linked debt is already subtracted once in
+            liabilities, and netting it twice would understate you by the size of your
+            largest debt.
+        </p>
+        {% else %}
+        <p class="nw-empty" data-testid="no-assets">
+            No tangible assets recorded, so none are counted.
+            <a href="{% url 'finance:asset_create' %}">Add one</a> to include a house,
+            vehicle or boat in your net worth.
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="nw-section" aria-labelledby="hist-heading">
+        <h2 id="hist-heading" class="nw-heading">History</h2>
+        {% if history.has_history %}
+        <p class="nw-note" data-testid="history-note">{{ history.explanation }}</p>
+        {% if not history.single_point %}
+        <p class="nw-change">
+            {{ history.change|money_signed }} over {{ history.change_over_days }} days
+            ({{ history.first }} &rarr; {{ history.latest }})
+        </p>
+        {% endif %}
+        <table class="nw-table">
+            <caption class="sr-only">Net-worth snapshots</caption>
+            <thead><tr><th scope="col">Date</th><th scope="col">Net worth</th>
+                <th scope="col">Assets</th><th scope="col">Liabilities</th>
+                <th scope="col">Basis</th></tr></thead>
+            <tbody>
+            {% for point in history.points %}
+            <tr>
+                <th scope="row">{{ point.as_of }}</th>
+                <td>{{ point.net_worth|money }}</td>
+                <td>{{ point.gross_assets|money }}</td>
+                <td>{{ point.liabilities|money }}</td>
+                <td>{{ point.basis }}{% if not point.complete %} (has gaps){% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="nw-empty" data-testid="no-history">{{ history.explanation }}</p>
+        {% endif %}
+
+        <form method="post" action="{% url 'finance:money_take_snapshot' %}" class="nw-form">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary nw-btn">Record today's position</button>
+            <span class="nw-note">Once a day. Running it again today updates today
+                rather than adding a second entry.</span>
+        </form>
+    </section>
+
+    <details class="nw-details">
+        <summary>What WLJ assumed</summary>
+        <ul>{% for a in position.assumptions %}<li>{{ a }}</li>{% endfor %}</ul>
+    </details>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.nw-headline { margin-bottom: 1rem; }
+.nw-value { font-size: 2.4rem; font-weight: 700; margin: 0;
+  font-variant-numeric: tabular-nums; }
+.nw-meta, .nw-note { font-size: 0.82rem; color: var(--muted, #667); max-width: 66ch; }
+.nw-grid { display: grid; gap: 0.6rem; grid-template-columns: 1fr; margin-bottom: 2rem; }
+.nw-card { display: flex; justify-content: space-between; gap: 1rem; align-items: baseline;
+  border: 1px solid var(--border, #dee2e6); border-radius: 10px; padding: 0.6rem 0.85rem; }
+.nw-card strong { font-variant-numeric: tabular-nums; }
+.nw-gaps { background: var(--warning-bg, #fdf1dc); border-radius: 12px;
+  padding: 1rem; margin-bottom: 2rem; }
+.nw-gaps p { font-size: 0.9rem; max-width: 66ch; }
+.nw-section { margin-bottom: 2.5rem; }
+.nw-heading { font-size: 1.1rem; margin-top: 0; }
+.nw-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.nw-table th, .nw-table td { text-align: left; padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #dee2e6); }
+.nw-table td { font-variant-numeric: tabular-nums; }
+.nw-unknown { color: var(--warning-fg, #7a4b00); }
+.nw-change { font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nw-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 66ch; }
+.nw-form { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
+  margin-top: 1rem; }
+.nw-btn { min-height: 44px; }
+.nw-details { font-size: 0.85rem; }
+.nw-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+@media (min-width: 769px) {
+  .nw-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+{% endblock %}

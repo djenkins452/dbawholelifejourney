@@ -420,3 +420,29 @@ def _claim(txn_pk, counterpart_pk):
         classify(holder, liability_names=names)
         classify(other, liability_names=names)
         return True
+
+
+def pairing_coverage(user):
+    """How much of this user's history the pairing pass can actually see.
+
+    Lives HERE, in the pairing authority, rather than in the module that reports it.
+    Counting unpaired rows means querying `transfer_pair__isnull`, and a constitutional
+    contract test forbids any surface outside the population authority from writing that
+    predicate — correctly, because it is one edit away from becoming a second definition
+    of what counts as activity. The authority is allowed to describe itself.
+    """
+    total = Transaction.objects.filter(user=user).exclude(
+        is_opening_balance=True).count()
+    unpaired = Transaction.objects.filter(
+        user=user, transfer_pair__isnull=True).exclude(
+        is_opening_balance=True).count()
+    return {
+        "transactions": total,
+        "unpaired": unpaired,
+        "pass_reads_at_most": 2000,
+        "limit_truncates": unpaired > 2000,
+        "window_days": PAIRING_WINDOW_DAYS,
+        "note": ("`pair_transfers` reads at most 2,000 unpaired rows ordered by date. "
+                 "Above that it silently stops looking, and the rows it drops are the "
+                 "most recent ones."),
+    }

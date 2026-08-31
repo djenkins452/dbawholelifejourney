@@ -1,0 +1,22 @@
+{% load finance_format %}
+<li class="mb-item" data-testid="reserve-row">
+    <div>
+        <p class="mb-item-title">{{ reserve.name }}</p>
+        <p class="mb-item-meta">
+            {{ reserve.get_kind_display }}
+            &middot; holding {{ reserve.effective_balance|money }}
+            {% if reserve.target_amount %}
+                of {{ reserve.target_amount|money }}
+                {% if reserve.is_funded %}&middot; funded{% else %}&middot; {{ reserve.shortfall|money }} short{% endif %}
+            {% else %}
+                &middot; no target set
+            {% endif %}
+            {% if reserve.monthly_contribution %}&middot; {{ reserve.monthly_contribution|money }}/month{% endif %}
+            {% if reserve.goal %}&middot; reads {{ reserve.goal.name }}{% endif %}
+        </p>
+    </div>
+    <form method="post" action="{% url 'finance:money_archive_reserve' reserve.pk %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-secondary mb-btn">Archive</button>
+    </form>
+</li>

@@ -432,6 +432,12 @@ class ShadowIsolationTests(RoleBase):
             "apps/finance/tests/test_net_worth.py",
             "apps/finance/services/finance_calc/review_queue.py",
             "apps/finance/tests/test_review_queue.py",
+            "apps/finance/services/finance_calc/data_health.py",
+            "apps/finance/tasks_intelligence.py",
+            "apps/finance/tests/test_scheduled_intelligence.py",
+            "apps/finance/tests/test_money_pages_complete.py",
+            "apps/finance/tests/test_outcomes.py",
+            "apps/finance/tests/test_forecast.py",
             # TEMPORARY — the Finance 2.0 completion operator endpoint. Goes when the
             # rehearsals and backfills are verified.
             "apps/admin_console/views.py",

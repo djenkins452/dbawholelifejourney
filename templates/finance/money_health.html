@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Data Health - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-health">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <span>Data health</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">How much of this can you trust?</h1>
+            <p class="page-subtitle">Every figure rests on data of some age. The number cannot tell you which.</p>
+        </div>
+    </div>
+
+    {% if report.healthy %}
+    <p class="dh-clean" data-testid="dh-healthy">
+        Nothing is stale, missing or unresolved. Every Finance figure rests on data WLJ
+        can stand behind.
+    </p>
+    {% else %}
+    <div class="dh-counts" role="status">
+        <span class="dh-chip dh-high">{{ report.counts.high }} high</span>
+        <span class="dh-chip dh-medium">{{ report.counts.medium }} medium</span>
+        <span class="dh-chip dh-low">{{ report.counts.low }} low</span>
+    </div>
+
+    <ul class="dh-list">
+        {% for issue in report.issues %}
+        <li class="dh-item dh-{{ issue.severity }}" data-testid="health-issue"
+            data-code="{{ issue.code }}">
+            <div class="dh-item-body">
+                <p class="dh-item-title">{{ issue.title }}</p>
+                <p class="dh-item-detail">{{ issue.detail }}</p>
+                {% if issue.amount and issue.amount != "0.00" %}
+                <p class="dh-item-amount">{{ issue.amount|money }} affected</p>
+                {% endif %}
+            </div>
+            {% if issue.url %}
+            <a class="btn btn-secondary dh-btn" href="{{ issue.url }}">Fix this</a>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    <p class="dh-note">
+        WLJ states what is old or absent. It does not tell you a figure is wrong &mdash;
+        it tells you what the figure rests on, and lets you decide.
+    </p>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.dh-counts { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.dh-chip { border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.85rem; }
+.dh-high { background: var(--danger-bg, #fdeaea); color: var(--danger-fg, #a01919); }
+.dh-medium { background: var(--warning-bg, #fdf1dc); color: var(--warning-fg, #7a4b00); }
+.dh-low { background: var(--surface-2, #f1f3f5); }
+.dh-list { list-style: none; margin: 0; padding: 0; }
+.dh-item { border: 1px solid var(--border, #dee2e6); border-left-width: 4px;
+  border-radius: 10px; padding: 0.85rem; margin-bottom: 0.6rem;
+  display: flex; flex-direction: column; gap: 0.6rem; }
+.dh-item.dh-high { border-left-color: var(--danger-fg, #a01919); }
+.dh-item.dh-medium { border-left-color: var(--warning-fg, #7a4b00); }
+.dh-item.dh-low { border-left-color: var(--border, #dee2e6); }
+.dh-item-title { margin: 0; font-weight: 600; }
+.dh-item-detail { margin: 0.2rem 0 0; font-size: 0.88rem; max-width: 66ch; }
+.dh-item-amount { margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--muted, #667);
+  font-variant-numeric: tabular-nums; }
+.dh-btn { min-height: 44px; align-self: flex-start; }
+.dh-clean { font-size: 0.95rem; max-width: 66ch; }
+.dh-note { font-size: 0.85rem; color: var(--muted, #667); max-width: 66ch;
+  margin-top: 2rem; }
+@media (min-width: 769px) {
+  .dh-item { flex-direction: row; align-items: center; justify-content: space-between; }
+  .dh-btn { align-self: center; }
+}
+</style>
+{% endblock %}

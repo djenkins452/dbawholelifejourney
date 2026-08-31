@@ -201,22 +201,13 @@ def run(user, *, window_days=PAIRING_WINDOW_DAYS):
 
 
 def existing_authority_limits(user):
-    """Facts about the CURRENT pairing pass, so the gap is attributed correctly."""
-    from apps.finance.models import Transaction
+    """Facts about the CURRENT pairing pass, so the gap is attributed correctly.
+
+    Delegated to `transfer_detection.pairing_coverage`: counting unpaired rows means
+    querying `transfer_pair__isnull`, and a contract test forbids any surface outside
+    the population authority from writing that predicate. The pairing authority is
+    allowed to describe itself; this module is not allowed to describe it for it.
+    """
     from apps.finance.services import transfer_detection as TD
 
-    total = Transaction.objects.filter(user=user).exclude(
-        is_opening_balance=True).count()
-    unpaired = Transaction.objects.filter(
-        user=user, transfer_pair__isnull=True).exclude(
-        is_opening_balance=True).count()
-    return {
-        "pairing_limit": TD.__dict__.get("pair_transfers").__defaults__,
-        "window_days": TD.PAIRING_WINDOW_DAYS,
-        "transactions": total,
-        "unpaired": unpaired,
-        "limit_truncates": unpaired > 2000,
-        "note": ("`pair_transfers` reads at most 2,000 unpaired rows ordered by date. "
-                 "Above that it silently stops looking, and the rows it drops are the "
-                 "most recent ones."),
-    }
+    return TD.pairing_coverage(user)

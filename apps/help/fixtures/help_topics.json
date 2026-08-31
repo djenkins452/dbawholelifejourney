@@ -2655,5 +2655,47 @@
       "is_active": true,
       "app_name": "finance"
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 169,
+    "fields": {
+      "context_id": "FINANCE_MONEY_BUDGET",
+      "help_id": "finance-money-budget",
+      "title": "Budgets and Reserves",
+      "description": "Free cash flow, reserves, sinking funds \u2014 and why a forecast may refuse to project.",
+      "content": "## Budgets and Reserves\n\n### The number no bank shows you\n\nFour figures get confused constantly:\n\n- **Balance** \u2014 what is in the account.\n- **Income** \u2014 what arrives.\n- **Spending** \u2014 what leaves.\n- **Free cash flow** \u2014 what is left after everything already promised.\n\nOnly the last one answers \"can I afford this\".\n\n### Reserves and sinking funds\n\nA **reserve** is a floor you do not go below \u2014 an emergency fund. A **sinking fund** builds towards a cost you know is coming: the annual insurance, the tyres, the property tax. Both reduce what is genuinely free, and $8,000 with a $6,000 floor and $900 set aside is $1,100 of actual freedom.\n\nIf you already have an Emergency Fund goal, link it. WLJ reads the balance live rather than keeping a second copy that goes stale.\n\n### Why the forecast may refuse\n\nWith nothing confirmed, WLJ shows your real balance and stops. A forecast built on its own guesses would look identical to a real one, and you would plan from it. It tells you exactly what it needs and links you to the page that supplies it.\n\nDetected-but-unconfirmed bills appear in their own column and are never added to the committed figure.",
+      "app_name": "finance",
+      "order": 169,
+      "is_active": true
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 170,
+    "fields": {
+      "context_id": "FINANCE_MONEY_NETWORTH",
+      "help_id": "finance-money-networth",
+      "title": "Assets and Net Worth",
+      "description": "What you are worth, what is unknown, and why history starts today.",
+      "content": "## Assets and Net Worth\n\n### Debt is subtracted once\n\nA mortgage is a liability *and* it is attached to a house. Netting it against the house and then subtracting total liabilities counts it twice and understates you by the size of your largest debt. So per-asset **equity is shown to explain the position and never added into the total**. The arithmetic is the simple one: cash + investments + assets \u2212 liabilities.\n\n### An unvalued asset is not worth zero\n\nIt is worth an unknown amount. It is left out of the total and named as a gap, so your net worth is understated by whatever it is worth rather than silently erasing a house.\n\n### Why history starts today\n\nWLJ holds today's balances and today's valuations. It does not hold what your car was worth last March. Drawing a line backwards from today's numbers would look like history and be fiction, so the series begins with your first snapshot. Take one a day and the trend builds itself.",
+      "app_name": "finance",
+      "order": 170,
+      "is_active": true
+    }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 171,
+    "fields": {
+      "context_id": "FINANCE_MONEY_HEALTH",
+      "help_id": "finance-money-health",
+      "title": "Finance Data Health",
+      "description": "What is stale, missing or unresolved \u2014 and where to fix each one.",
+      "content": "## Finance Data Health\n\nEvery figure rests on data of some age and completeness, and the number itself cannot tell you which. \"Net worth: $184,000\" means something different when the house was valued last week than when it was valued in 2023, and it looks identical either way.\n\nSo the gaps are listed as a first-class thing: what is wrong, how much it affects, and a link straight to the place to fix it, worst first.\n\n### What WLJ will not do\n\nIt states that a valuation is fourteen months old. It never tells you your net worth is wrong. The facts are its job; the judgement is yours.",
+      "app_name": "finance",
+      "order": 171,
+      "is_active": true
+    }
   }
 ]

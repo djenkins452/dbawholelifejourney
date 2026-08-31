@@ -54,15 +54,38 @@ class SavingsOpportunity(UserOwnedModel):
     #: includes money that is still being spent.
     NON_REDUCING_KINDS = frozenset({KIND_MOVE_TO_ENTITY, KIND_CORRECT_CLASSIFICATION})
 
+    # The lifecycle, in the order it actually happens. `decision` is what the PERSON
+    # said; `outcome` is what the WORLD did. Keeping them in one field is how a system
+    # ends up congratulating someone for a saving they never made.
     STATUS_PROPOSED = 'proposed'
     STATUS_ACCEPTED = 'accepted'
     STATUS_REJECTED = 'rejected'
     STATUS_SNOOZED = 'snoozed'
+    STATUS_PLANNED = 'planned'
     STATUS_DONE = 'done'
+    STATUS_ABANDONED = 'abandoned'
     DECISION_CHOICES = [
-        (STATUS_PROPOSED, 'Proposed'), (STATUS_ACCEPTED, 'Accepted'),
+        (STATUS_PROPOSED, 'Suggested'), (STATUS_ACCEPTED, 'Accepted'),
         (STATUS_REJECTED, 'Not for me'), (STATUS_SNOOZED, 'Later'),
-        (STATUS_DONE, 'Done'),
+        (STATUS_PLANNED, 'In the plan'),
+        (STATUS_DONE, 'I have done this'), (STATUS_ABANDONED, 'Gave up on it'),
+    ]
+
+    #: What actually happened, observed from transactions. Deliberately separate from
+    #: the decision: "I accepted it" and "it worked" are different claims.
+    OUTCOME_PENDING = 'pending'
+    OUTCOME_TOO_EARLY = 'too_early'
+    OUTCOME_ACHIEVED = 'achieved'
+    OUTCOME_PARTIAL = 'partially_achieved'
+    OUTCOME_NOT_ACHIEVED = 'not_achieved'
+    OUTCOME_UNMEASURABLE = 'unmeasurable'
+    OUTCOME_CHOICES = [
+        (OUTCOME_PENDING, 'Not yet looked at'),
+        (OUTCOME_TOO_EARLY, 'Too early to tell'),
+        (OUTCOME_ACHIEVED, 'Achieved'),
+        (OUTCOME_PARTIAL, 'Partly achieved'),
+        (OUTCOME_NOT_ACHIEVED, 'Did not happen'),
+        (OUTCOME_UNMEASURABLE, 'Cannot be measured from transactions'),
     ]
 
     EFFORT_CHOICES = [('low', 'A few minutes'), ('medium', 'A phone call'),
@@ -100,6 +123,27 @@ class SavingsOpportunity(UserOwnedModel):
     decided_at = models.DateTimeField(null=True, blank=True)
     decision_reason = models.CharField(max_length=300, blank=True, default='')
     snooze_until = models.DateField(null=True, blank=True)
+
+    outcome = models.CharField(max_length=24, choices=OUTCOME_CHOICES,
+                               default=OUTCOME_PENDING, db_index=True)
+    outcome_checked_at = models.DateTimeField(null=True, blank=True)
+    started_on = models.DateField(
+        null=True, blank=True,
+        help_text="When the change was supposed to take effect. Measurement starts here.")
+    observation_days = models.PositiveIntegerField(
+        default=60,
+        help_text="How long WLJ watches before it will say whether it worked.")
+    outcome_evidence = models.JSONField(default=dict, blank=True)
+    abandoned_reason = models.CharField(max_length=300, blank=True, default='')
+
+    target_debt = models.ForeignKey(
+        'finance.FinancialAccount', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='directed_savings',
+        help_text="Where the freed money is meant to go. A direction, never a payment "
+                  "— WLJ moves no money.")
+    target_goal = models.ForeignKey(
+        'finance.FinancialGoal', null=True, blank=True, on_delete=models.SET_NULL,
+        related_name='directed_savings')
 
     evidence = models.JSONField(
         default=dict, blank=True,
@@ -141,6 +185,22 @@ class SavingsOpportunity(UserOwnedModel):
         if self.realized_monthly_savings is None:
             return None
         return self.realized_monthly_savings - self.projected_monthly_savings
+
+    @property
+    def is_measurable(self):
+        """Can WLJ see whether this happened at all?
+
+        Only a series-backed opportunity is: the saving shows up as that series
+        stopping or shrinking. A category-level intention has no single row to watch,
+        and claiming to have measured it would be a fabrication.
+        """
+        return self.series_id is not None
+
+    @property
+    def is_being_tracked(self):
+        return (self.decision in (self.STATUS_ACCEPTED, self.STATUS_PLANNED,
+                                 self.STATUS_DONE)
+                and self.started_on is not None)
 
     def decide(self, decision, *, reason='', snooze_until=None):
         self.decision = decision

@@ -30,7 +30,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-EVIDENCE_VERSION = "1.0.0"
+EVIDENCE_VERSION = "1.1.0"
 
 ZERO = Decimal("0.00")
 
@@ -285,6 +285,179 @@ def opportunities_packet(user, limit=10):
 
 
 # ---------------------------------------------------------------------------
+# Forecast, net worth, plans and health
+# ---------------------------------------------------------------------------
+
+def forecast_packet(user, horizon_days=30):
+    """Free cash flow — the one figure that answers "can I afford this"."""
+    from apps.finance.services.finance_calc import forecast as F
+
+    result = F.build(user, horizon_days=horizon_days)
+    return {
+        "packet": "cash_flow_forecast",
+        "horizon_days": result["horizon_days"],
+        "projectable": result["projectable"],
+        "starting_liquid": str(result["starting_liquid"]),
+        "expected_inflow": str(result["expected_inflow"]),
+        "committed_outflow": str(result["committed_outflow"]),
+        "committed_breakdown": {k: str(v) for k, v
+                                in result["committed_breakdown"].items()},
+        "provisional_outflow": str(result["provisional_outflow"]),
+        "provisional_count": result["provisional_count"],
+        "provisional_note": result["provisional_note"],
+        "reserve_floor": str(result["reserve_floor"]),
+        "projected_ending_cash": str(result["projected_ending_cash"]),
+        "free_cash_flow": str(result["free_cash_flow"]),
+        "lowest_projected_balance": str(result["lowest_projected_balance"]),
+        "lowest_balance_date": result["lowest_balance_date"],
+        "debts_without_a_minimum": result["debts_without_a_minimum"],
+        "confidence": result["confidence"],
+        "inputs_missing": result["inputs_missing"],
+        "assumptions": result["assumptions"],
+        "setup": F.setup_state(user),
+        "envelope": _envelope(calculation_version=F.FORECAST_VERSION),
+    }
+
+
+def affordability_packet(user, monthly_amount, horizon_days=90):
+    """"Can I put an extra $X a month towards debt without breaking the floor?"
+
+    Answered against the reserve the person actually set. With no floor set, WLJ says
+    the question cannot be answered rather than inventing an emergency-fund target and
+    ruling on it.
+    """
+    from decimal import Decimal as D
+
+    from apps.finance.services.finance_calc import forecast as F
+
+    amount = D(str(monthly_amount))
+    result = F.build(user, horizon_days=horizon_days)
+    months = D(horizon_days) / D("30.4375")
+    extra = (amount * months).quantize(D("0.01"))
+
+    if not result["projectable"]:
+        return {
+            "packet": "affordability",
+            "answerable": False,
+            "reason": "no_forecast",
+            "detail": ("Nothing is confirmed yet, so WLJ has no committed cash to "
+                       "subtract. It will not guess whether you can afford this."),
+            "setup": F.setup_state(user),
+            "envelope": _envelope(calculation_version=F.FORECAST_VERSION),
+        }
+
+    remaining = result["free_cash_flow"] - extra
+    if result["reserve_floor"] == D("0.00"):
+        return {
+            "packet": "affordability",
+            "answerable": False,
+            "reason": "no_reserve_target",
+            "detail": ("You have not set a reserve floor, so 'without dropping below "
+                       "it' has nothing to test against. Set one and this becomes a "
+                       "real answer."),
+            "free_cash_flow": str(result["free_cash_flow"]),
+            "extra_over_horizon": str(extra),
+            "would_leave": str(remaining),
+            "envelope": _envelope(calculation_version=F.FORECAST_VERSION),
+        }
+
+    return {
+        "packet": "affordability",
+        "answerable": True,
+        "monthly_amount": str(amount),
+        "horizon_days": horizon_days,
+        "free_cash_flow": str(result["free_cash_flow"]),
+        "extra_over_horizon": str(extra),
+        "would_leave": str(remaining),
+        "fits": remaining >= D("0.00"),
+        "reserve_floor": str(result["reserve_floor"]),
+        "confidence": result["confidence"],
+        "inputs_missing": result["inputs_missing"],
+        "envelope": _envelope(calculation_version=F.FORECAST_VERSION),
+    }
+
+
+def net_worth_packet(user):
+    """Position, composition and every stated gap. No addresses, no VINs."""
+    from apps.finance.services.finance_calc import net_worth as NW
+
+    position = NW.compose(user)
+    return {
+        "packet": "net_worth",
+        "as_of": position["as_of"],
+        "cash_and_financial": str(position["cash_and_financial"]),
+        "investments": str(position["investments"]),
+        "tangible_assets": str(position["tangible_assets"]),
+        "gross_assets": str(position["gross_assets"]),
+        "liabilities": str(position["liabilities"]),
+        "net_worth": str(position["net_worth"]),
+        # Name, type, value, source, age, linked debt, equity, inclusion. Nothing that
+        # identifies the thing itself — no address, VIN, hull number or title.
+        "assets": [{
+            "name": row["name"], "type": row["type"], "value": row["value"],
+            "source": row["source"], "as_of": row["as_of"],
+            "age_days": row["age_days"], "linked_debt": row["linked_debt"],
+            "equity": row["equity"], "included": row["included"],
+            "reason": row.get("reason"), "stale": row.get("stale", False),
+        } for row in position["asset_rows"]],
+        "unvalued_assets": position["unvalued_assets"],
+        "stale_valuations": position["stale_valuations"],
+        "confidence": position["confidence"],
+        "assumptions": position["assumptions"],
+        "inputs_missing": position["inputs_missing"],
+        "envelope": _envelope(calculation_version=NW.NET_WORTH_VERSION),
+    }
+
+
+def net_worth_history_packet(user, days=365):
+    from apps.finance.services.finance_calc import net_worth as NW
+
+    return {
+        "packet": "net_worth_history",
+        **NW.history(user, days=days),
+        "envelope": _envelope(calculation_version=NW.NET_WORTH_VERSION),
+    }
+
+
+def plan_results_packet(user):
+    """Projected against realized. The two are never the same field."""
+    from apps.finance.models import SavingsOpportunity as SO
+    from apps.finance.services.finance_calc import outcomes as OUT
+
+    tracked = [o for o in SO.objects.filter(user=user, status="active")
+               .select_related("series") if o.is_being_tracked]
+    return {
+        "packet": "plan_results",
+        "tracked": len(tracked),
+        "underperforming": OUT.underperforming(user),
+        "plans": [{
+            "title": o.title, "decision": o.decision, "outcome": o.outcome,
+            "projected_monthly": str(o.projected_monthly_savings),
+            "realized_monthly": (str(o.realized_monthly_savings)
+                                 if o.realized_monthly_savings is not None else None),
+            "variance": str(o.variance) if o.variance is not None else None,
+            "started_on": str(o.started_on) if o.started_on else None,
+            "measurable": o.is_measurable,
+            "note": (o.outcome_evidence or {}).get("note"),
+        } for o in tracked],
+        "note": ("'You could save' and 'you have saved' are different sentences. "
+                 "Projected and realized are separate fields and are never merged."),
+        "envelope": _envelope(calculation_version=OUT.OUTCOMES_VERSION),
+    }
+
+
+def data_health_packet(user):
+    """What is stale, missing or unresolved — and where to fix each one."""
+    from apps.finance.services.finance_calc import data_health as DH
+
+    return {
+        "packet": "data_health_detail",
+        **DH.evaluate(user),
+        "envelope": _envelope(calculation_version=DH.DATA_HEALTH_VERSION),
+    }
+
+
+# ---------------------------------------------------------------------------
 # The whole picture
 # ---------------------------------------------------------------------------
 
@@ -300,8 +473,18 @@ def snapshot_packet(user):
         "packet": "financial_snapshot",
         "measures": measures["measures"],
         "reconciliation": measures["reconciliation"],
+        "spending_bridge": {
+            "difference_from_gross": str(
+                M.spending_bridge(
+                    M.all_measures(user)["net_spending"])["difference_from_gross"]),
+            "explains": ("Net spending can exceed gross purchases: fees and interest "
+                         "are a cost of consumption but are not purchases."),
+        },
         "debt": debt,
         "obligations": obligations,
+        "net_worth": net_worth_packet(user),
+        "forecast": forecast_packet(user),
+        "plans": plan_results_packet(user),
         "data_health": coverage,
         "trustworthy": measures["trustworthy"],
         "envelope": _envelope(calculation_version=M.MEASURES_VERSION),

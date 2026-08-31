@@ -27,8 +27,9 @@ from django.views.generic import TemplateView
 
 from apps.core.current_context import PageSummaryMixin
 from apps.finance.access import FinanceEnabledRequiredMixin, finance_enabled_required
-from apps.finance.models import (RecurringSeries, ReviewBatch, SavingsOpportunity,
-                                 SpendingClassification, Transaction)
+from apps.finance.models import (FinancialAccount, RecurringSeries, ReviewBatch,
+                                 SavingsOpportunity, SpendingClassification,
+                                 Transaction)
 
 #: Presented in this order because it is the order a person asks the questions in:
 #: what came in, what went out, what did it cost me, what am I committed to.
@@ -467,3 +468,178 @@ def _held_reason_labels():
         "unmatched_transfer_candidate": "Looks like a transfer, but the other side is not visible",
         "zero_amount": "No amount to classify",
     }
+
+
+class BudgetReserveView(_SignedInFinanceView):
+    """Budgets, reserves, sinking funds — and what they leave free."""
+
+    template_name = "finance/money_budget.html"
+    page_summary_key = "finance.money_budget"
+    page_summary_title = "Budgets and Reserves"
+
+    def get_context_data(self, **kwargs):
+        from apps.finance.models import Budget, CashReserve, FinancialGoal
+        from apps.finance.services.finance_calc import forecast as F
+
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        horizon = _int(self.request.GET.get("horizon"), 30)
+
+        reserves = list(CashReserve.objects.filter(user=user, status="active")
+                        .select_related("goal", "account"))
+
+        context.update({
+            "forecast": F.build(user, horizon_days=horizon),
+            "horizons": F.HORIZONS,
+            "horizon": horizon,
+            "setup": F.setup_state(user),
+            "reserves": [r for r in reserves if r.kind == CashReserve.KIND_RESERVE],
+            "sinking_funds": [r for r in reserves
+                              if r.kind == CashReserve.KIND_SINKING],
+            "kinds": CashReserve.KIND_CHOICES,
+            "budgets": Budget.objects.filter(user=user, status="active")
+                       .select_related("category").order_by("-month")[:24],
+            # Offered so a reserve can LINK an existing goal rather than restating it.
+            "goals": FinancialGoal.objects.filter(user=user, status="active")
+                     .order_by("name"),
+            "accounts": FinancialAccount.objects.filter(
+                user=user, status="active",
+                account_type__in=["checking", "savings", "cash"]).order_by("name"),
+        })
+        return context
+
+
+class NetWorthView(_SignedInFinanceView):
+    """What you are worth, what is unknown, and how it has moved."""
+
+    template_name = "finance/money_networth.html"
+    page_summary_key = "finance.money_networth"
+    page_summary_title = "Assets and Net Worth"
+
+    def get_context_data(self, **kwargs):
+        from apps.finance.services.finance_calc import net_worth as NW
+
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        context.update({
+            "position": NW.compose(user),
+            "history": NW.history(user),
+        })
+        return context
+
+
+class DataHealthView(_SignedInFinanceView):
+    """What is stale, missing or unresolved — and where to fix it."""
+
+    template_name = "finance/money_health.html"
+    page_summary_key = "finance.money_health"
+    page_summary_title = "Finance Data Health"
+
+    def get_context_data(self, **kwargs):
+        from apps.finance.services.finance_calc import data_health as DH
+
+        context = super().get_context_data(**kwargs)
+        report = DH.evaluate(self.request.user)
+        # Route names are resolved here: a template cannot reverse a name held in data,
+        # and a bespoke template filter for one page is more surface than it is worth.
+        for issue in report["issues"]:
+            issue["url"] = _safe_reverse(issue.get("route"))
+        context["report"] = report
+        return context
+
+
+@require_POST
+@finance_enabled_required
+def save_reserve(request):
+    """Create or update a reserve or sinking fund."""
+    from apps.finance.models import CashReserve, FinancialAccount, FinancialGoal
+
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        messages.error(request, "Give it a name so you can recognise it later.")
+        return redirect(reverse("finance:money_budget"))
+
+    kind = request.POST.get("kind")
+    if kind not in dict(CashReserve.KIND_CHOICES):
+        kind = CashReserve.KIND_SINKING
+
+    goal = _owned(FinancialGoal, request.user, request.POST.get("goal"))
+    account = _owned(FinancialAccount, request.user, request.POST.get("account"))
+
+    CashReserve.objects.update_or_create(
+        user=request.user, name=name, status="active",
+        defaults={
+            "kind": kind,
+            "target_amount": _optional_decimal(request.POST.get("target_amount")),
+            "monthly_contribution": _optional_decimal(
+                request.POST.get("monthly_contribution")),
+            "due_date": (request.POST.get("due_date") or None) or None,
+            "goal": goal, "account": account,
+            "note": (request.POST.get("note") or "")[:500],
+        })
+    messages.success(request, f"Saved {name}.")
+    return redirect(reverse("finance:money_budget"))
+
+
+@require_POST
+@finance_enabled_required
+def archive_reserve(request, pk):
+    from apps.finance.models import CashReserve
+
+    reserve = get_object_or_404(CashReserve, pk=pk, user=request.user)
+    reserve.status = "archived"
+    reserve.save(update_fields=["status", "updated_at"])
+    messages.success(request, f"{reserve.name} archived. It no longer affects your "
+                              f"free cash figure.")
+    return redirect(reverse("finance:money_budget"))
+
+
+@require_POST
+@finance_enabled_required
+def take_snapshot(request):
+    """Record today's net worth. Idempotent — one per day, updated in place."""
+    from apps.finance.services.finance_calc import net_worth as NW
+
+    result = NW.take_snapshot(request.user, commit=True)
+    messages.success(
+        request,
+        f"Net worth recorded for {result['as_of']}: {result['net_worth']}."
+        if result.get("created") else
+        f"Today's snapshot updated: {result['net_worth']}.")
+    return redirect(reverse("finance:money_networth"))
+
+
+def _int(raw, default):
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return value if value in (30, 60, 90) else default
+
+
+def _optional_decimal(raw):
+    """A blank field means "not decided", which is NOT zero."""
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        return Decimal(raw)
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _owned(model, user, pk):
+    if not pk:
+        return None
+    return model.objects.filter(pk=pk, user=user, status="active").first()
+
+
+def _safe_reverse(route):
+    from django.urls import NoReverseMatch, reverse as django_reverse
+
+    if not route:
+        return None
+    try:
+        return django_reverse(route)
+    except NoReverseMatch:
+        return None

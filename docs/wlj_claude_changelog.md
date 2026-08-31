@@ -60441,3 +60441,43 @@ wrong. Cash is measured where the cash is, so a payment landing on a credit card
 still not money arriving.
 
 Classifier 1.2.0, measures 1.2.0. 106 focused tests.
+
+## 2026-08-31 — P1 BACKFILLED AND ACTIVE; P6 loan terms; P7 payoff engine
+
+**P1 backfill executed on production.** 3,795 transactions, 0 unclassified, 8 batches.
+A second run wrote 0 and reported 3,795 unchanged — idempotent, as designed. All six
+reconciliation identities hold. Rendered Finance truth is unchanged either side
+(spending 14,032.67 / income 11,812.52 / net −2,220.15). No user decisions existed to
+protect; the mechanism is tested.
+
+Final classification: 3,224 purchases · 155 uncertain · 132 income · 123 debt service ·
+91 internal transfers · 35 fees · 32 card payments · 2 refunds · 1 savings allocation.
+Zero months of negative net spending (nine before the corrections). Uncertain outflow is
+14.57% of cash outflow, inside the 15% gate; uncertain rows 4.08%, inside the 10% gate.
+Non-spending reclassification is 10.59%, over the 5% gate and explained: that
+reclassification IS the correction — mortgage payments moved into debt service and
+ambiguous liability credits moved into review.
+
+**P6 — loan terms with per-field provenance.** Plaid's active products give an account
+and a balance; APR, minimum payment, maturity and payoff quotes are not available and
+Plaid Liabilities is not authorised. The manual path is therefore permanent and
+first-class, not a fallback. Provenance is per FIELD because one loan routinely mixes a
+balance from this morning with an APR from a March statement and a payment somebody
+typed — one `source` for the whole row would make all three look equally fresh.
+`LoanTermsChange` is append-only: nothing about a debt is quietly rewritten.
+
+**P7 — the payoff engine.** Minimum / snowball / avalanche / custom, extra monthly
+payments, one-off lump sums, and payment roll-forward. Handles zero APR, promotional
+rates and their expiry, missing APR, missing minimum, non-convergence, rounding and
+final payments.
+
+It refuses to invent. No minimum payment → no timeline, and the payoff ORDER is still
+returned because half an answer clearly labelled beats none. No APR → balance-only mode,
+where the payoff date is the EARLIEST possible and total interest is UNKNOWN rather than
+zero. An unknown rate ranks LAST under avalanche rather than being treated as free.
+
+Snowball and avalanche are reported as a trade with the money and months named. WLJ does
+not declare a winner: avalanche is cheaper, snowball clears an account sooner, and
+finishing something changes whether a plan survives month nine.
+
+30 payoff tests, 27 recurring, 16 controllability.

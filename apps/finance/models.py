@@ -3335,6 +3335,8 @@ class AssetLoanLink(UserOwnedModel):
 # ---------------------------------------------------------------------------
 from apps.finance.models_controllability import SpendingClassification  # noqa: E402,F401
 from apps.finance.models_recurring import RecurringSeries  # noqa: E402,F401
+from apps.finance.models_liability import (  # noqa: E402,F401
+    LoanTerms, LoanTermsChange)
 
 
 # Link a transaction to the series it belongs to. Added here rather than on

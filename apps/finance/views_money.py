@@ -96,6 +96,10 @@ class MoneyOverviewView(_SignedInFinanceView):
         reconciliation = M.reconcile(results)
 
         context.update({
+            # Published, not derivable: "why is net spending bigger than gross
+            # purchases?" is the first question this page provokes, and a number a
+            # person has to reverse-engineer to believe is one they will not believe.
+            "bridge": M.spending_bridge(results["net_spending"]),
             "measures": [{
                 "key": key,
                 "label": MEASURE_LABELS[key],

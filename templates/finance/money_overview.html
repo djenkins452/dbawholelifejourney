@@ -91,6 +91,49 @@
         {% endfor %}
     </div>
 
+    <section class="money-bridge" aria-labelledby="bridge-heading" data-testid="spending-bridge">
+        <h2 id="bridge-heading">From purchases to what it actually cost</h2>
+        <p class="money-bridge-intro">
+            {% if bridge.difference_from_gross > 0 %}
+                Net spending is <strong>{{ bridge.difference_from_gross|money }} higher</strong>
+                than your purchases. That is not an error: fees and interest are money
+                genuinely gone, but they are not purchases, so they are counted here and
+                not there.
+            {% elif bridge.difference_from_gross < 0 %}
+                Net spending is <strong>{{ bridge.difference_from_gross|money_abs }} lower</strong>
+                than your purchases, because money came back to you.
+            {% else %}
+                Net spending equals your purchases for this period.
+            {% endif %}
+        </p>
+
+        <ol class="money-walk">
+            {% for step in bridge.steps %}
+            <li class="money-walk-step" data-step="{{ step.key }}">
+                <div class="money-walk-line">
+                    <span class="money-walk-op">{% if forloop.first %}&nbsp;{% elif step.sign > 0 %}+{% else %}&minus;{% endif %}</span>
+                    <span class="money-walk-label">{{ step.label }}</span>
+                    <span class="money-walk-amount">{{ step.amount|money }}</span>
+                    <span class="money-walk-running">{{ step.running_total|money }}</span>
+                </div>
+                <p class="money-walk-why">{{ step.why }}</p>
+            </li>
+            {% endfor %}
+        </ol>
+
+        <p class="money-walk-total">
+            <span>What it actually cost</span>
+            <strong data-testid="bridge-total">{{ bridge.reported_total|money }}</strong>
+        </p>
+        {% if not bridge.balances %}
+        <p class="money-bad" data-testid="bridge-unbalanced">
+            These steps do not add up to the reported total. Treat the figure as
+            provisional &mdash; WLJ is reporting the disagreement rather than hiding it.
+        </p>
+        {% endif %}
+        <p class="money-card-version">calculation {{ bridge.calculation_version }}</p>
+    </section>
+
     <section class="money-recon" aria-labelledby="recon-heading">
         <h2 id="recon-heading">The identities WLJ checks</h2>
         <p class="money-recon-intro">
@@ -149,6 +192,25 @@
 .money-component dt { color: var(--muted, #667); }
 .money-component dd { margin: 0; font-variant-numeric: tabular-nums; }
 .money-card-version { font-size: 0.72rem; color: var(--muted, #667); margin: 0.5rem 0 0; }
+.money-bridge { margin-top: 2rem; }
+.money-bridge-intro { font-size: 0.92rem; max-width: 66ch; }
+.money-walk { list-style: none; margin: 1rem 0 0; padding: 0;
+  border: 1px solid var(--border, #dee2e6); border-radius: 12px; overflow: hidden; }
+.money-walk-step { padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border, #dee2e6); }
+.money-walk-step:last-child { border-bottom: none; }
+.money-walk-line { display: grid; grid-template-columns: 1.5rem 1fr auto;
+  gap: 0.5rem; align-items: baseline; }
+.money-walk-op { font-weight: 700; text-align: center; }
+.money-walk-label { font-weight: 600; }
+.money-walk-amount { font-variant-numeric: tabular-nums; text-align: right; }
+.money-walk-running { display: none; font-variant-numeric: tabular-nums;
+  color: var(--muted, #667); text-align: right; }
+.money-walk-why { margin: 0.2rem 0 0 2rem; font-size: 0.8rem;
+  color: var(--muted, #667); max-width: 60ch; }
+.money-walk-total { display: flex; justify-content: space-between; gap: 1rem;
+  align-items: baseline; margin: 0.75rem 0 0; padding: 0 0.85rem;
+  font-size: 1.05rem; }
+.money-walk-total strong { font-variant-numeric: tabular-nums; font-size: 1.3rem; }
 .money-recon { margin-top: 2rem; }
 .money-recon-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 60ch; }
 .money-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -161,6 +223,9 @@
 .money-links .btn { min-height: 44px; display: inline-flex; align-items: center; }
 @media (min-width: 769px) {
   .money-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* The running total only earns its column where there is room for it. */
+  .money-walk-line { grid-template-columns: 1.5rem 1fr 10rem 10rem; }
+  .money-walk-running { display: block; }
 }
 @media (min-width: 481px) and (max-width: 768px) {
   .money-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

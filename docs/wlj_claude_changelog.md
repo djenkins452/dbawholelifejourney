@@ -60590,3 +60590,45 @@ allow-list test promised. Production verified before removal:
 * all four Money workspace URLs live (302 to login when signed out)
 
 983 Finance + request-path-safety tests green.
+
+## 2026-08-31 — gross vs net proven; liability pairing; net-worth history
+
+**Why net spending (341,029.72) exceeds gross purchases (335,318.34).** It is not a
+defect. `gross_purchases` counts goods and services; fees and interest are a real cost of
+the same consumption but are not purchases, so they are in the net figure and not the
+gross one. The gap is exactly fees 12,331.38 less refunds 6,620.00 = **5,711.38**.
+
+`spending_bridge()` publishes the walk as ordered SIGNED steps, the reconciliation check
+is built from that same step table (so the identity WLJ checks and the walk a person
+reads cannot drift), and the Spending page renders it with a plain-English explanation.
+A walk that fails to balance is shown as failing rather than rounded away. Measures 1.3.0.
+
+**Liability-credit pairing.** `pair_liability_credits` matches a credit on a revolving
+liability to the payment that produced it, when the funding leg is visible and
+unambiguous. Conservative in the same way the existing pass is: exactly one candidate or
+nothing; closed-end debt never touched (a mortgage credit is already debt service);
+`_claim()` re-reads both legs `FOR UPDATE` and re-checks before writing, so concurrent
+runs cannot both claim a leg; idempotent.
+
+A real bug this surfaced: `transfer_pair` is a OneToOne and `_assess` reads
+`transfer_pair_id` in ONE direction, so whichever leg does not hold the column is not
+recognised as paired. Putting the link on the credit left the payment leg classified as
+an ordinary purchase — a card payment becoming spending. The outflow leg now carries the
+link, matching `pair_transfers`. **The one-directional read in `_assess` remains a latent
+defect and is logged, not silently widened** — changing it would alter classification for
+every existing pair and needs its own rehearsal.
+
+`pairing_rehearsal.py` diagnoses read-only, reporting the ambiguous and unmatched as
+loudly as the pairable, and records that the existing `pair_transfers` reads at most
+2,000 rows ordered by date — silently dropping the most recent third of a 3,795-row
+history.
+
+**P8 net worth.** Composed from named authorities, never re-derived. Linked debt is
+subtracted ONCE in total liabilities; per-asset equity is explanatory and never summed
+into the total — netting it against the asset and then subtracting total liabilities
+understates a household by the size of its largest debt. An unvalued asset is a named
+gap, not a zero: a house nobody valued would otherwise erase itself. Snapshots are one
+per user per day, updated in place. History begins at the first snapshot and refuses to
+reconstruct — drawing a line back from today's numbers looks like history and is fiction.
+
+16 bridge tests, 20 pairing tests, 22 net-worth tests.

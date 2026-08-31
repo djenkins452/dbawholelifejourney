@@ -28,7 +28,7 @@ from apps.finance.services.finance_calc import roles as role_authority
 
 ZERO = Decimal("0.00")
 
-MEASURES_VERSION = "1.2.0"
+MEASURES_VERSION = "1.3.0"
 
 
 @dataclass
@@ -212,13 +212,27 @@ def gross_purchases(user, start=None, end=None, rows=None):
 
 
 def net_spending(user, start=None, end=None, rows=None, refund_policy="offset_on_receipt"):
-    """What consumption actually cost: purchases less refunds, reimbursements, reversals.
+    """What consumption actually cost: purchases, PLUS fees, LESS money that came back.
+
+        net_spending = gross_purchases + fees_and_interest
+                       - refunds - reimbursements - reversals
+
+    **Net spending is expected to EXCEED gross purchases whenever fees outweigh
+    refunds, and that is not a defect.** `gross_purchases` counts goods and services
+    only. Fees and interest charged are a real cost of the same consumption — an
+    overdraft charge is money gone exactly as a grocery bill is — but they are not
+    purchases, so they belong in the net figure and not the gross one. On Danny's
+    production data the difference is fees 12,331.38 less refunds 6,620.00 = 5,711.38.
+
+    The walk from one to the other is published by `spending_bridge()` and rendered on
+    the Spending page, because a number that needs deriving to be believed is a number
+    nobody believes.
 
     A refund is OFFSET here, never deleted and never excluded — it keeps its own row and
     its own audit identity. `offset_on_receipt` (the default) reduces the month the money
     arrived, which is what a person checking a bank statement expects;
-    `restate_original` would instead correct the purchase's own month, and is not
-    implemented in shadow because it needs proven refund linkage (`refund_of`).
+    `restate_original` would instead correct the purchase's own month, and needs proven
+    refund linkage (`refund_of`) on every row before it could be trusted.
     """
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
@@ -237,6 +251,12 @@ def net_spending(user, start=None, end=None, rows=None, refund_policy="offset_on
     }
     result.exclusions = _spending_exclusions(rows)
     result.assumptions.append(f"refund policy: {refund_policy} ({refund_n} refund(s))")
+    if fees > refunds + reimbursements + reversals:
+        result.assumptions.append(
+            f"net spending EXCEEDS gross purchases by "
+            f"{result.value - purchases}: fees and interest of {fees} are a cost of "
+            f"consumption but are not purchases, and they outweigh the "
+            f"{refunds + reimbursements + reversals} that came back")
 
     unsplit, unsplit_n, _mirrored = _debt_service(rows)
     if unsplit_n:
@@ -253,6 +273,58 @@ def net_spending(user, start=None, end=None, rows=None, refund_policy="offset_on
             f"{cash_n} cash withdrawal(s) totalling {cash} are excluded — what the "
             f"cash bought is unknown")
     return result
+
+
+#: The ordered walk from gross purchases to net spending. Each step carries its own
+#: SIGN, so the arithmetic can be checked by eye and asserted by a test rather than
+#: trusted. `component` names the `net_spending` component the step is drawn from.
+SPENDING_BRIDGE_STEPS = (
+    ("gross_purchases", "Purchases", +1,
+     "Goods and services bought. The starting point."),
+    ("fees_and_interest", "Fees and interest charged", +1,
+     "A real cost of the same consumption, but not a purchase — which is exactly why "
+     "it is here and not in the gross figure."),
+    ("refunds", "Refunds", -1,
+     "Money that came back, offset in the month it arrived."),
+    ("reimbursements", "Reimbursements", -1,
+     "Someone else covered this cost."),
+    ("reversals", "Reversals and chargebacks", -1,
+     "A charge that was undone."),
+)
+
+
+def spending_bridge(net_spending_result):
+    """Gross purchases → net spending, as signed steps that must sum to the total.
+
+    Published because "why is net spending larger than gross purchases?" is a question
+    the numbers alone cannot answer, and a figure a person has to reverse-engineer to
+    believe is a figure they will not believe.
+
+    Returns the steps, the running total after each, and whether the walk lands exactly
+    on the reported value. A mismatch means the components and the total disagree, which
+    is a defect and is reported as one rather than rounded away.
+    """
+    components = net_spending_result.components or {}
+    running = ZERO
+    steps = []
+    for key, label, sign, why in SPENDING_BRIDGE_STEPS:
+        amount = components.get(key, ZERO)
+        if amount == ZERO and key != "gross_purchases":
+            continue
+        running += sign * amount
+        steps.append({
+            "key": key, "label": label, "sign": sign, "amount": amount,
+            "signed_amount": sign * amount, "running_total": running, "why": why,
+        })
+    return {
+        "steps": steps,
+        "computed_total": running,
+        "reported_total": net_spending_result.value,
+        "balances": running == net_spending_result.value,
+        "difference_from_gross": (net_spending_result.value
+                                  - components.get("gross_purchases", ZERO)),
+        "calculation_version": net_spending_result.calculation_version,
+    }
 
 
 def _spending_exclusions(rows):
@@ -549,12 +621,11 @@ def reconcile(measures):
 
     checks = {}
 
-    expected_net = (ns.components.get("gross_purchases", ZERO)
-                    + ns.components.get("fees_and_interest", ZERO)
-                    - ns.components.get("refunds", ZERO)
-                    - ns.components.get("reimbursements", ZERO)
-                    - ns.components.get("reversals", ZERO))
-    checks["net_spending_identity"] = (expected_net == ns.value, expected_net, ns.value)
+    # Built from the SAME ordered step table the page renders, so the identity WLJ
+    # checks and the walk a person reads can never drift apart.
+    bridge = spending_bridge(ns)
+    checks["net_spending_identity"] = (
+        bridge["balances"], bridge["computed_total"], ns.value)
 
     expected_out = sum(co.components.values(), ZERO)
     checks["cash_outflow_identity"] = (expected_out == co.value, expected_out, co.value)

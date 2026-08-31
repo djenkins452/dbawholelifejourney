@@ -23,6 +23,7 @@ from decimal import Decimal
 
 from apps.finance.services.finance_calc import measures as M
 from apps.finance.services.finance_calc import roles as R
+from apps.finance.services.transfer_detection import is_paired
 
 ZERO = Decimal("0.00")
 
@@ -200,7 +201,7 @@ def _high_value(rows, top=8):
             "account_type": getattr(getattr(txn, "account", None), "account_type", ""),
             "provider_primary": (txn.provider_category_primary or "")[:32],
             "provider_detailed": (txn.provider_category_detailed or "")[:48],
-            "paired": bool(txn.transfer_pair_id),
+            "paired": is_paired(txn),
         } for amount, txn, a in items[:top]]
     return out
 

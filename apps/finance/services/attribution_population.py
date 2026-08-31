@@ -106,9 +106,10 @@ def _known_transfer_q():
     category. The latter two are kept so manually-created and legacy rows keep behaving.
     """
     from apps.finance.models import Transaction as _T
+    from apps.finance.services.transfer_detection import paired_q
 
     return (Q(transfer_state=_T.TRANSFER_STATE_CONFIRMED)
-            | Q(transfer_pair__isnull=False)
+            | paired_q()
             | Q(category__category_type="transfer"))
 
 

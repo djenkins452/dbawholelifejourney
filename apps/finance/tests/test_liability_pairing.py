@@ -15,11 +15,16 @@ ordinary purchase.
 from datetime import date, timedelta
 from decimal import Decimal
 
+from django.contrib.auth import get_user_model
+from django.test import TestCase
+
 from apps.finance.models import FinancialAccount, Transaction
 from apps.finance.services import transfer_detection as TD
 from apps.finance.services.finance_calc import measures as M
 from apps.finance.services.finance_calc import pairing_rehearsal as PR
 from apps.finance.tests.test_p1_economic_roles import RoleBase
+
+User = get_user_model()
 
 JAN = date(2026, 1, 15)
 
@@ -417,3 +422,90 @@ class IncomeIsNeverPairedAwayTests(PairingBase):
         report = TD.rehearse_pairing(self.user)
         self.assertEqual(report["counts"]["held_income_counterpart"], 1)
         self.assertEqual(len(report["samples"]["held_income_counterpart"]), 1)
+
+
+class OneCanonicalPairPredicateTests(TestCase):
+    """"Is this row paired?" may be written in exactly one place.
+
+    The second pairing defect was not that someone misunderstood the OneToOne — it was
+    that five different modules each wrote `transfer_pair__isnull=False` by hand, so the
+    misunderstanding had to be found and fixed five times. Correcting the five readers
+    without removing the condition that produced them leaves the sixth free to appear.
+    """
+
+    #: The pairing authority defines the predicate; the audit command deliberately
+    #: compares the OLD single-signal definition against the new one, which is its
+    #: entire purpose.
+    ALLOWED = {
+        "apps/finance/services/transfer_detection.py",
+        "apps/finance/management/commands/finance_population_audit.py",
+    }
+
+    def test_no_module_writes_the_pair_predicate_by_hand(self):
+        import ast
+        from pathlib import Path
+
+        finance_dir = Path(__file__).resolve().parents[1]
+        repo_root = finance_dir.parents[1]
+        offenders = []
+
+        for path in finance_dir.rglob("*.py"):
+            if any(skip in path.parts
+                   for skip in ("migrations", "tests", "__pycache__")):
+                continue
+            rel = path.relative_to(repo_root).as_posix()
+            if rel in self.ALLOWED:
+                continue
+            for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if not isinstance(node, ast.Call):
+                    continue
+                for keyword in node.keywords:
+                    name = (keyword.arg or "").split("__")
+                    if "transfer_pair" in name or "transfer_counterpart" in name:
+                        offenders.append(f"{rel}:{node.lineno} {keyword.arg}")
+
+        self.assertEqual(
+            offenders, [],
+            "A hand-written pair predicate reappeared. `transfer_pair` is a OneToOne to "
+            "self, so only one leg carries the column and this reads as 'is this the "
+            f"holding leg', not 'is this paired'. Use paired_q(): {offenders}")
+
+    def test_the_predicate_finds_both_legs(self):
+        """The property the hand-written version got wrong, asserted directly."""
+        out = self._txn(Decimal("-500.00"), self.checking)
+        back = self._txn(Decimal("500.00"), self.card)
+        out.transfer_pair = back
+        out.save(update_fields=["transfer_pair"])
+
+        found = set(Transaction.objects.filter(
+            user=self.user).filter(TD.paired_q()).values_list("id", flat=True))
+        self.assertEqual(found, {out.id, back.id},
+                         "the counterpart leg is paired too — it just does not hold "
+                         "the column")
+
+    def test_coverage_reports_rows_and_pairs_separately(self):
+        out = self._txn(Decimal("-500.00"), self.checking)
+        back = self._txn(Decimal("500.00"), self.card)
+        out.transfer_pair = back
+        out.save(update_fields=["transfer_pair"])
+
+        coverage = TD.pairing_coverage(self.user)
+        self.assertEqual(coverage["pairs"], 1)
+        self.assertEqual(coverage["paired_rows"], 2, "two legs make one pair")
+        self.assertEqual(coverage["unpaired"],
+                         coverage["transactions"] - 2)
+
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="pairpredicate@example.com", password="x")
+        self.checking = FinancialAccount.objects.create(
+            user=self.user, name="Chequing", account_type=FinancialAccount.TYPE_CHECKING,
+            current_balance=Decimal("1000.00"))
+        self.card = FinancialAccount.objects.create(
+            user=self.user, name="Card", account_type=FinancialAccount.TYPE_CREDIT_CARD,
+            current_balance=Decimal("-500.00"))
+
+    def _txn(self, amount, account, when=None):
+        return Transaction.objects.create(
+            user=self.user, account=account, amount=amount,
+            date=when or date(2026, 6, 1), description="x")

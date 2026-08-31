@@ -60912,3 +60912,27 @@ looks like it adds up until you check. Components now come from the SAME single 
 each movement is attributed to its outflow leg.
 
 Held for review: 130 → **109**. Paired: 25 → **50**.
+
+## 2026-08-31 — one canonical pair predicate
+
+Verifying the pairing fix in production turned up the same defect still living in the
+**counting**. `pairing_coverage` reported "unpaired" using `transfer_pair__isnull=True`,
+which calls every counterpart leg unpaired — 50 rows misreported the moment the backfill
+succeeded.
+
+It was in four more places: the attribution population's definition of a known transfer,
+the opportunity detector's exclusion, the operator audit's paired count and convergence
+delta, and the dry-run's per-row `paired` flag. Each had written the predicate out by
+hand, which is why fixing the pairing pass did not fix them.
+
+`transfer_pair` is a OneToOne to self, so only one leg carries the column and
+`filter(transfer_pair__isnull=False)` means "is this the leg that holds the link" while
+reading exactly like "is this paired". Correcting five readers leaves the sixth free to
+appear, so there is now one predicate — `transfer_detection.paired_q()` — and a contract
+test that fails if any module writes the raw one by hand again.
+
+Coverage now reports `pairs` and `paired_rows` as separate numbers. Two legs make one
+pair, and reporting the two interchangeably is how this stayed invisible.
+
+Files: `transfer_detection.py`, `attribution_population.py`, `opportunity_detection.py`,
+`finance_audit.py`, `finance_calc/dry_run.py`, `tests/test_liability_pairing.py`.

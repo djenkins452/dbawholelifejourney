@@ -516,23 +516,41 @@ def _is_liability(txn):
     return bool(account is not None and getattr(account, "is_liability", False))
 
 
+def paired_q(prefix=""):
+    """THE queryset predicate for "this row is part of a matched pair".
+
+    `transfer_pair` is a OneToOne to self, so only ONE leg of a pair carries the column.
+    `filter(transfer_pair__isnull=False)` therefore answers "is this row the leg that
+    holds the link", which reads like "is this row paired" and is not — it silently
+    calls every counterpart leg unpaired. That mistake was live in five separate
+    readers, each of which had written the predicate out by hand.
+
+    So there is one place to write it now, and a contract test to stop a sixth from
+    appearing. `prefix` spans a relation: `paired_q("transaction__")`.
+    """
+    return (Q(**{f"{prefix}transfer_pair__isnull": False})
+            | Q(**{f"{prefix}transfer_counterpart__isnull": False}))
+
+
 def pairing_coverage(user):
     """How much of this user's history the pairing pass can actually see.
 
     Lives HERE, in the pairing authority, rather than in the module that reports it.
-    Counting unpaired rows means querying `transfer_pair__isnull`, and a constitutional
+    Counting unpaired rows means querying the pair relationship, and a constitutional
     contract test forbids any surface outside the population authority from writing that
     predicate — correctly, because it is one edit away from becoming a second definition
     of what counts as activity. The authority is allowed to describe itself.
     """
-    total = Transaction.objects.filter(user=user).exclude(
-        is_opening_balance=True).count()
-    unpaired = Transaction.objects.filter(
-        user=user, transfer_pair__isnull=True).exclude(
-        is_opening_balance=True).count()
+    rows = Transaction.objects.filter(user=user).exclude(is_opening_balance=True)
+    total = rows.count()
+    paired_rows = rows.filter(paired_q()).count()
     return {
         "transactions": total,
-        "unpaired": unpaired,
+        # Rows, not pairs. Two legs make one pair, and reporting the two
+        # interchangeably is how the one-directional read stayed invisible.
+        "paired_rows": paired_rows,
+        "pairs": rows.filter(transfer_pair__isnull=False).count(),
+        "unpaired": total - paired_rows,
         "reads_full_population": True,
         "window_days": PAIRING_WINDOW_DAYS,
         "note": ("The pass reads the whole eligible population in bounded batches. The "

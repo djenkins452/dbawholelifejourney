@@ -33,6 +33,7 @@ from django.db.models import F
 from django.utils import timezone
 
 from apps.finance.models import FinancialEntity, TransactionAttribution
+from apps.finance.services.transfer_detection import paired_q
 
 #: A mismatch is only interesting when the payer is a personal/household entity and the
 #: cost belongs to a business/other entity — structural, never name-based.
@@ -100,7 +101,7 @@ def find_mismatches(user):
                     transaction__status="active",
                     transaction__is_opening_balance=False,
                     transaction__plaid_pending=False)
-            .exclude(Q(transaction__transfer_pair__isnull=False)
+            .exclude(paired_q("transaction__")
                      | Q(transaction__category__category_type="transfer"))
             .exclude(attributed_entity=F("paid_by_entity"))
             .select_related("transaction", "attributed_entity", "paid_by_entity"))

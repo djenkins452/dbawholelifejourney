@@ -38,10 +38,10 @@ is `PENDING` or `IN PROGRESS`.
 | 2.6 | Card-payment semantics | **DONE** | `SixMeaningsTests` — purchase counted once, payment is cash not spending, transfer once, both legs preserved | `69a9e1d7` |
 | 2.7 | Mortgage semantics | **DONE** | `MortgageSemanticsTests` — cash out visible, debt service once, not spending, unsplit stays unsplit | `69a9e1d7` |
 | 2.8 | Net-worth effect of principal | **DONE** | audit: cash −249,370.00, liabilities −249,370.00, **net worth change 0.00, balances: true** | `356181ba` |
-| 2.9 | Reconciliation bridges | IN PROGRESS | spending bridge live; cash/debt/transfer bridge being added to UI + CoS | |
+| 2.9 | Reconciliation bridges | DONE | `money_bridge()` renders six named views on `/finance/money/` (`data-testid="money-bridge"`) and ships in the CoS `snapshot_packet` + `money_bridge` entity. `MoneyBridgeTests`. | `544531a0` |
 | 2.10 | Shadow + production rehearsal | **DONE** | `transfer_audit` ran read-only on production; every figure above is from real data | `356181ba` |
 | 2.11 | Correction applied | **DONE** | measures 2.0.0 — a pure calculation change, no data rewritten, reversible by revert | `69a9e1d7` |
-| 2.12 | Forecast/snapshot/CoS/labels | IN PROGRESS | | |
+| 2.12 | Forecast/snapshot/CoS/labels | DONE | Measures 2.0.0 + evidence 2.0.0 deployed; snapshot regenerated on prod (`committed: true`, net worth 532,421.42 unchanged); all 9 identities `all_hold: true` in production. | `544531a0` |
 
 ## Package 3 — Eliminate both pairing defects
 
@@ -58,23 +58,23 @@ is `PENDING` or `IN PROGRESS`.
 | 3.9 | Kinds distinguished | **DONE** | pair kind from EITHER leg touching a liability; roles unchanged | `356181ba` |
 | 3.10 | Ambiguity retained | **DONE** | mutual uniqueness required; ambiguous reported, never resolved | `356181ba` |
 | 3.11 | No N+1 | **DONE** | amount bucketing + both link directions `select_related`; `QueryCostTests` caps at 15 queries for 80 rows | `356181ba` |
-| 3.12 | Full read-only rehearsal over ALL eligible rows | PENDING | | |
-| 3.13 | Deterministic backfill applied | PENDING | | |
-| 3.14 | Second run produces zero changes | PENDING | | |
+| 3.12 | Full read-only rehearsal over ALL eligible rows | DONE | Prod rehearsal: population **3,796** (old cap 2,000), eligible outflows 3,509, proposed 25, ambiguous 0, unmatched 3,504, held_income_counterpart 5. Zero writes. | `49995948` |
+| 3.13 | Deterministic backfill applied | DONE | 25 pairs applied, 50 rows reclassified; pairs 25→50; held_for_review 130→109. The 5 income-facing candidates were held, not guessed. | `49995948` |
+| 3.14 | Second run produces zero changes | DONE | Re-run after the `544531a0` deploy: `proposed 0, ambiguous 0, already_paired 100 rows (=50 pairs)`. Nothing written. | `544531a0` |
 
 ## Regression and deployment
 
 | # | Item | Status | Evidence | Commit |
 |---|---|---|---|---|
-| R.1 | Pairing + economic-role tests | PENDING | | |
-| R.2 | All financial-measure identities | PENDING | | |
-| R.3 | Forecast + debt-service tests | PENDING | | |
-| R.4 | Net-worth + snapshot tests | PENDING | | |
-| R.5 | CoS grounding + redaction tests | PENDING | | |
-| R.6 | Full Finance + request-path-safety suites | PENDING | | |
-| R.7 | Migration rehearsal | PENDING | | |
-| R.8 | Web/worker same commit; migrations applied | PENDING | | |
-| R.9 | Scheduler healthy | PENDING | | |
+| R.1 | Pairing + economic-role tests | DONE | `test_liability_pairing` (53) + `test_p1_economic_roles` + `test_spending_bridge` — OK. | `544531a0` |
+| R.2 | All financial-measure identities | DONE | 9/9 hold in **production**: net_spending, cash_outflow, cash_inflow, economic_outflow, transfers_and_allocations, debt_service, income_in_cash bound, card_payments_are_cash_not_expense, net_cash_movement. | `544531a0` |
+| R.3 | Forecast + debt-service tests | DONE | Covered by the full Finance suite run below. | `544531a0` |
+| R.4 | Net-worth + snapshot tests | DONE | Suite green; prod snapshot regenerated and equals the live reconciliation. | `544531a0` |
+| R.5 | CoS grounding + redaction tests | DONE | Finance CoS evidence/redaction tests green in the full suite. | `544531a0` |
+| R.6 | Full Finance + request-path-safety suites | DONE | 1,390 tests, **OK (skipped=4)**, 0 failures — `apps.finance`, request-path safety contract, celery contract, help. | `544531a0` |
+| R.7 | Migration rehearsal | DONE | `makemigrations --check --dry-run` → **No changes detected**. No new migration was needed: the closure work changed calculation and pairing logic, not schema. | `544531a0` |
+| R.8 | Web/worker same commit; migrations applied | DONE | web `544531a0aaa8`, worker `544531a0aaa8` (truth-probe `worker_build`), database `connected`. | `544531a0` |
+| R.9 | Scheduler healthy | DONE | `/_health/`: `scheduler: ALIVE`, `redis: connected`. | `544531a0` |
 | R.10 | Temporary operator endpoints 404 | PENDING | | |
-| R.11 | No paid product / provider call / financial action | PENDING | | |
-| R.12 | Production data reconciled | PENDING | | |
+| R.11 | No paid product / provider call / financial action | DONE | No Plaid product change, no Link token, no billed refresh, no institution change, no provider call, no outward financial action. Reconciliation and audit modules are read-only by construction (`read_only_proof`). | — |
+| R.12 | Production data reconciled | DONE | Net worth 532,421.42 proven from real records (see 1.x); arithmetic balances; zero artifacts; zero foreign rows. | `544531a0` |

@@ -33,6 +33,7 @@ from apps.finance.models import (
     Transaction,
     TransactionAttribution,
 )
+from apps.finance.services.transfer_detection import paired_q
 
 #: Below this, a "pattern" is one or two rows and a finding cannot be trusted.
 MIN_TRANSACTIONS_FOR_TRUST = 50
@@ -66,7 +67,7 @@ def audit():
 
     # -- population classes (aggregate counts only) --------------------------
     opening = txns.filter(is_opening_balance=True).count()
-    paired = txns.filter(transfer_pair__isnull=False).count()
+    paired = txns.filter(paired_q()).count()
     categorised_transfer = txns.filter(category__category_type="transfer").count()
     pending = txns.filter(plaid_pending=True).count()
 
@@ -91,9 +92,9 @@ def audit():
 
     # -- convergence delta (the F4 measurement) -------------------------------
     old_metrics = txns.filter(is_opening_balance=False).exclude(
-        transfer_pair__isnull=False).aggregate(t=Sum("amount"))["t"] or Decimal("0")
+        paired_q()).aggregate(t=Sum("amount"))["t"] or Decimal("0")
     converged = txns.filter(is_opening_balance=False).exclude(
-        Q(transfer_pair__isnull=False)
+        paired_q()
         | Q(category__category_type="transfer")).aggregate(
         t=Sum("amount"))["t"] or Decimal("0")
 

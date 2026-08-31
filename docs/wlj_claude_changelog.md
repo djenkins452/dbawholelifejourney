@@ -60313,3 +60313,17 @@ asserts the string `is_opening_balance=False` never appears in `measures.py`.
 **Stops here.** No backfill, no activation, no change to any displayed total, nothing
 exposed to CoS. The next decision is Danny's: authorise the P1 backfill and activation,
 or not.
+
+## 2026-08-30 — P1 dry-run operator endpoint (TEMPORARY, read-only)
+
+WLJ has no production shell, so the one authorised P1 rehearsal needs somewhere to run.
+`GET /admin-console/api/claude/finance-p1-dry-run/?email=` is key-gated and read-only. It
+does not trust `dry_run` to be read-only — it counts the rows carrying an `economic_role`
+before and after and returns an error instead of a report if the number moved.
+
+**Delete the view, the URL and `apps/finance/tests/test_p1_dry_run_endpoint.py` in one
+commit once the report is delivered.** A debug endpoint left behind is production code
+nobody owns.
+
+Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
+`apps/finance/tests/test_p1_dry_run_endpoint.py`.

@@ -3614,6 +3614,75 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
 # Claude Code API - Ready Tasks Endpoint
 # ==============================================================================
 
+class FinanceP1DryRunAPIView(APIRateLimitMixin, View):
+    """TEMPORARY operator surface for the ONE authorised P1 shadow dry run. Read-only.
+
+    This exists because WLJ has no production shell: a rehearsal that must never write
+    still has to be *run* somewhere. It calls `finance_calc.dry_run.run`, which
+    classifies in memory and throws the result away, and it verifies that claim rather
+    than asserting it — the count of rows carrying an `economic_role` is taken before
+    and after, and a mismatch is returned as an error instead of a report.
+
+    Delete this view, its URL and its test in ONE commit once the report is delivered.
+    A debug endpoint left behind is production code nobody owns.
+
+    GET /admin-console/api/claude/finance-p1-dry-run/?email=
+    Auth: X-Claude-API-Key.
+    """
+
+    rate_limit_requests_per_minute = 5
+    rate_limit_requests_per_hour = 20
+    rate_limit_key_prefix = 'admin_api_finance_p1_dry_run'
+
+    def get(self, request):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        email = (request.GET.get('email') or '').strip()
+        if not email:
+            return JsonResponse({'error': 'email query param required'}, status=400)
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'user not found'}, status=404)
+
+        from apps.finance.models import Transaction
+        from apps.finance.services.finance_calc import dry_run
+
+        written_before = Transaction.objects.filter(
+            user=user, economic_role__isnull=False).count()
+        report = dry_run.run(user)
+        written_after = Transaction.objects.filter(
+            user=user, economic_role__isnull=False).count()
+
+        if written_before != written_after:
+            return JsonResponse({
+                'error': 'DRY RUN WROTE TO THE DATABASE — report withheld',
+                'economic_role_rows_before': written_before,
+                'economic_role_rows_after': written_after,
+            }, status=500)
+
+        report['read_only_proof'] = {
+            'economic_role_rows_before': written_before,
+            'economic_role_rows_after': written_after,
+            'shadow_population_untouched': written_before == written_after == 0,
+        }
+        return JsonResponse(report, json_dumps_params={'indent': 1})
+
+
 class FinanceAuditAPIView(APIRateLimitMixin, View):
     """Read-only aggregate health audit of Finance truth in this environment.
 

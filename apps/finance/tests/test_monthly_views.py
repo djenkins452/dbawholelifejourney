@@ -585,3 +585,127 @@ class MoneyPageDrillDownTests(ViewsBase):
         body = self.client.get(reverse("finance:money_overview")).content.decode()
         for handler in ("onclick=", "onchange=", "onsubmit=", "onload="):
             self.assertNotIn(handler, body)
+
+
+class SpendMeansConsumptionTests(ViewsBase):
+    """"Largest spend" must mean what the dashboard means by spending.
+
+    Production, August 2026: the top-ranked "largest spend" was 849.84, an Ally
+    auto-loan payment from chequing. Correct arithmetic — it is the biggest negative
+    row surviving `financial_activity` — and the wrong answer to the question, because
+    every outflow is negative and only some of them are spending.
+
+    Meanwhile a 5,000 credit-card payment did not appear at all, so the ranking both
+    included something that is not spending and omitted the largest thing that left the
+    account. Those are two different questions and neither was being asked cleanly.
+    """
+
+    def _rank(self, start=MONTH_START, end=MONTH_END):
+        from apps.finance.services.finance_domain_truth import FinanceDomainTruth
+        rows = FinanceDomainTruth(self.user).describe(
+            entity_type="transaction",
+            filters={"start": start.isoformat(), "end": end.isoformat(),
+                     "order_by": "spend_desc"})
+        ranked = [(r.definition["spend_amount"], r.definition)
+                  for r in rows if r.definition.get("spend_amount")]
+        ranked.sort(key=lambda pair: -pair[0])
+        return ranked
+
+    def test_an_auto_loan_payment_is_not_the_largest_spend(self):
+        """The production defect, reproduced."""
+        loan = FinancialAccount.objects.create(
+            user=self.user, name="Auto loan", account_type="loan",
+            current_balance=Decimal("-20000"))
+        self._loan_payment(loan, "849.84")
+        self._txn(-120, primary="FOOD_AND_DRINK")
+
+        ranked = self._rank()
+        self.assertTrue(ranked, "the purchase should still rank")
+        self.assertEqual(ranked[0][0], 120.0,
+                         "the loan payment is debt service, not a purchase")
+        self.assertNotIn(849.84, [amount for amount, _ in ranked])
+
+    def test_an_unpaired_loan_payment_is_also_not_spending(self):
+        """It must not depend on whether WLJ happened to match the other leg."""
+        self._txn(-849.84, primary="LOAN_PAYMENTS",
+                  detailed="LOAN_PAYMENTS_CAR_PAYMENT")
+        self._txn(-120, primary="FOOD_AND_DRINK")
+        ranked = self._rank()
+        self.assertEqual([amount for amount, _ in ranked], [120.0])
+
+    def test_a_card_payment_is_not_the_largest_spend(self):
+        self._card_payment("5000")
+        self._txn(-300, account=self.card, primary="GENERAL_MERCHANDISE")
+        ranked = self._rank()
+        self.assertEqual(ranked[0][0], 300.0,
+                         "the card purchase is the spend; paying the card is not")
+
+    def test_a_card_purchase_ranks_the_day_it_is_made(self):
+        self._txn(-742.10, account=self.card, primary="GENERAL_MERCHANDISE")
+        self._txn(-95, primary="FOOD_AND_DRINK")
+        self.assertEqual(self._rank()[0][0], 742.10)
+
+    def test_fees_and_interest_rank_as_cost(self):
+        """They are a cost of the same consumption — `net_spending` counts them."""
+        self._txn(-536.70, account=self.card, primary="BANK_FEES",
+                  detailed="BANK_FEES_INTEREST_CHARGE")
+        self._txn(-95, primary="FOOD_AND_DRINK")
+        self.assertEqual(self._rank()[0][0], 536.70)
+
+    def test_an_internal_transfer_never_ranks(self):
+        self._internal_transfer("4000")
+        self._txn(-80, primary="FOOD_AND_DRINK")
+        self.assertEqual([amount for amount, _ in self._rank()], [80.0])
+
+    def test_an_unexplained_outflow_is_not_asserted_to_be_a_purchase(self):
+        """WLJ does not know what it was. It must not top the ranking as if it did."""
+        self._txn(-2300, state=Transaction.TRANSFER_STATE_CANDIDATE,
+                  kind=Transaction.TRANSFER_KIND_INTERNAL)
+        self._txn(-64, primary="FOOD_AND_DRINK")
+        self.assertEqual([amount for amount, _ in self._rank()], [64.0])
+
+    def test_income_and_refunds_still_never_rank(self):
+        self._txn(9000, primary="INCOME")
+        self._txn(150, account=self.card, primary="GENERAL_MERCHANDISE",
+                  detailed="GENERAL_MERCHANDISE_REFUND")
+        self._txn(-70, primary="FOOD_AND_DRINK")
+        self.assertEqual([amount for amount, _ in self._rank()], [70.0])
+
+    # ---- the invariant the whole thing exists to hold -------------------------
+
+    def test_ranked_spend_sums_to_the_dashboard_spending_figure(self):
+        """Dashboard "spending" and CoS "spending" are the same population.
+
+        Not merely similar: the ranked rows must add up to the number on the card,
+        because they are the same rows.
+        """
+        self._txn(6000, primary="INCOME")
+        self._txn(-410.25, primary="GENERAL_MERCHANDISE")
+        self._txn(-88.40, account=self.card, primary="FOOD_AND_DRINK")
+        self._txn(-31.10, account=self.card, primary="BANK_FEES",
+                  detailed="BANK_FEES_INTEREST_CHARGE")
+        # None of these may enter the ranking OR the spending figure.
+        self._card_payment("5000")
+        self._internal_transfer("900")
+        loan = FinancialAccount.objects.create(
+            user=self.user, name="Auto loan", account_type="loan",
+            current_balance=Decimal("-20000"))
+        self._loan_payment(loan, "849.84")
+
+        ranked_total = sum(amount for amount, _ in self._rank())
+        lines = {l["key"]: l["amount"] for l in
+                 self.views()["spending_result"]["lines"]}
+        self.assertEqual(
+            Decimal(str(round(ranked_total, 2))), lines["net_spending"],
+            "the ranked rows ARE the spending figure — one definition, not two")
+
+    def test_the_bound_never_silently_drops_an_unclassified_row(self):
+        """A row synced but not yet classified must still be rankable.
+
+        The database bound only narrows. If it decided, a freshly imported purchase
+        would be invisible to "what was my largest spend" until a background job caught
+        up — a silent omission, which is the class this fix exists to remove.
+        """
+        t = self._txn(-1234.56, primary="GENERAL_MERCHANDISE")
+        Transaction.objects.filter(pk=t.pk).update(economic_role=None)
+        self.assertEqual(self._rank()[0][0], 1234.56)

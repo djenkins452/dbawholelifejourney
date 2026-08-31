@@ -112,7 +112,14 @@ class FinanceDomainTruth(DomainTruth):
         if f.get("contains"):                       # "what did I spend at Costco"
             c = str(f["contains"]).strip()
             qs = qs.filter(Q(description__icontains=c) | Q(payee__icontains=c))
-        qs = qs.select_related("account", "category")
+        # The transfer legs are select_related deliberately: `spend_magnitude` asks the
+        # classifier whether a row is consumption, and the classifier reads the
+        # counterpart's account to tell a mortgage payment from a card payment. Without
+        # this, describing 100 rows is 100 extra queries — invisible on SQLite, a
+        # request-path problem on Postgres.
+        qs = qs.select_related("account", "category",
+                               "transfer_pair", "transfer_pair__account",
+                               "transfer_counterpart", "transfer_counterpart__account")
         # ORDERING MUST MATCH THE QUESTION. The default is reverse-chronological, which
         # is right for "what did I spend at Costco" but WRONG for a ranking: with the
         # `_MAX_TX` cap, a busy month would return the 100 most RECENT rows and the
@@ -120,7 +127,15 @@ class FinanceDomainTruth(DomainTruth):
         # caller declares `order_by="spend_desc"`, so the cap keeps the top spends
         # instead of the newest rows. Outflows only (`amount < 0`); most negative first.
         if f.get("order_by") == "spend_desc":
-            qs = qs.filter(amount__lt=0).order_by("amount", "-date", "-id")
+            # CONSUMPTION, not every outflow. Ranking on the sign alone made an
+            # auto-loan payment the largest "spend" of the month — true of the bank
+            # statement, false of the question. The bound comes from the measure
+            # authority, the same one the dashboard's spending figure uses, so Finance
+            # cannot hold two definitions of the word. It only NARROWS: the verdict is
+            # `spend_magnitude`, computed live per row below.
+            from apps.finance.services.finance_calc import measures as _M
+            qs = qs.filter(amount__lt=0).filter(_M.could_be_consumption_q()).order_by(
+                "amount", "-date", "-id")
         else:
             qs = qs.order_by("-date", "-id")
         qs = self._with_attribution(qs)
@@ -369,16 +384,19 @@ class FinanceDomainTruth(DomainTruth):
         # "this is on the wrong card"; the model interprets.
         rows = getattr(t, "_active_attribution", None)
         attribution = rows[0] if rows else None
-        # `spend_amount` is the OUTFLOW MAGNITUDE — the already-canonical convention
-        # (`amount < 0` is money out; FinanceHistory reports spending as a positive
-        # magnitude) expressed as a rankable value. It is deliberately None for an
-        # inflow (income, and a refund, which is an inflow): the ranked-entity
-        # capability EXCLUDES a missing measure rather than coercing it to 0, so
-        # "largest spend" can never rank income or a refund by construction. Transfers
-        # never reach here at all — `financial_activity` excludes known AND ambiguous
-        # ones. No new accounting rule is introduced; this exposes the existing one.
+        # `spend_amount` is what this row COST, from the measure authority — the same
+        # definition the dashboard's spending figure uses. It is None, never zero, for
+        # anything that is not consumption: the ranked-entity capability excludes a
+        # missing measure rather than coercing it, so income, refunds, card payments,
+        # debt service, transfers and unexplained rows cannot be ranked as purchases.
+        #
+        # It used to be `abs(amount) if amount < 0`, which read "spend" off the SIGN.
+        # Every outflow is negative and only some are spending, so the largest "spend"
+        # in a month came back as an auto-loan payment.
+        from apps.finance.services.finance_calc import measures as _M
+        spend = _M.spend_magnitude(t)
         definition = {"amount": float(t.amount),
-                      "spend_amount": (abs(float(t.amount)) if t.amount < 0 else None),
+                      "spend_amount": (float(spend) if spend is not None else None),
                       # Also in `definition` so a ranked result carries WHEN it happened
                       # (the ranked path reads occurrence from `definition`).
                       "date": t.date.isoformat(),

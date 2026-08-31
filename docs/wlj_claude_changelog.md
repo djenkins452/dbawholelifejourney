@@ -61097,3 +61097,37 @@ what happens to them.
 
 The earlier record moved to pk 317; the winner stays at 242, which is what production
 already holds.
+
+## 2026-08-31 — "spend" was being read off the sign
+
+Danny reported the CoS naming **$849.84** as his largest spend for August. Production
+confirms the ranking is arithmetically correct and answers the wrong question: the
+top-ranked row is an **auto-loan payment from chequing, category "Loan Payments"** —
+debt service, not consumption.
+
+`spend_amount` was `abs(amount) if amount < 0`. Every outflow is negative and only some
+of them are spending, so a loan payment outranked every purchase. Three months of
+production evidence show `debt_service` surviving `financial_activity` as a negative
+every month (2,084.28 in August, 2,065.30 in July, 2,077.00 in June) — it was never
+excluded upstream, contrary to the assumption in the ranking's own commit message.
+
+The same reading also explains the *other* half of the complaint. A **5,000 card payment**
+does not appear in the ranking at all, correctly — the purchases it settles were counted
+when they were made — so the ranking simultaneously included something that is not
+spending and omitted the largest thing that left the account. Two different questions,
+neither asked cleanly.
+
+**Fixed by reusing the authority, not by adding a definition.** `measures.consumption_roles()`
+publishes what `net_spending` is built from; `spend_magnitude()` returns what a row cost
+or `None`. `finance_domain_truth` now asks the authority instead of reading the sign, so
+**dashboard spending and CoS spending are the same population** — a test asserts the
+ranked rows *sum to* the dashboard's net-spending figure, not merely resemble it.
+
+The database bound (`could_be_consumption_q`) deliberately **fails open**: a row whose
+role is not yet persisted is kept and decided live. Dropping it at the bound would make a
+freshly-synced purchase silently unrankable, which is the same class of defect.
+
+Capability semantics updated so the model knows `spend_amount` is absent for payments and
+transfers, and that "money that left my account" is a different question answered by
+`monthly_views`. Advertised-entity descriptions: 21 missing → 19 (the two added today);
+the remaining 19 are the pre-existing sweep flagged in `e4a79683`.

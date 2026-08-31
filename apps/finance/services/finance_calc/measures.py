@@ -24,6 +24,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
 
+from django.db.models import Q
+
 from apps.finance.services.finance_calc import roles as role_authority
 
 ZERO = Decimal("0.00")
@@ -259,6 +261,57 @@ def _base(measure, rows, start, end):
 # ---------------------------------------------------------------------------
 # The nine
 # ---------------------------------------------------------------------------
+
+def consumption_roles():
+    """The roles that ARE consumption — what `net_spending` is built from.
+
+    Published so a surface can ask the authority "is this row spending?" instead of
+    answering it for itself. A negative amount is not the same question: a mortgage
+    payment, a card payment and a transfer out are all negative and none of them is
+    consumption.
+    """
+    from apps.finance.models import Transaction as T
+    return frozenset({T.ROLE_PURCHASE, T.ROLE_FEE_INTEREST})
+
+
+def could_be_consumption_q(prefix=""):
+    """A queryset BOUND for a ranked spending read — never the verdict.
+
+    Bounds the read at the database so a capped ranking keeps the top SPENDS rather
+    than the top outflows: the difference between "your largest spend was 849.84"
+    meaning a purchase and meaning an auto-loan payment.
+
+    Deliberately **fails open**. A row whose role has not been persisted yet — freshly
+    synced, imported by a path that does not classify — is KEPT, because dropping it at
+    the bound would make it silently unrankable, which is the same class of defect this
+    fixes. The bound narrows; `spend_magnitude` decides, live, and fails closed.
+    """
+    role = f"{prefix}economic_role"
+    return (Q(**{f"{role}__in": sorted(consumption_roles())})
+            | Q(**{f"{role}__isnull": True})
+            | Q(**{role: ""}))
+
+
+def spend_magnitude(txn, *, assignment=None):
+    """What this row cost, as a positive number — or None if it is not consumption.
+
+    `None`, never zero. The ranked-entity capability EXCLUDES a missing measure rather
+    than coercing it, so a debt payment, a card payment, a transfer or an unexplained
+    row cannot be ranked as a purchase by construction.
+
+    This exists because "spend" was being read off the SIGN. Every outflow is negative;
+    only some of them are spending. Ranking on the sign made an auto-loan payment the
+    largest "spend" of the month, which is true of the bank statement and false of the
+    question the person asked.
+    """
+    amount = txn.amount or ZERO
+    if amount >= ZERO:
+        return None
+    assignment = assignment if assignment is not None else role_authority.classify(txn)
+    if assignment.role not in consumption_roles():
+        return None
+    return _abs(amount)
+
 
 def gross_purchases(user, start=None, end=None, rows=None):
     """Purchases of goods and services, before any offset."""

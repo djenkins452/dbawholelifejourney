@@ -253,8 +253,13 @@ class MeasureTests(RoleBase):
                          .components["savings_allocations"], Decimal("500.00"))
 
     def test_unimplemented_measures_say_so_instead_of_reporting_zero_as_fact(self):
-        for name, missing in (("recurring_obligations", "recurring_detection (P4)"),
-                              ("controllable_spending", "controllability_taxonomy (P2)")):
+        """A zero that means "not built yet" must never read as "none exist".
+
+        `controllable_spending` graduated out of this list when P2 landed — it now
+        computes from the taxonomy. Its own honesty (silence is neither controllable
+        nor uncontrollable) is covered in `test_controllability.py`.
+        """
+        for name, missing in (("recurring_obligations", "recurring_detection (P4)"),):
             with self.subTest(measure=name):
                 result = self.m[name]
                 self.assertEqual(result.confidence, "low")
@@ -409,6 +414,7 @@ class ShadowIsolationTests(RoleBase):
             # they are still here later, this list is the reminder.
             "apps/admin_console/views.py",
             "apps/finance/tests/test_p1_operator_endpoint.py",
+            "apps/finance/tests/test_controllability.py",
         }
         unexpected = [p for p in out
                       if p not in allowed and "migrations" not in p]

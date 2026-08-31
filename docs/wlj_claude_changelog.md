@@ -60763,3 +60763,30 @@ Moved to `transfer_detection.pairing_coverage` — the pairing authority is allo
 describe itself; a surface is not allowed to describe it for it.
 
 22 scheduled-intelligence tests, 18 outcome tests, 29 page tests.
+
+## 2026-08-31 — P8 debt planning made usable
+
+The payoff engine was already correct. This is whether a person can drive it.
+
+**Guided terms entry, with provenance.** APR, minimum payment and due day are entered
+directly on the debt page, each stamped with WHERE it came from (imported / statement /
+you) and WHEN it was true. A term without provenance is how a projection built on a
+six-month-old rate is presented as though the bank confirmed it this morning. Blank
+still means unknown, never zero. `LoanTermsChange` is append-only, and an unchanged value
+writes nothing — an APR stored as 7.250 and re-entered as 7.25 is the same rate, and
+recording that as an edit is history saying nothing happened.
+
+**Saved scenarios.** `PayoffScenario` holds strategy, extra monthly, lump sum and custom
+order, with draft / following / paused / archived. Exactly one may be "the plan I am
+following" — enforced by a database constraint and by the view swapping the previous one
+to paused, because a household with three active plans has none. The engine's output is
+SNAPSHOTTED at save: re-deriving against today's balances would make every saved plan
+look permanently on track. **WLJ initiates no payment.**
+
+**The missing truck.** The debt page now says outright that a debt can be added by hand,
+that no institution connection is needed, and that a typed-in debt is planned with exactly
+the same arithmetic as an imported one — with the three steps and a link. Believing a
+connection is required is what stops someone entering the one debt that would make their
+plan real.
+
+25 debt-usability tests.

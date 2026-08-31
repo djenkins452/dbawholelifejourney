@@ -3336,7 +3336,7 @@ class AssetLoanLink(UserOwnedModel):
 from apps.finance.models_controllability import SpendingClassification  # noqa: E402,F401
 from apps.finance.models_recurring import RecurringSeries  # noqa: E402,F401
 from apps.finance.models_liability import (  # noqa: E402,F401
-    LoanTerms, LoanTermsChange)
+    LoanTerms, LoanTermsChange, PayoffScenario)
 from apps.finance.models_opportunity import SavingsOpportunity  # noqa: E402,F401
 from apps.finance.models_networth import NetWorthSnapshot  # noqa: E402,F401
 from apps.finance.models_review import ReviewBatch  # noqa: E402,F401

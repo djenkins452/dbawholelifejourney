@@ -210,3 +210,78 @@ class LoanTermsChange(UserOwnedModel):
 
     def __str__(self):
         return f"{self.field}: {self.old_value} → {self.new_value}"
+
+
+class PayoffScenario(UserOwnedModel):
+    """A saved debt plan: which strategy, how much extra, and whether it is live.
+
+    Scenarios are compared, not committed to. Exactly one can be ACTIVE at a time —
+    "the plan I am following" is singular, and a household with three active plans has
+    none. Everything else is a draft or an archive, and both are worth keeping: the plan
+    you rejected explains why you chose the one you did.
+
+    **WLJ initiates no payment, ever.** An active scenario is a statement of intent that
+    WLJ measures against reality. It moves no money.
+    """
+
+    STATE_DRAFT = 'draft'
+    STATE_ACTIVE = 'active_plan'
+    STATE_PAUSED = 'paused'
+    STATE_ARCHIVED = 'archived_plan'
+    STATE_CHOICES = [
+        (STATE_DRAFT, 'Draft — comparing options'),
+        (STATE_ACTIVE, 'The plan I am following'),
+        (STATE_PAUSED, 'Paused'),
+        (STATE_ARCHIVED, 'Archived'),
+    ]
+
+    name = models.CharField(max_length=200)
+    strategy = models.CharField(
+        max_length=16, default='avalanche',
+        help_text="minimum, snowball, avalanche or custom.")
+    extra_monthly = models.DecimalField(max_digits=12, decimal_places=2,
+                                        default=Decimal("0.00"))
+    lump_sum = models.DecimalField(max_digits=12, decimal_places=2,
+                                   default=Decimal("0.00"))
+    custom_order = models.JSONField(
+        default=list, blank=True,
+        help_text="Debt keys in the order the user chose, for the custom strategy.")
+
+    plan_state = models.CharField(max_length=16, choices=STATE_CHOICES,
+                                  default=STATE_DRAFT, db_index=True)
+    activated_on = models.DateField(null=True, blank=True)
+
+    #: What the engine said when this was saved. Kept so a plan can be compared with
+    #: what actually happened, rather than silently re-derived against today's balances
+    #: and always appearing to be on track.
+    projected = models.JSONField(default=dict, blank=True)
+    calculation_version = models.CharField(max_length=16, blank=True, default='')
+    note = models.TextField(blank=True, default='')
+
+    class Meta:
+        ordering = ['-activated_on', 'name']
+        verbose_name = "Payoff scenario"
+        indexes = [models.Index(fields=['user', 'plan_state', 'status'])]
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'name'], condition=models.Q(status='active'),
+                name='uniq_active_payoff_scenario_name'),
+            # "The plan I am following" is singular. Three active plans is none.
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=models.Q(status='active', plan_state='active_plan'),
+                name='uniq_one_active_payoff_plan'),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.strategy})"
+
+    @property
+    def is_live(self):
+        return self.plan_state == self.STATE_ACTIVE and self.status == "active"
+
+    def get_context_summary(self):
+        months = (self.projected or {}).get("months")
+        tail = f", {months} months" if months else ""
+        return (f"{self.name}: {self.strategy}, {self.extra_monthly} extra"
+                f"{tail} ({self.get_plan_state_display().lower()})")

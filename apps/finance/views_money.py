@@ -200,12 +200,25 @@ class DebtView(_SignedInFinanceView):
         debts = P.debts_for(user)
         comparison = P.compare(user, extra_monthly=extra, debts=debts)
 
+        from apps.finance.models import LoanTerms, PayoffScenario
+        from apps.finance.models_liability import SOURCE_CHOICES
+
+        terms_by_account = {t.account_id: t for t in LoanTerms.objects.filter(
+            user=user, status="active").select_related("account")}
+        for debt in debts:
+            debt.terms = terms_by_account.get(debt.account_id)
+
         context.update({
             "debts": debts,
             "extra": extra,
             "comparison": comparison,
             "scenarios": comparison["scenarios"],
             "needs_terms": [d for d in debts if d.missing],
+            "saved_scenarios": PayoffScenario.objects.filter(
+                user=user, status="active").order_by("-activated_on", "name"),
+            "strategies": P.STRATEGIES,
+            "term_sources": SOURCE_CHOICES,
+            "has_any_liability": bool(debts),
         })
         return context
 
@@ -642,4 +655,170 @@ def _safe_reverse(route):
     try:
         return django_reverse(route)
     except NoReverseMatch:
+        return None
+
+
+@require_POST
+@finance_enabled_required
+def save_loan_terms(request, pk):
+    """Record loan terms with the provenance of each field.
+
+    A term without provenance is how a payoff projection built on a six-month-old rate
+    gets presented as though the bank confirmed it this morning. Every field the user
+    fills in is stamped with WHERE it came from and WHEN it was true.
+    """
+    from apps.finance.models import FinancialAccount, LoanTerms, LoanTermsChange
+    from apps.finance.models_liability import TRACKED_TERMS
+
+    account = get_object_or_404(FinancialAccount, pk=pk, user=request.user,
+                                status="active")
+    terms, _ = LoanTerms.objects.get_or_create(user=request.user, account=account)
+
+    source = request.POST.get("source") or "user"
+    as_of = request.POST.get("as_of") or None
+    changed = []
+
+    for field in TRACKED_TERMS:
+        if field == "current_balance":
+            continue                        # the account owns the balance, not this form
+        if field not in request.POST:
+            continue
+        raw = (request.POST.get(field) or "").strip()
+        value = _term_value(field, raw)
+        if value is None and raw == "":
+            continue                        # left blank means "still unknown"
+        previous = terms.value_of(field)
+        if _same_term(previous, value):
+            continue
+        terms.record(field, value, source=source, as_of=as_of)
+        changed.append((field, previous, value))
+
+    if not changed:
+        messages.info(request, "Nothing changed.")
+        return redirect(reverse("finance:money_debt"))
+
+    terms.save()
+    for field, previous, value in changed:
+        LoanTermsChange.objects.create(
+            user=request.user, terms=terms, field=field,
+            old_value=str(previous or "")[:120], new_value=str(value or "")[:120],
+            source=source, as_of=as_of or None)
+
+    messages.success(
+        request,
+        f"Recorded {len(changed)} term(s) for {account.name}. "
+        f"Payoff planning can use them now.")
+    return redirect(reverse("finance:money_debt"))
+
+
+@require_POST
+@finance_enabled_required
+def save_scenario(request):
+    """Save a payoff scenario as a draft, with what the engine said at the time."""
+    from apps.finance.models import PayoffScenario
+    from apps.finance.services.finance_calc import payoff as P
+
+    name = (request.POST.get("name") or "").strip()
+    if not name:
+        messages.error(request, "Give the scenario a name so you can compare it later.")
+        return redirect(reverse("finance:money_debt"))
+
+    strategy = request.POST.get("strategy") or P.STRATEGY_AVALANCHE
+    if strategy not in P.STRATEGIES:
+        strategy = P.STRATEGY_AVALANCHE
+    extra = _decimal(request.POST.get("extra_monthly"))
+    lump = _decimal(request.POST.get("lump_sum"))
+
+    scenario = P.simulate(request.user, strategy, extra_monthly=extra, lump_sum=lump)
+    PayoffScenario.objects.update_or_create(
+        user=request.user, name=name, status="active",
+        defaults={
+            "strategy": strategy, "extra_monthly": extra, "lump_sum": lump,
+            # Snapshotted deliberately: re-deriving against today's balances would make
+            # every saved plan look permanently on track.
+            "projected": scenario.as_dict(),
+            "calculation_version": P.PAYOFF_VERSION,
+            "note": (request.POST.get("note") or "")[:500],
+        })
+    messages.success(request, f"Saved “{name}”. It is a draft until you activate it.")
+    return redirect(reverse("finance:money_debt"))
+
+
+@require_POST
+@finance_enabled_required
+def scenario_state(request, pk):
+    """Activate, pause, archive or restore a scenario. Never moves money."""
+    from django.db import transaction as db_transaction
+
+    from apps.finance.models import PayoffScenario
+
+    scenario = get_object_or_404(PayoffScenario, pk=pk, user=request.user)
+    action = (request.POST.get("action") or "").strip()
+
+    if action == "delete":
+        scenario.status = "archived"
+        scenario.save(update_fields=["status", "updated_at"])
+        messages.success(request, f"“{scenario.name}” archived.")
+        return redirect(reverse("finance:money_debt"))
+
+    if action not in dict(PayoffScenario.STATE_CHOICES):
+        messages.error(request, "That is not a state WLJ recognises.")
+        return redirect(reverse("finance:money_debt"))
+
+    with db_transaction.atomic():
+        if action == PayoffScenario.STATE_ACTIVE:
+            # "The plan I am following" is singular — a household with three active
+            # plans has none. The database enforces it too; this makes the swap
+            # deliberate rather than an error the user has to decode.
+            PayoffScenario.objects.filter(
+                user=request.user, status="active",
+                plan_state=PayoffScenario.STATE_ACTIVE).exclude(
+                pk=scenario.pk).update(plan_state=PayoffScenario.STATE_PAUSED)
+            from apps.core.utils import get_user_today
+            scenario.activated_on = get_user_today(request.user)
+        scenario.plan_state = action
+        scenario.save(update_fields=["plan_state", "activated_on", "updated_at"])
+
+    messages.success(request,
+                     f"“{scenario.name}” is now {scenario.get_plan_state_display().lower()}.")
+    return redirect(reverse("finance:money_debt"))
+
+
+def _same_term(previous, value):
+    """Is this actually a change?
+
+    Compared as VALUES, not as strings. An APR stored as 7.250 and re-entered as 7.25
+    is the same rate, and treating it as an edit writes a history entry recording that
+    nothing happened.
+    """
+    if previous is None or value is None:
+        return previous is None and value is None
+    if isinstance(previous, Decimal) and isinstance(value, Decimal):
+        return previous == value
+    return str(previous) == str(value)
+
+
+def _term_value(field, raw):
+    """Parse one term, keeping "blank means unknown" distinct from "zero"."""
+    from datetime import date as _date
+
+    if raw == "":
+        return None
+    date_fields = {"origination_date", "maturity_date", "payoff_quote_expires",
+                   "promotional_apr_ends"}
+    int_fields = {"due_day", "remaining_term_months"}
+    text_fields = {"interest_method", "prepayment_penalty"}
+
+    if field in date_fields:
+        try:
+            return _date.fromisoformat(raw[:10])
+        except ValueError:
+            return None
+    if field in int_fields:
+        return int(raw) if raw.isdigit() else None
+    if field in text_fields:
+        return raw[:200]
+    try:
+        return Decimal(raw)
+    except (InvalidOperation, ValueError):
         return None

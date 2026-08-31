@@ -30,12 +30,46 @@
         </p>
         <ul class="md-list">
             {% for debt in needs_terms %}
-            <li class="md-item">
+            <li class="md-item" data-testid="needs-terms-row">
                 <p class="md-item-title">{{ debt.name }} &middot; {{ debt.balance|money }}</p>
                 <p class="md-item-meta">missing:
                     {% for field in debt.missing %}{{ field }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
                 {% if debt.account_id %}
-                <a class="btn btn-secondary md-btn" href="{% url 'finance:account_detail' debt.account_id %}">Open account</a>
+                <form method="post" action="{% url 'finance:money_save_terms' debt.account_id %}"
+                      class="md-terms-form">
+                    {% csrf_token %}
+                    <div class="md-field">
+                        <label for="apr-{{ debt.account_id }}">Interest rate (APR %)</label>
+                        <input type="number" step="0.001" min="0" inputmode="decimal"
+                               id="apr-{{ debt.account_id }}" name="apr"
+                               value="{% if debt.terms.apr %}{{ debt.terms.apr }}{% endif %}">
+                    </div>
+                    <div class="md-field">
+                        <label for="min-{{ debt.account_id }}">Minimum payment</label>
+                        <input type="number" step="0.01" min="0" inputmode="decimal"
+                               id="min-{{ debt.account_id }}" name="minimum_payment"
+                               value="{% if debt.terms.minimum_payment %}{{ debt.terms.minimum_payment }}{% endif %}">
+                    </div>
+                    <div class="md-field">
+                        <label for="due-{{ debt.account_id }}">Due day of month</label>
+                        <input type="number" min="1" max="31" inputmode="numeric"
+                               id="due-{{ debt.account_id }}" name="due_day"
+                               value="{% if debt.terms.due_day %}{{ debt.terms.due_day }}{% endif %}">
+                    </div>
+                    <div class="md-field">
+                        <label for="src-{{ debt.account_id }}">Where did this come from?</label>
+                        <select id="src-{{ debt.account_id }}" name="source">
+                            {% for value, label in term_sources %}
+                            <option value="{{ value }}"{% if value == "user" %} selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="md-field">
+                        <label for="asof-{{ debt.account_id }}">As at</label>
+                        <input type="date" id="asof-{{ debt.account_id }}" name="as_of">
+                    </div>
+                    <button type="submit" class="btn btn-primary md-btn">Save terms</button>
+                </form>
                 {% endif %}
             </li>
             {% endfor %}
@@ -64,11 +98,102 @@
             </tbody>
         </table>
         {% else %}
-        <p class="md-empty">
-            No liabilities are recorded. You can add one by hand &mdash; WLJ does not need
-            the institution connected to plan around a debt.
+        <p class="md-empty" data-testid="no-debts">
+            No liabilities are recorded.
         </p>
         {% endif %}
+
+        <div class="md-add" data-testid="add-debt-guidance">
+            <h3 class="md-add-title">Is a debt missing from this list?</h3>
+            <p>
+                A truck loan, a personal loan, a card at another bank &mdash;
+                <strong>add it by hand</strong>. You do <strong>not</strong> need to
+                connect that institution, and a debt you type in is planned with exactly
+                the same arithmetic as one that was imported.
+            </p>
+            <ol class="md-add-steps">
+                <li>Create the account, choosing Loan, Mortgage, Student Loan or Credit
+                    Card, and enter the current balance.</li>
+                <li>Come back here and fill in its rate and minimum payment above.</li>
+                <li>It joins every payoff comparison immediately.</li>
+            </ol>
+            <a class="btn btn-primary md-btn" href="{% url 'finance:account_create' %}">Add a debt by hand</a>
+        </div>
+    </section>
+
+    <section class="md-section" aria-labelledby="saved-heading">
+        <h2 id="saved-heading" class="md-heading">Saved plans</h2>
+        <p class="md-intro">
+            Scenarios are for comparing. Only one can be the plan you are following
+            &mdash; a household with three active plans has none.
+            <strong>WLJ never makes a payment.</strong>
+        </p>
+
+        {% if saved_scenarios %}
+        <ul class="md-list">
+            {% for plan in saved_scenarios %}
+            <li class="md-item md-plan" data-testid="saved-scenario">
+                <div>
+                    <p class="md-item-title">{{ plan.name }}
+                        {% if plan.is_live %}<span class="md-live">following</span>{% endif %}</p>
+                    <p class="md-item-meta">
+                        {{ plan.strategy }}
+                        {% if plan.extra_monthly %}&middot; {{ plan.extra_monthly|money }} extra a month{% endif %}
+                        {% if plan.lump_sum %}&middot; {{ plan.lump_sum|money }} lump sum{% endif %}
+                        {% if plan.projected.months %}&middot; {{ plan.projected.months }} months{% endif %}
+                        {% if plan.projected.debt_free_date %}&middot; debt free {{ plan.projected.debt_free_date }}{% endif %}
+                        &middot; {{ plan.get_plan_state_display|lower }}
+                    </p>
+                    {% if plan.projected.excluded_for_missing_payment %}
+                    <p class="md-item-meta md-unknown">excluded:
+                        {% for name in plan.projected.excluded_for_missing_payment %}{{ name }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                    {% endif %}
+                </div>
+                <form method="post" action="{% url 'finance:money_scenario_state' plan.pk %}"
+                      class="md-plan-actions">
+                    {% csrf_token %}
+                    {% if not plan.is_live %}
+                    <button type="submit" name="action" value="active_plan" class="btn btn-primary md-btn">Follow this</button>
+                    {% else %}
+                    <button type="submit" name="action" value="paused" class="btn btn-secondary md-btn">Pause</button>
+                    {% endif %}
+                    <button type="submit" name="action" value="delete" class="btn btn-secondary md-btn">Archive</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="md-empty" data-testid="no-scenarios">
+            No saved plans yet. Work out a comparison below, then save it so you can come
+            back to it and see whether it is holding.
+        </p>
+        {% endif %}
+
+        <form method="post" action="{% url 'finance:money_save_scenario' %}" class="md-save-form">
+            {% csrf_token %}
+            <div class="md-field">
+                <label for="s-name">Name this plan</label>
+                <input type="text" id="s-name" name="name" required
+                       placeholder="Avalanche plus 300">
+            </div>
+            <div class="md-field">
+                <label for="s-strategy">Strategy</label>
+                <select id="s-strategy" name="strategy">
+                    {% for value in strategies %}<option value="{{ value }}">{{ value }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="md-field">
+                <label for="s-extra">Extra each month</label>
+                <input type="number" id="s-extra" name="extra_monthly" min="0" step="10"
+                       inputmode="decimal" value="{{ extra }}">
+            </div>
+            <div class="md-field">
+                <label for="s-lump">One-off lump sum</label>
+                <input type="number" id="s-lump" name="lump_sum" min="0" step="100"
+                       inputmode="decimal">
+            </div>
+            <button type="submit" class="btn btn-primary md-btn">Save this plan</button>
+        </form>
     </section>
 
     <section class="md-section" aria-labelledby="scenario-heading">
@@ -157,6 +282,29 @@
 .md-details { margin-top: 0.5rem; font-size: 0.82rem; }
 .md-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
 .md-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+.md-intro { font-size: 0.88rem; color: var(--muted, #667); max-width: 66ch; }
+.md-add { background: var(--info-bg, #e7f0fd); border-radius: 12px; padding: 1rem;
+  margin-top: 1rem; }
+.md-add-title { margin-top: 0; font-size: 1rem; }
+.md-add p, .md-add-steps { font-size: 0.9rem; max-width: 66ch; }
+.md-add-steps { padding-left: 1.2rem; }
+.md-terms-form, .md-save-form { display: grid; gap: 0.75rem; margin-top: 0.75rem;
+  max-width: 32rem; }
+.md-field label { display: block; font-weight: 600; margin-bottom: 0.25rem;
+  font-size: 0.85rem; }
+.md-field input, .md-field select { width: 100%; max-width: 100%; min-height: 44px;
+  font-size: 16px; }
+.md-list { list-style: none; margin: 0; padding: 0; }
+.md-plan { display: flex; flex-direction: column; gap: 0.6rem;
+  border: 1px solid var(--border, #dee2e6); border-radius: 10px; padding: 0.85rem;
+  margin-bottom: 0.6rem; }
+.md-plan-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.md-live { background: var(--success-bg, #e6f4ea); color: var(--success-fg, #14622f);
+  border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.75rem; }
+@media (min-width: 769px) {
+  .md-plan { flex-direction: row; align-items: center; justify-content: space-between; }
+  .md-terms-form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+}
 @media (min-width: 769px) {
   .md-scenarios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

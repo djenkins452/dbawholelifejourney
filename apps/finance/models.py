@@ -621,6 +621,102 @@ class Transaction(UserOwnedModel):
     category_confirmed_at = models.DateTimeField(null=True, blank=True)
 
     # =========================================================================
+    # Economic role — P1 SHADOW MODE. Written by nothing, read by nothing.
+    # =========================================================================
+    #
+    # The role a transaction plays in the household's economics, from which the nine
+    # measures in `finance_calc.measures` are projected. A transfer is not spending; a
+    # card payment is not spending a second time; a refund offsets rather than
+    # disappearing. One classification, many measures.
+    #
+    # **These fields are inert until Danny approves the P1 backfill.** They are nullable
+    # with no default role, nothing writes them, and no existing calculation reads them.
+    # `attribution_population.financial_activity` remains the sole authority for every
+    # displayed total. A partially-classified population must never be able to change a
+    # number, so the activation gate is the ABSENCE of any reader — not a flag some code
+    # path could forget to check.
+
+    ROLE_PURCHASE = 'purchase'
+    ROLE_REFUND = 'refund'
+    ROLE_REIMBURSEMENT = 'reimbursement'
+    ROLE_REVERSAL = 'reversal_chargeback'
+    ROLE_INCOME = 'income'
+    ROLE_INTERNAL_TRANSFER = 'internal_transfer'
+    ROLE_CARD_PAYMENT = 'card_payment'
+    ROLE_SAVINGS_ALLOCATION = 'savings_allocation'
+    ROLE_INVESTMENT_CONTRIBUTION = 'investment_contribution'
+    ROLE_DEBT_SERVICE = 'debt_service'
+    ROLE_FEE_INTEREST = 'fee_or_interest_charged'
+    ROLE_CASH_WITHDRAWAL = 'cash_withdrawal'
+    ROLE_UNCERTAIN = 'uncertain'
+    #: Not economic activity at all — an account's starting position.
+    #: A ROLE rather than a filter, so this module never re-derives the
+    #: activity exclusion that `attribution_population` alone owns.
+    ROLE_OPENING_BALANCE = 'opening_balance'
+
+    ECONOMIC_ROLE_CHOICES = [
+        (ROLE_PURCHASE, 'Purchase'),
+        (ROLE_REFUND, 'Refund'),
+        (ROLE_REIMBURSEMENT, 'Reimbursement'),
+        (ROLE_REVERSAL, 'Reversal / chargeback'),
+        (ROLE_INCOME, 'Income'),
+        (ROLE_INTERNAL_TRANSFER, 'Internal transfer'),
+        (ROLE_CARD_PAYMENT, 'Credit-card payment'),
+        (ROLE_SAVINGS_ALLOCATION, 'Savings allocation'),
+        (ROLE_INVESTMENT_CONTRIBUTION, 'Investment contribution'),
+        (ROLE_DEBT_SERVICE, 'Debt service'),
+        (ROLE_FEE_INTEREST, 'Fee or interest charged'),
+        (ROLE_CASH_WITHDRAWAL, 'Cash withdrawal'),
+        (ROLE_UNCERTAIN, 'Uncertain'),
+        (ROLE_OPENING_BALANCE, 'Opening balance'),
+    ]
+
+    ROLE_SOURCE_DERIVED = 'derived'
+    ROLE_SOURCE_PROVIDER = 'provider'
+    ROLE_SOURCE_PAIRING = 'pairing'
+    ROLE_SOURCE_USER = 'user'
+    ROLE_SOURCE_CHOICES = [
+        (ROLE_SOURCE_DERIVED, 'Inferred by WLJ'),
+        (ROLE_SOURCE_PROVIDER, 'Provider classification'),
+        (ROLE_SOURCE_PAIRING, 'Matched to its counterpart'),
+        (ROLE_SOURCE_USER, 'Confirmed by you'),
+    ]
+
+    ROLE_CONFIDENCE_HIGH = 'high'
+    ROLE_CONFIDENCE_MEDIUM = 'medium'
+    ROLE_CONFIDENCE_LOW = 'low'
+    ROLE_CONFIDENCE_CHOICES = [
+        (ROLE_CONFIDENCE_HIGH, 'High'),
+        (ROLE_CONFIDENCE_MEDIUM, 'Medium'),
+        (ROLE_CONFIDENCE_LOW, 'Low'),
+    ]
+
+    #: NULL means "never classified" — distinct from `uncertain`, which means
+    #: "classified, and the honest answer is that we do not know".
+    economic_role = models.CharField(
+        max_length=32, choices=ECONOMIC_ROLE_CHOICES, blank=True, null=True,
+        db_index=True,
+        help_text="P1 shadow: the role this plays in household economics")
+    role_source = models.CharField(
+        max_length=16, choices=ROLE_SOURCE_CHOICES, blank=True, null=True)
+    role_confidence = models.CharField(
+        max_length=8, choices=ROLE_CONFIDENCE_CHOICES, blank=True, null=True)
+    #: Why — a short stable key, never free text and never a merchant name, so it is
+    #: safe to log, group and show in a report.
+    role_reason = models.CharField(max_length=64, blank=True, default='')
+    #: The classifier that produced it. A rerun with a newer version is a NEW opinion,
+    #: which is what makes reclassification explicable instead of mysterious.
+    role_classifier_version = models.CharField(max_length=16, blank=True, default='')
+    role_classified_at = models.DateTimeField(null=True, blank=True)
+
+    #: The purchase this refund gives money back for, where the link is PROVEN.
+    #: Unproven refunds still offset by period; they simply carry no linkage.
+    refund_of = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='refunds',
+        help_text="The original purchase, when the link is proven")
+
+    # =========================================================================
     # Transfer classification — a THIRD dimension, independent of category/entity
     # =========================================================================
     TRANSFER_STATE_UNKNOWN = 'unknown'

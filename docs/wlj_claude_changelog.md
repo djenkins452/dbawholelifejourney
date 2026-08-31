@@ -60247,3 +60247,69 @@ samples, and a full reconciliation that must balance or the run is reported fail
 **Approval rule tightened:** the 5% and 10% thresholds remain automatic warning gates but
 are **not approval**. Every production backfill requires Danny's explicit authorisation
 regardless of how small the change is — a 0.1% change still waits.
+
+## 2026-08-31 — P1 SHADOW: economic roles and the nine measures (inert)
+
+Implements the P1 contract from `8975926a` **in shadow mode**. Nothing WLJ displays
+changes. No backfill has run; no classification has been written to any row.
+
+**Shadow guarantee, and why it is built this way.** The activation gate is the
+**absence of any reader**, not a feature flag some code path could forget to check.
+`attribution_population.financial_activity` remains the sole authority for every
+displayed total; a test enumerates every file mentioning `economic_role` and fails if one
+appears outside `finance_calc`, the model, or the tests. A second test *simulates the
+post-backfill state* — classifying and persisting every row — and proves the live
+authority and the dashboard produce identical values afterwards.
+
+**New (all additive, all nullable):** `Transaction.economic_role`, `role_source`,
+`role_confidence`, `role_reason`, `role_classifier_version`, `role_classified_at`,
+`refund_of`. Migration `0035` is backward-compatible with the running web and worker.
+
+**Reuse, not duplication.** `roles.py` layers on top of `transfer_detection` and reads
+`transfer_state` / `transfer_kind` / `transfer_classified_by` rather than re-deriving
+"is this a transfer". `financial_activity` is designated the `net_spending` projection.
+No parallel transfer or spending detection exists.
+
+**A real bug the tests caught.** `roles.py` read `getattr(txn, "transfer_by", "")` — a
+field that does not exist; it is `transfer_classified_by`. The getattr default turned the
+typo into a silent "no user confirmation", which would have let derivation quietly
+overwrite the one authority that must never be overwritten. Now read directly, so a typo
+raises instead of lying.
+
+**Honesty properties worth naming:**
+- An unclassified credit is **not** called a reimbursement. WLJ cannot distinguish one
+  from a generic credit, and claiming the offset would understate spending on evidence
+  it does not have. Held as `uncertain`.
+- Uncertain rows and cash withdrawals **keep their cash movement** and are excluded only
+  from *spending* — they never disappear.
+- Debt service is unsplit, in cash outflow and debt service, **not** in net spending,
+  with the limitation stated and `loan_terms` named as the missing input.
+- `recurring_obligations` and `controllable_spending` return zero **with
+  `confidence: low` and the missing input named** — an absence of data, not a household
+  with no bills and nothing controllable.
+- Reasons are stable snake_case keys, never merchant text, so they are safe to log.
+
+**Dry-run module** contains no `save`, `update`, `create` or `delete` — verified by
+count. Samples are redacted to role, reason, confidence, direction, magnitude bucket,
+month and account type. No description, merchant, exact amount, identifier or payload.
+
+**41 P1 tests.** Full role matrix · all reconciliation identities · card purchase counted
+once while the payment is not spending · refunds offset without becoming income and keep
+their row · pending→posted counted once · transfers neutral · unmatched candidates keep
+cash movement without invented meaning · savings/investment allocations not consumption ·
+unsplit debt service honest · cash withdrawals uncertain · user confirmations never
+overwritten · shadow isolation incl. the simulated post-backfill proof · idempotence ·
+no sensitive data in reasons · owner isolation · archived/deleted rows never re-enter.
+
+**A constitutional collision the existing guards caught — and it was right.** WLJ has
+two contract tests forbidding any module outside `attribution_population` from
+re-deriving what counts as activity. `measures._population` filtered
+`is_opening_balance=False`, and both fired. I did NOT weaken the guards. Opening balance
+became a **role** instead, which is what the architecture's own principle demands — *ask
+for a different measure, never a different filter* — and it makes the design better: the
+row stays visible with a stated role rather than being silently filtered away. A test now
+asserts the string `is_opening_balance=False` never appears in `measures.py`.
+
+**Stops here.** No backfill, no activation, no change to any displayed total, nothing
+exposed to CoS. The next decision is Danny's: authorise the P1 backfill and activation,
+or not.

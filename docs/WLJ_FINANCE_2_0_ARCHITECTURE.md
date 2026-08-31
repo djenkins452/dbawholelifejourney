@@ -551,6 +551,36 @@ different number asks for a different *measure*, never a different filter.
 Budget, FinanceHistory, the metric snapshots, the dashboard and `FinanceDomainTruth` —
 becomes the `net_spending` projection. **No second spending system may exist.**
 
+### 5.1a The three questions a person actually asks
+
+The six meanings above are the vocabulary. These three are the **product**: what a
+dashboard is allowed to show, and what the Chief of Staff may say.
+
+| View | Question | Calculation |
+|---|---|---|
+| **Spending result** | Am I spending more than I earned? | `income − net_spending` |
+| **Liquid cash movement** | Did the money available to me go up or down? | `cash_inflow − cash_outflow` |
+| **Credit-card activity** | Did my card debt grow or shrink? | `charges + interest + advances − payments − credits` |
+
+Composed by `finance_calc/monthly_views.py` from the measure authority — never from a
+second classifier. Rules:
+
+* **They are allowed to disagree.** They answer different questions. A wide gap between
+  the first two means a lot went on a card and has not been paid off. Any surface that
+  presents one as another is wrong even when its arithmetic is right.
+* **Card activity is `activity_based`.** WLJ stores no per-account statement balance, so
+  it cannot reconcile opening to closing and must say so rather than implying it can. If
+  trustworthy balance snapshots are ever stored, this becomes a reconciliation and the
+  basis flag changes with it.
+* **One sign convention for card activity: positive means the debt grew.** Stated on
+  every surface that renders it.
+* **An incomplete month is labelled month-to-date.** A low number on the 3rd is not a
+  quiet month.
+* **The superseded figure is kept and named.** `account_movement` — every credit minus
+  every debit, meaning #5 — is what the dashboard showed as "Monthly Cash Flow". It is
+  retained in the drill-down with its role composition, because a number that changes
+  without explanation is a number nobody trusts again. It is never offered as an answer.
+
 ### 5.2 Estimates and assumptions
 
 Every calculated figure returns a value **and** its provenance:

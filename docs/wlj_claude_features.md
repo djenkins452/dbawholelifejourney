@@ -2949,8 +2949,37 @@ The finance module (`apps/finance/`) provides personal financial tracking with b
 - **Reports** — Spending trends, income vs expenses, category breakdowns
 - **CSV Import** — Import transactions from bank CSV exports
 
+### The three monthly views (Aug 2026)
+
+The dashboard used to show one figure called Monthly Cash Flow: every credit minus every
+debit across every account. It counted a card purchase *and* the payment settling it,
+treated mortgage principal as an expense, and read a refund as income — meaning #5 in the
+architecture's six, presented as though it were an answer.
+
+It now shows three, composed by `finance_calc/monthly_views.py` from the measure
+authority:
+
+| View | Question |
+|---|---|
+| **Spending surplus / deficit** | Am I spending more than I earned? |
+| **Liquid cash movement** | Did the money available in my accounts go up or down? |
+| **Credit-card activity** | Did my card debt grow or shrink? |
+
+They are allowed to disagree — a wide gap between the first two means a lot went on a
+card. Card activity is labelled `activity_based` because WLJ stores no statement balance
+and cannot reconcile opening to closing. Each opens onto its full line-by-line walk on
+Spending & Cash Flow, where the superseded figure is also kept and explained.
+
+Total Liabilities names its largest four debts underneath, derived from the same accounts
+as the headline with the remainder by subtraction.
+
+CoS reads this through the `monthly_views` truth entity, which carries the question each
+view answers and an explicit instruction never to describe one as another.
+
 ### Key Files
 - `apps/finance/` — Models, views, services
+- `apps/finance/services/finance_calc/monthly_views.py` — the three monthly views
+- `apps/finance/services/finance_calc/measures.py` — the measure authority
 - `apps/finance/plaid_service.py` — Plaid integration
 - `templates/finance/` — All finance templates
 - `apps/finance/urls.py` — URL patterns

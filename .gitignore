@@ -113,3 +113,6 @@ sigtest_settings.py
 
 # Node build deps for the vendored TipTap bundle (the built file IS committed)
 frontend/tiptap/node_modules/
+
+# Isolated Renpho auth POC (experimental — never commit/deploy)
+poc_renpho/

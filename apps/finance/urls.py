@@ -9,6 +9,7 @@
 from django.urls import path
 
 from . import views
+from . import views_money
 from apps.finance import views_assets, views_attribution, views_categories
 
 app_name = 'finance'
@@ -16,6 +17,23 @@ app_name = 'finance'
 urlpatterns = [
     # Dashboard
     path('', views.FinanceDashboardView.as_view(), name='dashboard'),
+
+    # Finance 2.0 workspaces — the measures, the review queue, what you can change,
+    # and the debt payoff comparison.
+    path('money/', views_money.MoneyOverviewView.as_view(), name='money_overview'),
+    path('money/review/', views_money.ReviewQueueView.as_view(), name='money_review'),
+    path('money/control/', views_money.ControlView.as_view(), name='money_control'),
+    path('money/debt/', views_money.DebtView.as_view(), name='money_debt'),
+    path('money/series/<int:pk>/decide/', views_money.confirm_series,
+         name='money_series_decide'),
+    path('money/transactions/<int:pk>/role/', views_money.set_transaction_role,
+         name='money_set_role'),
+    path('money/control/set/', views_money.set_controllability,
+         name='money_set_controllability'),
+    path('money/control/<int:pk>/archive/', views_money.archive_controllability,
+         name='money_archive_controllability'),
+    path('money/opportunities/<int:pk>/decide/', views_money.decide_opportunity,
+         name='money_decide_opportunity'),
 
     # Accounts
     path('accounts/', views.AccountListView.as_view(), name='account_list'),

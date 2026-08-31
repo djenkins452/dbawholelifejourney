@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Money Review - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-review">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:money_overview' %}">Spending and Cash Flow</a>
+        <span>/</span>
+        <span>Review</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">What WLJ would not guess</h1>
+            <p class="page-subtitle">These are held out of the totals until you say what they are.</p>
+        </div>
+    </div>
+
+    <section class="mr-section" aria-labelledby="held-heading">
+        <h2 id="held-heading" class="mr-heading">Transactions held for review
+            <span class="mr-count">{{ review_counts.held_transactions }}</span></h2>
+
+        {% if held %}
+        <ul class="mr-list">
+            {% for txn in held %}
+            <li class="mr-item" data-testid="held-row">
+                <div class="mr-item-main">
+                    <p class="mr-item-title">{{ txn.date }} &middot; {{ txn.account.name }}</p>
+                    <p class="mr-item-amount">{{ txn.amount|money_signed }}</p>
+                    <p class="mr-item-reason">{{ txn.reason_label }}</p>
+                </div>
+                <form method="post" action="{% url 'finance:money_set_role' txn.pk %}" class="mr-item-form">
+                    {% csrf_token %}
+                    <label class="sr-only" for="role-{{ txn.pk }}">What is this transaction?</label>
+                    <select class="mr-select" id="role-{{ txn.pk }}" name="economic_role">
+                        {% for value, label in role_choices %}
+                        <option value="{{ value }}"{% if value == txn.economic_role %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-primary mr-btn">Save</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mr-empty">Nothing is being held. Every transaction has a classification.</p>
+        {% endif %}
+    </section>
+
+    <section class="mr-section" aria-labelledby="recurring-heading">
+        <h2 id="recurring-heading" class="mr-heading">Recurring patterns to confirm
+            <span class="mr-count">{{ review_counts.recurring_candidates }}</span></h2>
+        <p class="mr-intro">
+            WLJ noticed these repeating. None of them counts towards your committed
+            monthly total until you confirm it &mdash; a bill WLJ invented would quietly
+            make every plan unachievable.
+        </p>
+
+        {% if candidates %}
+        <ul class="mr-list">
+            {% for series in candidates %}
+            <li class="mr-item" data-testid="candidate-row">
+                <div class="mr-item-main">
+                    <p class="mr-item-title">{{ series.name }}</p>
+                    <p class="mr-item-amount">
+                        {% if series.is_variable %}
+                            {{ series.amount_min|money }} &ndash; {{ series.amount_max|money }}
+                        {% else %}
+                            {{ series.amount_expected|money }}
+                        {% endif %}
+                        &middot; {{ series.get_frequency_display|lower }}
+                    </p>
+                    <p class="mr-item-reason">
+                        seen {{ series.occurrence_count }} times &middot;
+                        {{ series.confidence }} confidence
+                        {% if series.declared_template %} &middot; you already track this{% endif %}
+                    </p>
+                </div>
+                <form method="post" action="{% url 'finance:money_series_decide' series.pk %}" class="mr-item-form">
+                    {% csrf_token %}
+                    <label class="sr-only" for="kind-{{ series.pk }}">What kind of commitment is this?</label>
+                    <select class="mr-select" id="kind-{{ series.pk }}" name="kind">
+                        {% for value, label in series.KIND_CHOICES %}
+                        <option value="{{ value }}"{% if value == series.kind %} selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" name="decision" value="confirmed" class="btn btn-primary mr-btn">Confirm</button>
+                    <button type="submit" name="decision" value="ignored" class="btn btn-secondary mr-btn">Not real</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mr-empty">
+            No recurring patterns are waiting. If you expect bills here, they may not have
+            repeated often enough yet &mdash; WLJ needs three occurrences before it will
+            call something a schedule.
+        </p>
+        {% endif %}
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.mr-section { margin-bottom: 2.5rem; }
+.mr-heading { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; }
+.mr-count { background: var(--surface-2, #f1f3f5); border-radius: 999px;
+  padding: 0.15rem 0.6rem; font-size: 0.85rem; }
+.mr-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+.mr-list { list-style: none; margin: 0; padding: 0; }
+.mr-item { border: 1px solid var(--border, #dee2e6); border-radius: 10px;
+  padding: 0.85rem; margin-bottom: 0.6rem; display: flex; flex-direction: column;
+  gap: 0.6rem; }
+.mr-item-title { margin: 0; font-weight: 600; }
+.mr-item-amount { margin: 0.1rem 0; font-variant-numeric: tabular-nums; }
+.mr-item-reason { margin: 0; font-size: 0.82rem; color: var(--muted, #667); }
+.mr-item-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.mr-select { min-height: 44px; font-size: 16px; max-width: 100%; flex: 1 1 12rem; }
+.mr-btn { min-height: 44px; }
+.mr-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+@media (min-width: 769px) {
+  .mr-item { flex-direction: row; align-items: center; justify-content: space-between; }
+  .mr-item-form { flex: 0 0 auto; }
+}
+</style>
+{% endblock %}

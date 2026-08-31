@@ -75,10 +75,19 @@ class FinanceEntityTruthTests(TestCase):
 
     # -- registration --------------------------------------------------------
     def test_entity_types_declared(self):
+        """The exact list, so adding a CoS surface is always a deliberate act.
+
+        The record-level entities expose canonical rows. The Finance 2.0 packets expose
+        the OUTPUT of named deterministic services with their calculation versions and
+        gaps attached — never a re-derivation, and never raw rows for the model to add
+        up itself.
+        """
         self.assertEqual(
             FinanceDomainTruth.entity_types,
             ("transaction", "account", "recurring", "budget", "goal", "entity",
-             "connection"),
+             "connection", "measures", "debt", "payoff", "payoff_comparison",
+             "obligations", "controllable_costs", "savings_opportunities",
+             "financial_snapshot", "data_health"),
         )
 
     def test_unknown_entity_type_is_rejected(self):

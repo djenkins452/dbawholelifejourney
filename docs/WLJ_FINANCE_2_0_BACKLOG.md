@@ -306,3 +306,85 @@ exposure (P11) · no budgets, no goals, no debt work.
 | **Plaid Investments subscription** | any investments domain | per-Item monthly; currently `deferred` |
 | Paid valuation provider | — | **declined**, standing |
 | Outward action (payments, cancellations) | P10+ | needs a separate approval mechanism |
+
+---
+
+# IMPLEMENTATION STATUS LEDGER — 2026-08-31
+
+Built under Danny's overnight autonomous-build authorization. This section records what
+is **actually deployed**, what it refuses to do, and what is genuinely outstanding.
+
+## P1 — economic roles and the nine measures · **SHIPPED AND ACTIVE**
+
+Classifier `1.2.1`, measures `1.2.1`. Backfilled on production: **3,795 transactions, 0
+unclassified**, in 8 transactional batches. A second run wrote 0 and reported 3,795
+unchanged. All six reconciliation identities hold. Rendered Finance truth was byte-identical
+either side of the backfill.
+
+Three defects were found by rehearsing against real history, each only visible once the
+previous one was removed:
+
+1. **Borrowing counted as a refund.** `_looks_like_refund` treats any credit that is
+   neither a transfer nor INCOME as a refund. 259,531.55 of loan disbursements were
+   offsetting 335,225.50 of purchases and driving net spending negative in 9 of 25 months.
+   A refund now requires evidence — a proven `refund_of` link or a provider detail that
+   actually says refund/return.
+2. **Mortgage payments labelled card payments.** `_transfer_kind` calls any
+   liability-touching transfer a credit-card payment, which removed mortgage payments from
+   spending *and* from debt service. Classification now reads the SETTLED LIABILITY.
+   Debt service moved from 49,550.35 to 106,112.61.
+3. **A credit on a liability is not proof of borrowing.** 249,246.70 of credits on a credit
+   card carried `LOAN_DISBURSEMENTS` and each matched, to the cent and month, a payment
+   leaving chequing. Removing them made cash inflow equal income plus refunds **exactly**
+   (419,725.18). The rule now follows the INSTRUMENT: closed-end debt can only receive a
+   payment; a revolving credit without a visible counterpart is held for review.
+
+**Residual, deliberately not fixed:** 62 rows / 258,387.28 of revolving-liability credits
+sit in review because WLJ cannot pair them. The architecturally correct fix is to improve
+pairing inside `transfer_detection` — a separate, reviewable change with real blast radius
+on `financial_activity`. Holding them misstates nothing: they are on card accounts, so they
+touch no cash measure, and card purchases are already counted from the card side.
+
+## P2 — controllability · **SHIPPED**
+Three axes (necessity, variability, levers), not one enum. Precedence: transaction >
+series > payee > rule > category; within a scope, user beats inference. Unclassified spend
+is reported as unclassified — never as uncontrollable.
+
+## P3 — recurring detection · **SHIPPED**
+Detector `1.0.0`. Proposes candidates; only a CONFIRMED series enters
+`recurring_obligations`. Variable series count at their ceiling. Cross-referenced to the
+existing `RecurringTransaction` templates so one subscription is never shown as two.
+
+## P5 — savings opportunities · **SHIPPED**
+Engine `1.0.0`. Requires a confirmed series AND a user-recorded lever. Answers "largest
+controllable cost" and "find $X a month", or names exactly what is missing.
+
+## P6 — loan terms · **SHIPPED**
+Per-FIELD provenance and as-of dates. Manual entry is permanent and first-class.
+`LoanTermsChange` is append-only.
+
+## P7 — payoff engine · **SHIPPED**
+Payoff `1.0.0`. Minimum/snowball/avalanche/custom, extra payments, lump sums,
+roll-forward, promotional rates, non-convergence. Missing minimum → that debt is excluded
+and named, the rest still get a plan. Missing APR → balance-only mode, interest UNKNOWN
+not zero. Never declares a winner between snowball and avalanche.
+
+## P9 — governed CoS evidence · **SHIPPED**
+Nine packets on `FinanceDomainTruth`. Redaction enforced by a test that walks every packet.
+Every packet carries as-of, calculation version, assumptions, exclusions, confidence,
+missing inputs, and an explicit instruction not to recompute.
+
+## P10 — the workspaces · **SHIPPED**
+Spending & Cash Flow · Money Review · What You Can Change · Debts & Payoff. Full
+ordinary-user CRUD, four Current Context providers, navigation, help, teaching
+destinations, release notes.
+
+## NOT BUILT — and why
+
+| Package | State | Blocker or reason |
+|---|---|---|
+| **P4 budgets, reserves, cash-flow forecast** | not built | Depends on confirmed recurring obligations, of which Danny has zero. The forecast would be a projection over an empty commitment set — a number that looks authoritative and means nothing. Build after the review queue is worked. |
+| **P8 net-worth history / investments** | not built | Asset Registry, manual valuations and asset-loan links already ship and are untouched. Governed historical snapshots remain outstanding. Plaid Investments NOT activated. |
+| **P11 action plans and realized outcomes** | partial | `SavingsOpportunity` carries `realized_monthly_savings`, `observed_from` and `variance`, and projected is never merged with realized. The observation job that populates them is not built. |
+| **P12 data-health checks** | partial | Coverage, held-for-review and missing-terms are surfaced on the pages and in the `data_health` packet. The scheduled sweep is not built. |
+| Pairing improvement in `transfer_detection` | not attempted | Would change `financial_activity` for every existing surface. Needs its own rehearsal and sign-off. |

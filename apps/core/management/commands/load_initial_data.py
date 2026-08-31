@@ -737,6 +737,10 @@ class Command(BaseCommand):
         # One-time: Reset release_notes for calibration relationship redesign (PK 69)
         self._reset_calibration_relationship_fixtures(DataLoadConfig, force, verbosity)
 
+        # One-time: Reset fixtures for Finance 2.0 (release notes PK 304-308, help
+        # topics PK 163-166, teaching destinations PK 193-196)
+        self._reset_finance_2_0_fixtures(DataLoadConfig, force, verbosity)
+
         # One-time: Reset fixtures for CoS consolidation (PK 70 release note, help_topics PK 17)
         self._reset_cos_consolidation_fixtures(DataLoadConfig, force, verbosity)
 
@@ -8885,6 +8889,32 @@ Tasks are sorted by priority (ascending) then creation date.""",
         except Exception as e:
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(f'Reset M3 About Me FAILED: {e}'))
+
+    def _reset_finance_2_0_fixtures(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset for Finance 2.0 — the Spending & Cash Flow, Money Review,
+        Controllable Spending and Debts & Payoff workspaces."""
+        reset_tracker_name = 'reset_finance_2_0_2026_08_31'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            for loader in ('release_notes', 'help_topics', 'teaching_destinations'):
+                try:
+                    config = DataLoadConfig.objects.get(loader_name=loader)
+                    if config.is_loaded:
+                        config.is_loaded = False
+                        config.save()
+                        if verbosity >= 1:
+                            self.stdout.write(f'  Reset {loader} for Finance 2.0')
+                except DataLoadConfig.DoesNotExist:
+                    pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset fixtures for Finance 2.0 workspaces', 'command',
+                'One-time reset: Finance 2.0 release notes, help topics, destinations')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset Finance 2.0 fixtures FAILED: {e}'))
 
     def _reset_m4_get_to_know_me(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset to reload release_notes + help_topics + teaching_destinations

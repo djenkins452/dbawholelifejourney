@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Spending and Cash Flow - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-overview">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}" data-testid="finance-back-link">Finance</a>
+        <span>/</span>
+        <span>Spending and Cash Flow</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Where the money went</h1>
+            <p class="page-subtitle">Nine measures, because &ldquo;what did I spend&rdquo; is not one question.</p>
+        </div>
+    </div>
+
+    <div class="money-status" role="status">
+        {% if reconciliation.all_hold %}
+            <span class="money-chip money-chip-ok" data-testid="recon-ok">Every total reconciles</span>
+        {% else %}
+            <span class="money-chip money-chip-warn" data-testid="recon-fail">These totals do not reconcile &mdash; treat them as provisional</span>
+        {% endif %}
+        <span class="money-chip">{{ coverage.classified }} of {{ coverage.total }} transactions classified ({{ coverage.pct }}%)</span>
+        {% if review_counts.held_transactions %}
+            <a class="money-chip money-chip-action" href="{% url 'finance:money_review' %}">{{ review_counts.held_transactions }} held for review</a>
+        {% endif %}
+        {% if review_counts.recurring_candidates %}
+            <a class="money-chip money-chip-action" href="{% url 'finance:money_review' %}">{{ review_counts.recurring_candidates }} recurring to confirm</a>
+        {% endif %}
+    </div>
+
+    <div class="money-grid">
+        {% for m in measures %}
+        <section class="money-card" data-measure="{{ m.key }}" aria-labelledby="m-{{ m.key }}">
+            <h2 class="money-card-label" id="m-{{ m.key }}">{{ m.label }}</h2>
+            <p class="money-card-value" data-testid="value-{{ m.key }}">{{ m.result.value|money }}</p>
+            <p class="money-card-help">{{ m.help }}</p>
+
+            <p class="money-card-confidence" data-confidence="{{ m.result.confidence }}">
+                {{ m.result.confidence|capfirst }} confidence
+            </p>
+
+            {% if m.result.inputs_missing %}
+            <div class="money-card-missing">
+                <p class="money-card-missing-title">WLJ still needs:</p>
+                <ul>
+                    {% for missing in m.result.inputs_missing %}<li>{{ missing }}</li>{% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            {% if m.result.components %}
+            <details class="money-details">
+                <summary>What makes this up</summary>
+                <dl class="money-components">
+                    {% for name, amount in m.result.components.items %}
+                    <div class="money-component"><dt>{{ name }}</dt><dd>{{ amount|money }}</dd></div>
+                    {% endfor %}
+                </dl>
+            </details>
+            {% endif %}
+
+            {% if m.result.exclusions %}
+            <details class="money-details">
+                <summary>Deliberately not counted here</summary>
+                <dl class="money-components">
+                    {% for name, amount in m.result.exclusions.items %}
+                    <div class="money-component"><dt>{{ name }}</dt><dd>{{ amount|money }}</dd></div>
+                    {% endfor %}
+                </dl>
+            </details>
+            {% endif %}
+
+            {% if m.result.assumptions %}
+            <details class="money-details">
+                <summary>What WLJ assumed</summary>
+                <ul class="money-assumptions">
+                    {% for assumption in m.result.assumptions %}<li>{{ assumption }}</li>{% endfor %}
+                </ul>
+            </details>
+            {% endif %}
+
+            <p class="money-card-version">
+                calculation {{ m.result.calculation_version }} &middot; classifier {{ m.result.classifier_version }}
+            </p>
+        </section>
+        {% endfor %}
+    </div>
+
+    <section class="money-recon" aria-labelledby="recon-heading">
+        <h2 id="recon-heading">The identities WLJ checks</h2>
+        <p class="money-recon-intro">
+            These have to hold for the figures above to mean anything. If one fails, the
+            numbers are shown as provisional rather than quietly published.
+        </p>
+        <table class="money-table">
+            <caption class="sr-only">Reconciliation checks</caption>
+            <thead><tr><th scope="col">Check</th><th scope="col">Expected</th><th scope="col">Actual</th><th scope="col">Result</th></tr></thead>
+            <tbody>
+            {% for name, check in reconciliation.checks.items %}
+                <tr>
+                    <th scope="row">{{ name }}</th>
+                    <td>{{ check.expected|money }}</td>
+                    <td>{{ check.actual|money }}</td>
+                    <td>{% if check.passed %}<span class="money-ok">holds</span>{% else %}<span class="money-bad">fails</span>{% endif %}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <nav class="money-links" aria-label="Related money pages">
+        <a class="btn btn-secondary" href="{% url 'finance:money_review' %}">Review queue</a>
+        <a class="btn btn-secondary" href="{% url 'finance:money_control' %}">What you can change</a>
+        <a class="btn btn-secondary" href="{% url 'finance:money_debt' %}">Debts and payoff</a>
+        <a class="btn btn-secondary" href="{% url 'finance:transaction_list' %}">All transactions</a>
+    </nav>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.money-status { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.5rem; }
+.money-chip { display: inline-block; padding: 0.4rem 0.75rem; border-radius: 999px;
+  background: var(--surface-2, #f1f3f5); font-size: 0.875rem; }
+.money-chip-ok { background: var(--success-bg, #e6f4ea); color: var(--success-fg, #14622f); }
+.money-chip-warn { background: var(--warning-bg, #fdf1dc); color: var(--warning-fg, #7a4b00); }
+.money-chip-action { text-decoration: none; background: var(--info-bg, #e7f0fd);
+  color: var(--info-fg, #14448a); min-height: 44px; display: inline-flex; align-items: center; }
+.money-grid { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+.money-card { border: 1px solid var(--border, #dee2e6); border-radius: 12px;
+  padding: 1rem; background: var(--surface, #fff); }
+.money-card-label { font-size: 0.95rem; margin: 0 0 0.25rem; font-weight: 600; }
+.money-card-value { font-size: 1.75rem; font-weight: 700; margin: 0 0 0.35rem;
+  font-variant-numeric: tabular-nums; }
+.money-card-help { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--muted, #667); }
+.money-card-confidence { font-size: 0.8rem; margin: 0 0 0.5rem; }
+.money-card-confidence[data-confidence="low"] { color: var(--warning-fg, #7a4b00); }
+.money-card-missing { background: var(--warning-bg, #fdf1dc); border-radius: 8px;
+  padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; }
+.money-card-missing-title { margin: 0 0 0.25rem; font-size: 0.8rem; font-weight: 600; }
+.money-card-missing ul, .money-assumptions { margin: 0; padding-left: 1.1rem; font-size: 0.8rem; }
+.money-details { margin-bottom: 0.5rem; font-size: 0.85rem; }
+.money-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.money-components { margin: 0; }
+.money-component { display: flex; justify-content: space-between; gap: 1rem; padding: 0.15rem 0; }
+.money-component dt { color: var(--muted, #667); }
+.money-component dd { margin: 0; font-variant-numeric: tabular-nums; }
+.money-card-version { font-size: 0.72rem; color: var(--muted, #667); margin: 0.5rem 0 0; }
+.money-recon { margin-top: 2rem; }
+.money-recon-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 60ch; }
+.money-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.money-table th, .money-table td { text-align: left; padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #dee2e6); }
+.money-table td { font-variant-numeric: tabular-nums; }
+.money-ok { color: var(--success-fg, #14622f); }
+.money-bad { color: var(--danger-fg, #a01919); font-weight: 600; }
+.money-links { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 2rem; }
+.money-links .btn { min-height: 44px; display: inline-flex; align-items: center; }
+@media (min-width: 769px) {
+  .money-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 481px) and (max-width: 768px) {
+  .money-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+</style>
+{% endblock %}

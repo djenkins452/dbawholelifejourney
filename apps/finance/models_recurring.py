@@ -17,6 +17,15 @@ confirmed, because a wrong bill in a cash-flow forecast is worse than a missing 
 the missing one shows up as an obvious gap, the wrong one silently makes the plan
 unachievable.
 
+**Not the same thing as `RecurringTransaction`, and the difference matters.**
+`RecurringTransaction` is a GENERATOR: a template the user writes, which WLJ uses to
+create Transaction rows. `RecurringSeries` is an OBSERVATION: a pattern WLJ noticed in
+transactions that already exist. The causality runs opposite ways, and only this one can
+be wrong about reality. They can describe the same subscription, so a detected series
+records any matching template in `declared_template` — the household should be shown one
+Netflix, not two. Only `RecurringSeries` feeds `recurring_obligations`, so no measure can
+count it twice.
+
 **Variable is a first-class answer.** A utility bill that lands between $80 and $210 is
 not badly detected — it is a variable obligation, and forcing a single expected amount
 onto it would be a fabricated number in the one place a household actually plans from.
@@ -146,6 +155,13 @@ class RecurringSeries(UserOwnedModel):
         help_text="How the detector reached this: occurrence dates, gap statistics, "
                   "amount spread. Kept so a proposal can be argued with.")
     note = models.TextField(blank=True, default='')
+
+    declared_template = models.ForeignKey(
+        'finance.RecurringTransaction', null=True, blank=True,
+        on_delete=models.SET_NULL, related_name='observed_series',
+        help_text="A user-written RecurringTransaction template describing the same "
+                  "commitment. Cross-referenced so one subscription is not presented "
+                  "as two things.")
 
     merged_into = models.ForeignKey(
         'self', null=True, blank=True, on_delete=models.SET_NULL,

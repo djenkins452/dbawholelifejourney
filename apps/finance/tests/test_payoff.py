@@ -158,11 +158,11 @@ class MissingTermTests(PayoffBase):
         s = P.simulate(self.user, P.STRATEGY_AVALANCHE, debts=debts, start=START)
         self.assertEqual(s.order, ["Known", "Unknown"])
 
-    def test_comparison_refuses_when_a_term_is_missing(self):
+    def test_comparison_refuses_when_nothing_can_be_scheduled(self):
         debts = [self._debt("Truck", 24000, apr=7)]
         result = P.compare(self.user, debts=debts)
         self.assertFalse(result["comparable"])
-        self.assertIn("missing a term", result["trade_off"])
+        self.assertIn("no debt has a recorded minimum payment", result["trade_off"])
 
 
 class PromotionalRateTests(PayoffBase):
@@ -252,3 +252,38 @@ class RealAccountTests(PayoffBase):
             user=other, name="Theirs", account_type="loan",
             current_balance=Decimal("-99999"))
         self.assertNotIn("Theirs", [d.name for d in P.debts_for(self.user)])
+
+
+class PartialTimelineTests(PayoffBase):
+    """One gap should cost you that debt's timeline, not the whole plan.
+
+    A household with five debts and one missing payment is better served by four
+    modelled debts and a clear question than by a blanket refusal.
+    """
+
+    def test_a_debt_without_a_payment_is_excluded_and_named(self):
+        debts = [self._debt("Card", 1200, apr=0, minimum=100),
+                 self._debt("Truck", 24000, apr=7)]
+        s = P.simulate(self.user, P.STRATEGY_AVALANCHE, debts=debts, start=START)
+        self.assertEqual(s.excluded, ["Truck"])
+        self.assertEqual(s.months, 12, "the modellable debt still gets its timeline")
+        self.assertIn("EXCLUDED from this timeline", " ".join(s.limitations))
+
+    def test_the_exclusion_is_visible_in_the_serialised_scenario(self):
+        debts = [self._debt("Card", 1200, apr=0, minimum=100),
+                 self._debt("Truck", 24000, apr=7)]
+        s = P.simulate(self.user, P.STRATEGY_AVALANCHE, debts=debts, start=START)
+        self.assertEqual(s.as_dict()["excluded_for_missing_payment"], ["Truck"])
+
+    def test_no_payments_at_all_still_refuses_a_timeline(self):
+        debts = [self._debt("Truck", 24000, apr=7)]
+        s = P.simulate(self.user, P.STRATEGY_AVALANCHE, debts=debts, start=START)
+        self.assertIsNone(s.months)
+        self.assertEqual(s.order, ["Truck"])
+
+    def test_comparison_surfaces_the_exclusion(self):
+        debts = [self._debt("Card", 1200, apr=0, minimum=100),
+                 self._debt("Truck", 24000, apr=7)]
+        result = P.compare(self.user, debts=debts)
+        self.assertTrue(result["comparable"])
+        self.assertEqual(result["excluded_for_missing_payment"], ["Truck"])

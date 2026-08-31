@@ -231,3 +231,47 @@ class ObligationTotalTests(RoleBase):
             review_state=RecurringSeries.REVIEW_CONFIRMED)
         self.assertEqual(M.all_measures(self.user)["recurring_obligations"].value,
                          Decimal("0.00"))
+
+
+class ObservationVersusTemplateTests(RoleBase):
+    """`RecurringTransaction` declares; `RecurringSeries` observes.
+
+    Only one of them can be wrong about reality, and only one of them feeds the forward
+    total. The household should be shown one Netflix, not two.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.models import RecurringTransaction
+        self.template = RecurringTransaction.objects.create(
+            user=self.user, name="Filmflix", amount=Decimal("15"),
+            frequency=RecurringTransaction.FREQUENCY_MONTHLY,
+            account=self.checking, start_date=date(2026, 1, 1),
+            next_due_date=date(2026, 9, 1))
+        for i in range(6):
+            self._txn(-15, on=START + timedelta(days=30 * i), description="Filmflix",
+                      primary="ENTERTAINMENT")
+
+    def test_a_detected_series_points_at_the_template_it_matches(self):
+        REC.persist(self.user, REC.detect(self.user), commit=True)
+        series = RecurringSeries.objects.get(user=self.user)
+        self.assertEqual(series.declared_template_id, self.template.pk)
+
+    def test_the_forward_total_counts_it_once(self):
+        REC.persist(self.user, REC.detect(self.user), commit=True)
+        series = RecurringSeries.objects.get(user=self.user)
+        series.review_state = RecurringSeries.REVIEW_CONFIRMED
+        series.kind = RecurringSeries.KIND_SUBSCRIPTION
+        series.save()
+        self.assertEqual(M.all_measures(self.user)["recurring_obligations"].value,
+                         Decimal("15.00"))
+
+    def test_an_unmatched_series_has_no_template(self):
+        self._txn(-99, on=START, description="Gymme", primary="PERSONAL_CARE")
+        self._txn(-99, on=START + timedelta(days=30), description="Gymme",
+                  primary="PERSONAL_CARE")
+        self._txn(-99, on=START + timedelta(days=60), description="Gymme",
+                  primary="PERSONAL_CARE")
+        REC.persist(self.user, REC.detect(self.user), commit=True)
+        gym = RecurringSeries.objects.get(user=self.user, payee="gymme")
+        self.assertIsNone(gym.declared_template_id)

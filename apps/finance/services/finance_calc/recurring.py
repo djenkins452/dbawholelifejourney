@@ -211,6 +211,7 @@ def persist(user, proposals, *, commit=False):
         series = proposal["series"]
         series.user = user
         series.evidence = proposal["evidence"]
+        series.declared_template = _matching_template(user, series.payee)
         existing = RS.objects.filter(
             user=user, payee=series.payee, frequency=series.frequency,
             kind=series.kind, status="active").first()
@@ -238,6 +239,24 @@ def persist(user, proposals, *, commit=False):
         created += 1
     return {"proposed": len(proposals), "created": created, "refreshed": skipped,
             "committed": bool(commit), "detector_version": DETECTOR_VERSION}
+
+
+def _matching_template(user, payee):
+    """A user-written RecurringTransaction describing the same commitment, if any.
+
+    Cross-referenced rather than merged: the template is the user's declaration and the
+    series is WLJ's observation, and both are worth keeping. What matters is that the
+    household is shown one Netflix rather than two.
+    """
+    from apps.finance.models import RecurringTransaction
+
+    if not payee:
+        return None
+    for template in RecurringTransaction.objects.filter(user=user, status="active"):
+        name = (getattr(template, "name", "") or "").strip().lower()
+        if name and (name in payee or payee in name):
+            return template
+    return None
 
 
 def confirmed_obligations(user):

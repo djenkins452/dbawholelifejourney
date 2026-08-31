@@ -421,6 +421,19 @@ class ShadowIsolationTests(RoleBase):
             "apps/finance/tests/test_p1_operator_endpoint.py",
             "apps/finance/tests/test_controllability.py",
             "apps/finance/tests/test_recurring.py",
+            "apps/finance/tests/test_cos_evidence.py",
+            "apps/finance/tests/test_payoff.py",
+            "apps/finance/tests/test_opportunities.py",
+            # The review queue is where a person RESOLVES a held row, so it writes the
+            # role — through the same user-authority rule everything else obeys.
+            "apps/finance/views_money.py",
+            "apps/finance/page_summaries_money.py",
+            "apps/finance/services/finance_calc/cos_evidence.py",
+            "apps/finance/tests/test_money_workspaces.py",
+            # The review queue template renders the CURRENT role in its select so the
+            # person can see what WLJ decided before overriding it. It reads the field;
+            # it does not decide one.
+            "templates/finance/money_review.html",
         }
         unexpected = [p for p in out
                       if p not in allowed and "migrations" not in p]

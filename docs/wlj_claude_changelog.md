@@ -60481,3 +60481,83 @@ not declare a winner: avalanche is cheaper, snowball clears an account sooner, a
 finishing something changes whether a plan survives month nine.
 
 30 payoff tests, 27 recurring, 16 controllability.
+
+## 2026-08-31 — P5 savings opportunities; P9 governed CoS finance evidence
+
+**P5 — the opportunity engine.** Answers "what is my largest cost I can control easily?"
+and "how can I save $100 a month?" from CONFIRMED recurring series carrying a
+user-recorded LEVER. Narrow on purpose: an opportunity built on an unconfirmed series or
+an inferred controllability is WLJ's own guesswork handed to a person as a fact about
+their life.
+
+Saving fractions are conservative and named — cancelling removes 100%, renegotiating
+claims 15% (a discount, not a waiver), downgrading 30%. Ease weights money against
+effort, disruption and confidence, and each is reported separately so the weighting can
+be argued with rather than only the answer. Ease is a weighting, not a preference for
+small things: a $400 bill renegotiated for a phone call still beats a $40 cancellation.
+
+`find_amount` assembles ONE opportunity per series — proposing that someone both cancel
+and renegotiate the same subscription counts the same money twice — and when it falls
+short it says by how much and that the gap is WLJ's inability to point at a saving,
+not a claim that none exists. Moving who pays (`move_to_entity`) is excluded from
+savings totals: the household is still spending the money.
+
+Projected and realized are separate fields, never merged. A system that blurs them
+eventually congratulates someone for a saving they never made.
+
+**P7 refinement — partial timelines.** One debt missing a minimum payment used to block
+every timeline. It is now EXCLUDED and named, and the remaining debts still get their
+plan: five debts with one gap deserve four modelled debts and a clear question, not a
+blanket refusal.
+
+**P9 — governed CoS evidence.** `cos_evidence.py` is the only module allowed to decide
+what leaves Finance. Every packet carries `as_of`, calculation version, assumptions,
+exclusions, confidence and missing inputs, plus an explicit instruction not to recompute
+— WLJ calculates, the model explains. A model doing arithmetic over raw rows will
+eventually get it wrong in a way nobody catches, because its answer looks equally
+confident either way.
+
+Redaction is the control, not hygiene: a test walks every packet this module can produce
+and fails on any forbidden key, transaction description, merchant, or provider
+identifier. Nine packets are registered on `FinanceDomainTruth` so they are actually
+REACHABLE — truth that exists but is not exposed produces a generic answer that looks
+exactly like a missing capability, a lesson this codebase has learned twice.
+
+"Should I pay off the truck first?" now has three honest outcomes: the debt is not in
+WLJ (add it by hand — no institution connection needed), its terms are missing (say
+which, and offer the balance that IS known), or a real answer ranked against the
+alternatives.
+
+26 opportunity tests, 25 evidence tests, 34 payoff tests.
+
+## 2026-08-31 — P10 the Finance 2.0 workspaces
+
+Four pages where the engines become usable: **Spending and Cash Flow** (the nine
+measures, each with its confidence, assumptions, exclusions, missing inputs and the
+reconciliation table), **Money Review** (held transactions and unconfirmed recurring
+patterns), **What You Can Change** (the controllability form and ranked opportunities)
+and **Debts and Payoff** (terms, gaps and the snowball/avalanche comparison).
+
+Every number on every page comes from the SAME deterministic service the Chief of Staff
+reads, and a test asserts it: two surfaces deriving one figure separately will eventually
+disagree, and the user has no way to know which to believe. Four `PageSummaryMixin`
+providers ship in the same change, each reading that same service — never re-deriving.
+
+Ordinary-user CRUD throughout: resolve a held transaction (your answer becomes the
+authority and survives every later reclassification), confirm/ignore a recurring series,
+create and archive controllability classifications, accept/reject/snooze opportunities.
+No Django admin required for anything.
+
+Responsive and accessible by construction, checked by tests rather than retrofitted: no
+inline handlers (CSP with a nonce drops them silently, so the control would simply not
+work), 16px inputs, 44px targets, labelled controls, no fixed widths.
+
+A real bug the tests caught: `FinanceEnabledRequiredMixin` does not stop an anonymous
+request reaching `get_context_data`, which filters by `request.user` — an `AnonymousUser`
+raised deep in the ORM instead of redirecting to login. A shared `_SignedInFinanceView`
+guard now runs before the body.
+
+Navigation, four help topics, four teaching destinations, five release notes, and a
+`load_initial_data` reset for all three fixtures.
+
+33 workspace tests.

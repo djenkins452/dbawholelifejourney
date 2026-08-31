@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Debts and Payoff - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-debt">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:money_overview' %}">Spending and Cash Flow</a>
+        <span>/</span>
+        <span>Debts and payoff</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Debts and payoff</h1>
+            <p class="page-subtitle">Real arithmetic over real terms. WLJ will not assume a rate.</p>
+        </div>
+    </div>
+
+    {% if needs_terms %}
+    <section class="md-missing" aria-labelledby="needs-heading" data-testid="needs-terms">
+        <h2 id="needs-heading" class="md-heading">WLJ needs these before it can plan</h2>
+        <p class="md-intro">
+            A payoff date built on an assumed interest rate looks exactly like a real one.
+            These are the gaps &mdash; you can fill them in on each account, and you do not
+            need the institution connected to do it.
+        </p>
+        <ul class="md-list">
+            {% for debt in needs_terms %}
+            <li class="md-item">
+                <p class="md-item-title">{{ debt.name }} &middot; {{ debt.balance|money }}</p>
+                <p class="md-item-meta">missing:
+                    {% for field in debt.missing %}{{ field }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                {% if debt.account_id %}
+                <a class="btn btn-secondary md-btn" href="{% url 'finance:account_detail' debt.account_id %}">Open account</a>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+
+    <section class="md-section" aria-labelledby="debts-heading">
+        <h2 id="debts-heading" class="md-heading">What you owe</h2>
+        {% if debts %}
+        <table class="md-table">
+            <caption class="sr-only">Liabilities and their recorded terms</caption>
+            <thead><tr>
+                <th scope="col">Debt</th><th scope="col">Balance</th>
+                <th scope="col">APR</th><th scope="col">Minimum</th>
+            </tr></thead>
+            <tbody>
+            {% for debt in debts %}
+            <tr>
+                <th scope="row">{{ debt.name }}</th>
+                <td>{{ debt.balance|money }}</td>
+                <td>{% if debt.apr %}{{ debt.apr }}%{% else %}<span class="md-unknown">unknown</span>{% endif %}</td>
+                <td>{% if debt.minimum_payment %}{{ debt.minimum_payment|money }}{% else %}<span class="md-unknown">unknown</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="md-empty">
+            No liabilities are recorded. You can add one by hand &mdash; WLJ does not need
+            the institution connected to plan around a debt.
+        </p>
+        {% endif %}
+    </section>
+
+    <section class="md-section" aria-labelledby="scenario-heading">
+        <h2 id="scenario-heading" class="md-heading">If you paid more each month</h2>
+        <form method="get" class="md-form">
+            <label for="extra">Extra each month</label>
+            <input type="number" id="extra" name="extra" min="0" step="10"
+                   value="{{ extra }}" inputmode="decimal">
+            <button type="submit" class="btn btn-primary md-btn">Recalculate</button>
+        </form>
+
+        {% if comparison.comparable %}
+        <div class="md-trade" data-testid="trade-off">
+            <p class="md-trade-statement">{{ comparison.trade_off.statement }}</p>
+            <p class="md-trade-note">{{ comparison.trade_off.note }}</p>
+        </div>
+
+        <div class="md-scenarios">
+            {% for name, scenario in scenarios.items %}
+            <article class="md-scenario" data-scenario="{{ name }}">
+                <h3 class="md-scenario-title">{{ name|capfirst }}</h3>
+                {% if scenario.months %}
+                <p class="md-scenario-value">{{ scenario.months }} months</p>
+                <p class="md-scenario-meta">debt free {{ scenario.debt_free_date }}</p>
+                <p class="md-scenario-meta">
+                    interest:
+                    {% if scenario.total_interest %}{{ scenario.total_interest|money }}
+                    {% else %}<span class="md-unknown">unknown &mdash; an APR is missing</span>{% endif %}
+                </p>
+                <p class="md-scenario-meta">order:
+                    {% for debt in scenario.order %}{{ debt }}{% if not forloop.last %} &rarr; {% endif %}{% endfor %}</p>
+                {% else %}
+                <p class="md-scenario-value md-unknown">no timeline</p>
+                {% endif %}
+                {% if scenario.excluded_for_missing_payment %}
+                <p class="md-scenario-excluded">excluded (no payment recorded):
+                    {% for debt in scenario.excluded_for_missing_payment %}{{ debt }}{% if not forloop.last %}, {% endif %}{% endfor %}</p>
+                {% endif %}
+                {% if scenario.limitations %}
+                <details class="md-details">
+                    <summary>Limitations</summary>
+                    <ul>{% for limitation in scenario.limitations %}<li>{{ limitation }}</li>{% endfor %}</ul>
+                </details>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="md-empty" data-testid="not-comparable">{{ comparison.trade_off }}</p>
+        {% endif %}
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.md-section, .md-missing { margin-bottom: 2.5rem; }
+.md-missing { background: var(--warning-bg, #fdf1dc); border-radius: 12px; padding: 1rem; }
+.md-heading { font-size: 1.1rem; margin-top: 0; }
+.md-intro { font-size: 0.9rem; max-width: 62ch; }
+.md-list { list-style: none; margin: 0; padding: 0; }
+.md-item { padding: 0.6rem 0; border-bottom: 1px solid var(--border, #dee2e6); }
+.md-item-title { margin: 0; font-weight: 600; }
+.md-item-meta { margin: 0.15rem 0 0.4rem; font-size: 0.82rem; color: var(--muted, #667); }
+.md-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.md-table th, .md-table td { text-align: left; padding: 0.5rem;
+  border-bottom: 1px solid var(--border, #dee2e6); }
+.md-table td { font-variant-numeric: tabular-nums; }
+.md-unknown { color: var(--warning-fg, #7a4b00); }
+.md-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: flex-end;
+  margin-bottom: 1rem; }
+.md-form label { display: block; font-size: 0.9rem; font-weight: 600; }
+.md-form input { min-height: 44px; font-size: 16px; max-width: 10rem; }
+.md-btn { min-height: 44px; }
+.md-trade { border-left: 4px solid var(--info-fg, #14448a); padding: 0.5rem 0.9rem;
+  margin-bottom: 1rem; }
+.md-trade-statement { margin: 0; font-weight: 600; }
+.md-trade-note { margin: 0.3rem 0 0; font-size: 0.85rem; color: var(--muted, #667);
+  max-width: 62ch; }
+.md-scenarios { display: grid; gap: 1rem; grid-template-columns: 1fr; }
+.md-scenario { border: 1px solid var(--border, #dee2e6); border-radius: 12px; padding: 1rem; }
+.md-scenario-title { margin: 0 0 0.3rem; font-size: 0.95rem; }
+.md-scenario-value { margin: 0; font-size: 1.5rem; font-weight: 700;
+  font-variant-numeric: tabular-nums; }
+.md-scenario-meta { margin: 0.15rem 0; font-size: 0.82rem; color: var(--muted, #667); }
+.md-scenario-excluded { margin: 0.4rem 0 0; font-size: 0.82rem;
+  color: var(--warning-fg, #7a4b00); }
+.md-details { margin-top: 0.5rem; font-size: 0.82rem; }
+.md-details summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+.md-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+@media (min-width: 769px) {
+  .md-scenarios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+</style>
+{% endblock %}

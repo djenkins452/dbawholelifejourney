@@ -35,8 +35,15 @@ class FinanceDomainTruth(DomainTruth):
     # through Plaid?" from generic provider knowledge — suggesting a manual refresh that
     # WLJ does not perform. The state existed on BankConnection the whole time; it was
     # simply never surfaced (a Layer-1 ACCESSIBILITY gap, not a missing capability).
+    # Finance 2.0 packets (P1-P9). These are NOT new re-derivations — each is the
+    # output of a named deterministic service (measures, payoff, opportunities), handed
+    # over with its calculation version, assumptions, exclusions and missing inputs.
+    # The model explains them; it never recomputes them. Redaction is enforced by
+    # `apps/finance/tests/test_cos_evidence.py`, which walks every packet.
     entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity",
-                    "connection")
+                    "connection", "measures", "debt", "payoff", "payoff_comparison",
+                    "obligations", "controllable_costs", "savings_opportunities",
+                    "financial_snapshot", "data_health")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -75,6 +82,9 @@ class FinanceDomainTruth(DomainTruth):
             return self._describe_entities()
         if et == "connection":
             return self._describe_connections()
+        packet = self._describe_packet(et, filters or {})
+        if packet is not None:
+            return packet
         if et != "transaction":
             raise KeyError(f"finance domain cannot describe {et!r} "
                            f"(have {self.entity_types})")
@@ -103,6 +113,52 @@ class FinanceDomainTruth(DomainTruth):
         qs = qs.select_related("account", "category").order_by("-date", "-id")
         qs = self._with_attribution(qs)
         return [self._transaction_entity(t) for t in qs[:self._MAX_TX]]
+
+    def _describe_packet(self, entity_type, filters):
+        """The Finance 2.0 evidence packets. Returns None for anything else.
+
+        Every branch delegates to `cos_evidence`, which is the only module allowed to
+        decide what leaves Finance for the model.
+        """
+        from decimal import Decimal
+
+        from apps.finance.services.finance_calc import cos_evidence as E
+
+        def _decimal(key, default="0"):
+            try:
+                return Decimal(str(filters.get(key) or default))
+            except Exception:
+                return Decimal(default)
+
+        if entity_type == "measures":
+            return [E.measures_packet(self.user, filters.get("start"),
+                                      filters.get("end"))]
+        if entity_type == "debt":
+            if filters.get("name"):
+                return [E.single_debt_priority_packet(self.user, filters["name"])]
+            return [E.debt_packet(self.user)]
+        if entity_type == "payoff":
+            return [E.payoff_packet(
+                self.user, strategy=filters.get("strategy") or "avalanche",
+                extra_monthly=_decimal("extra_monthly"),
+                lump_sum=_decimal("lump_sum"))]
+        if entity_type == "payoff_comparison":
+            return [E.payoff_comparison_packet(
+                self.user, extra_monthly=_decimal("extra_monthly"),
+                lump_sum=_decimal("lump_sum"))]
+        if entity_type == "obligations":
+            return [E.obligations_packet(self.user)]
+        if entity_type == "controllable_costs":
+            return [E.controllable_packet(self.user)]
+        if entity_type == "savings_opportunities":
+            if filters.get("target"):
+                return [E.find_amount_packet(self.user, _decimal("target"))]
+            return [E.opportunities_packet(self.user)]
+        if entity_type == "financial_snapshot":
+            return [E.snapshot_packet(self.user)]
+        if entity_type == "data_health":
+            return [E.coverage_packet(self.user)]
+        return None
 
     @staticmethod
     def _with_attribution(qs):

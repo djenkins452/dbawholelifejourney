@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}What You Can Change - Finance - Whole Life Journey{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-money-control">
+    <nav class="breadcrumb mb-4">
+        <a href="{% url 'finance:dashboard' %}">Finance</a>
+        <span>/</span>
+        <a href="{% url 'finance:money_overview' %}">Spending and Cash Flow</a>
+        <span>/</span>
+        <span>What you can change</span>
+    </nav>
+
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">What you can actually change</h1>
+            <p class="page-subtitle">WLJ will not decide for you what you can live without.</p>
+        </div>
+    </div>
+
+    <section class="mc-section" aria-labelledby="largest-heading">
+        <h2 id="largest-heading" class="mc-heading">Your largest controllable cost</h2>
+        {% if largest.answer %}
+        <div class="mc-answer" data-testid="largest-answer">
+            <p class="mc-answer-title">{{ largest.answer.title }}</p>
+            <p class="mc-answer-value">{{ largest.answer.monthly|money }} a month
+                &middot; {{ largest.answer.annual|money }} a year</p>
+            <p class="mc-answer-meta">
+                {{ largest.answer.effort }} effort &middot;
+                {{ largest.answer.disruption }} disruption &middot;
+                {{ largest.answer.confidence }} confidence
+            </p>
+            <p class="mc-answer-why">{{ largest.answer.rationale }}</p>
+        </div>
+        {% else %}
+        <div class="mc-missing" data-testid="largest-missing">
+            <p>WLJ cannot answer this yet, and will not guess. It needs:</p>
+            <ul>
+                {% for item in largest.missing %}<li>{{ item.detail }}</li>{% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="mc-section" aria-labelledby="record-heading">
+        <h2 id="record-heading" class="mc-heading">Record what you can change</h2>
+        <form method="post" action="{% url 'finance:money_set_controllability' %}" class="mc-form">
+            {% csrf_token %}
+            <div class="mc-field">
+                <label for="payee">Payee or merchant</label>
+                <input type="text" id="payee" name="payee" required
+                       list="mc-payees" autocomplete="off"
+                       placeholder="Who takes the money?">
+                <datalist id="mc-payees">
+                    {% for series in confirmed_series %}<option value="{{ series.payee }}">{{ series.name }}</option>{% endfor %}
+                </datalist>
+            </div>
+
+            <div class="mc-field">
+                <label for="necessity">Do you have to pay it?</label>
+                <select id="necessity" name="necessity">
+                    {% for value, label in necessities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+
+            <div class="mc-field">
+                <label for="variability">Does the amount move?</label>
+                <select id="variability" name="variability">
+                    {% for value, label in variabilities %}<option value="{{ value }}">{{ label }}</option>{% endfor %}
+                </select>
+            </div>
+
+            <fieldset class="mc-field mc-levers">
+                <legend>What could you do about it?</legend>
+                <p class="mc-hint">Tick everything that applies &mdash; these are not alternatives.
+                    Insurance is often essential <em>and</em> negotiable.</p>
+                {% for value, label in levers %}
+                <label class="mc-check">
+                    <input type="checkbox" name="levers" value="{{ value }}">
+                    <span>{{ label }}</span>
+                </label>
+                {% endfor %}
+            </fieldset>
+
+            <div class="mc-field">
+                <label for="note">Note (optional)</label>
+                <input type="text" id="note" name="note" maxlength="200">
+            </div>
+
+            <button type="submit" class="btn btn-primary mc-btn">Save</button>
+        </form>
+    </section>
+
+    <section class="mc-section" aria-labelledby="opps-heading">
+        <h2 id="opps-heading" class="mc-heading">Opportunities</h2>
+        {% if opportunities %}
+        <ul class="mc-list">
+            {% for o in opportunities %}
+            <li class="mc-item" data-testid="opportunity-row">
+                <div>
+                    <p class="mc-item-title">{{ o.title }}</p>
+                    <p class="mc-item-value">{{ o.projected_monthly_savings|money }} a month, projected</p>
+                    <p class="mc-item-meta">{{ o.effort }} effort &middot; {{ o.disruption }} disruption
+                        &middot; {{ o.confidence }} confidence</p>
+                    <p class="mc-item-why">{{ o.rationale }}</p>
+                </div>
+                <form method="post" action="{% url 'finance:money_decide_opportunity' o.pk %}" class="mc-item-form">
+                    {% csrf_token %}
+                    <button type="submit" name="decision" value="accepted" class="btn btn-primary mc-btn">Accept</button>
+                    <button type="submit" name="decision" value="rejected" class="btn btn-secondary mc-btn">Not for me</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mc-empty">No opportunities yet. They appear once a recurring series is
+            confirmed <em>and</em> you have recorded a lever for it.</p>
+        {% endif %}
+    </section>
+
+    <section class="mc-section" aria-labelledby="class-heading">
+        <h2 id="class-heading" class="mc-heading">Your classifications</h2>
+        {% if classifications %}
+        <ul class="mc-list">
+            {% for c in classifications %}
+            <li class="mc-item" data-testid="classification-row">
+                <div>
+                    <p class="mc-item-title">{{ c.payee|default:c.category.name|default:"one transaction" }}</p>
+                    <p class="mc-item-meta">{{ c.get_necessity_display }} &middot;
+                        {{ c.get_variability_display }} &middot;
+                        {% for lever in c.clean_levers %}{{ lever }}{% if not forloop.last %}, {% endif %}{% empty %}no lever recorded{% endfor %}</p>
+                </div>
+                <form method="post" action="{% url 'finance:money_archive_controllability' c.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary mc-btn">Archive</button>
+                </form>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p class="mc-empty">Nothing classified yet.</p>
+        {% endif %}
+    </section>
+</div>
+
+<style nonce="{{ csp_nonce }}">
+.mc-section { margin-bottom: 2.5rem; }
+.mc-heading { font-size: 1.1rem; }
+.mc-answer { border: 1px solid var(--border, #dee2e6); border-radius: 12px;
+  padding: 1rem; background: var(--surface, #fff); }
+.mc-answer-title { margin: 0; font-weight: 700; font-size: 1.05rem; }
+.mc-answer-value { margin: 0.25rem 0; font-size: 1.4rem; font-variant-numeric: tabular-nums; }
+.mc-answer-meta, .mc-item-meta { font-size: 0.82rem; color: var(--muted, #667); margin: 0.15rem 0; }
+.mc-answer-why, .mc-item-why { font-size: 0.88rem; margin: 0.4rem 0 0; max-width: 62ch; }
+.mc-missing { background: var(--warning-bg, #fdf1dc); border-radius: 10px; padding: 0.9rem; }
+.mc-missing ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+.mc-form { display: grid; gap: 0.9rem; max-width: 40rem; }
+.mc-field label, .mc-levers legend { display: block; font-weight: 600;
+  margin-bottom: 0.3rem; font-size: 0.9rem; }
+.mc-field input[type="text"], .mc-field select { width: 100%; max-width: 100%;
+  min-height: 44px; font-size: 16px; }
+.mc-levers { border: 1px solid var(--border, #dee2e6); border-radius: 10px; padding: 0.75rem; }
+.mc-hint { font-size: 0.82rem; color: var(--muted, #667); margin: 0 0 0.5rem; }
+.mc-check { display: flex; align-items: center; gap: 0.5rem; min-height: 44px;
+  font-weight: 400; }
+.mc-btn { min-height: 44px; }
+.mc-list { list-style: none; margin: 0; padding: 0; }
+.mc-item { border: 1px solid var(--border, #dee2e6); border-radius: 10px;
+  padding: 0.85rem; margin-bottom: 0.6rem; display: flex; flex-direction: column;
+  gap: 0.6rem; }
+.mc-item-title { margin: 0; font-weight: 600; }
+.mc-item-value { margin: 0.1rem 0; font-variant-numeric: tabular-nums; }
+.mc-item-form { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+.mc-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+@media (min-width: 769px) {
+  .mc-item { flex-direction: row; align-items: center; justify-content: space-between; }
+}
+</style>
+{% endblock %}

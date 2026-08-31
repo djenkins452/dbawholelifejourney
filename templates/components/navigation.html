@@ -685,6 +685,20 @@
                             </svg>
                             Transactions
                         </a>
+                        <a href="{% url 'finance:money_overview' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 3v18h18"/>
+                                <path d="M7 15l4-4 3 3 5-6"/>
+                            </svg>
+                            Spending &amp; Cash Flow
+                        </a>
+                        <a href="{% url 'finance:money_debt' %}" class="nav-dropdown-item">
+                            <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 1v22"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                            </svg>
+                            Debts &amp; Payoff
+                        </a>
                         <a href="{% url 'finance:budget_list' %}" class="nav-dropdown-item">
                             <svg class="nav-dropdown-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>

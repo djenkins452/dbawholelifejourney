@@ -82,6 +82,7 @@ class Scenario:
     total_interest: Decimal = None
     monthly_commitment: Decimal = ZERO
     per_debt: dict = field(default_factory=dict)
+    excluded: list = field(default_factory=list)
     released_schedule: list = field(default_factory=list)
     assumptions: list = field(default_factory=list)
     inputs_missing: list = field(default_factory=list)
@@ -102,6 +103,7 @@ class Scenario:
             "per_debt": {k: {kk: (str(vv) if isinstance(vv, Decimal) else vv)
                              for kk, vv in v.items()}
                          for k, v in self.per_debt.items()},
+            "excluded_for_missing_payment": list(self.excluded),
             "released_schedule": list(self.released_schedule),
             "assumptions": list(self.assumptions),
             "inputs_missing": list(self.inputs_missing),
@@ -195,16 +197,23 @@ def simulate(user, strategy=STRATEGY_AVALANCHE, *, extra_monthly=ZERO,
         scenario.inputs_missing.append(f"apr:{debt.name}")
 
     if no_minimum:
-        # Without a payment there is no schedule to run at all. Ordering is still
-        # honest and is returned; timing is not, and is left as None.
-        scenario.order = [d.name for d in _order(live, strategy, custom_order)]
+        # A debt with no payment has no schedule, but that is no reason to refuse a
+        # plan for the ones that do. It is EXCLUDED and named, and the timeline is
+        # reported as partial — a household with five debts and one gap is better
+        # served by four modelled debts and a clear question than by nothing.
+        scenario.excluded = [d.name for d in no_minimum]
         scenario.limitations.append(
-            "No payoff timeline can be produced: "
-            + ", ".join(sorted(d.name for d in no_minimum))
-            + " has no minimum payment recorded. The payoff ORDER above is still "
-              "valid; the dates and totals are not calculable.")
-        scenario.converged = False
-        return scenario
+            ", ".join(sorted(d.name for d in no_minimum))
+            + " has no minimum payment recorded and is EXCLUDED from this timeline. "
+              "Every figure below covers the remaining debts only.")
+        live = [d for d in live if d.minimum_payment is not None]
+        if not live:
+            scenario.order = [d.name for d in _order(no_minimum, strategy, custom_order)]
+            scenario.limitations.append(
+                "No debt has a recorded payment, so no timeline is calculable at all. "
+                "The payoff ORDER above is still valid.")
+            scenario.converged = False
+            return scenario
 
     if unknown_rate:
         scenario.limitations.append(
@@ -359,9 +368,11 @@ def compare(user, *, extra_monthly=ZERO, lump_sum=ZERO, debts=None, start=None):
     snowball, avalanche = scenarios[STRATEGY_SNOWBALL], scenarios[STRATEGY_AVALANCHE]
     if snowball.months is None or avalanche.months is None:
         out["trade_off"] = (
-            "Snowball and avalanche cannot be compared yet: at least one debt is "
-            "missing a term the calculation needs.")
+            "Snowball and avalanche cannot be compared yet: no debt has a recorded "
+            "minimum payment, so there is no schedule to run.")
         return out
+    if avalanche.excluded:
+        out["excluded_for_missing_payment"] = list(avalanche.excluded)
 
     out["comparable"] = True
     interest_gap = (None if snowball.total_interest is None

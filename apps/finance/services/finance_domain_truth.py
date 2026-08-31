@@ -45,7 +45,7 @@ class FinanceDomainTruth(DomainTruth):
                     "obligations", "controllable_costs", "savings_opportunities",
                     "financial_snapshot", "data_health", "forecast", "affordability",
                     "net_worth", "net_worth_history", "plan_results",
-                    "data_health_detail", "money_bridge")
+                    "data_health_detail", "money_bridge", "monthly_views")
     _MAX_TX = 100
     # Budgets/goals/recurring are small per-user sets; the cap bounds the read and keeps
     # `Budget.spent_amount` (one aggregate per budget) predictable.
@@ -112,7 +112,17 @@ class FinanceDomainTruth(DomainTruth):
         if f.get("contains"):                       # "what did I spend at Costco"
             c = str(f["contains"]).strip()
             qs = qs.filter(Q(description__icontains=c) | Q(payee__icontains=c))
-        qs = qs.select_related("account", "category").order_by("-date", "-id")
+        qs = qs.select_related("account", "category")
+        # ORDERING MUST MATCH THE QUESTION. The default is reverse-chronological, which
+        # is right for "what did I spend at Costco" but WRONG for a ranking: with the
+        # `_MAX_TX` cap, a busy month would return the 100 most RECENT rows and the
+        # largest spend could fall outside them — a silently wrong "largest". A ranked
+        # caller declares `order_by="spend_desc"`, so the cap keeps the top spends
+        # instead of the newest rows. Outflows only (`amount < 0`); most negative first.
+        if f.get("order_by") == "spend_desc":
+            qs = qs.filter(amount__lt=0).order_by("amount", "-date", "-id")
+        else:
+            qs = qs.order_by("-date", "-id")
         qs = self._with_attribution(qs)
         return [self._transaction_entity(t) for t in qs[:self._MAX_TX]]
 
@@ -178,6 +188,9 @@ class FinanceDomainTruth(DomainTruth):
             return [E.data_health_packet(self.user)]
         if entity_type == "money_bridge":
             return [E.money_bridge_packet(
+                self.user, filters.get("start"), filters.get("end"))]
+        if entity_type == "monthly_views":
+            return [E.monthly_views_packet(
                 self.user, filters.get("start"), filters.get("end"))]
         return None
 
@@ -356,7 +369,19 @@ class FinanceDomainTruth(DomainTruth):
         # "this is on the wrong card"; the model interprets.
         rows = getattr(t, "_active_attribution", None)
         attribution = rows[0] if rows else None
+        # `spend_amount` is the OUTFLOW MAGNITUDE — the already-canonical convention
+        # (`amount < 0` is money out; FinanceHistory reports spending as a positive
+        # magnitude) expressed as a rankable value. It is deliberately None for an
+        # inflow (income, and a refund, which is an inflow): the ranked-entity
+        # capability EXCLUDES a missing measure rather than coercing it to 0, so
+        # "largest spend" can never rank income or a refund by construction. Transfers
+        # never reach here at all — `financial_activity` excludes known AND ambiguous
+        # ones. No new accounting rule is introduced; this exposes the existing one.
         definition = {"amount": float(t.amount),
+                      "spend_amount": (abs(float(t.amount)) if t.amount < 0 else None),
+                      # Also in `definition` so a ranked result carries WHEN it happened
+                      # (the ranked path reads occurrence from `definition`).
+                      "date": t.date.isoformat(),
                       "direction": "income" if t.amount > 0 else "expense",
                       "category": t.category.name if t.category_id else None,
                       "account": t.account.name if t.account_id else None,

@@ -318,8 +318,14 @@ DOMAIN_SEMANTICS = {
                     "trends, budgets, and the bank connections that feed them."),
         "entities": {
             "transaction": ("A single financial transaction — its date, amount (income or "
-                            "expense), merchant/description, category, and account. Search by "
-                            "merchant with the `contains` filter; scope by period/on_date."),
+                            "expense), `spend_amount` (the outflow magnitude; absent for "
+                            "income and refunds), merchant/description, category, and "
+                            "account. Search by merchant with the `contains` filter; scope "
+                            "by period/on_date. FOR 'LARGEST / BIGGEST / TOP N' SPENDING "
+                            "QUESTIONS use the RANKING subject `transaction_by_spend` via "
+                            "get_ranked_entity — a plain list is capped and ordered by DATE, "
+                            "so it can silently omit the largest one; the ranking is ordered "
+                            "by the amount itself."),
             "account": ("A financial account — its type, institution, current balance, and "
                         "last-4 (no full numbers or credentials)."),
             "connection": ("A linked bank connection — HOW and WHEN money data actually "
@@ -332,6 +338,9 @@ DOMAIN_SEMANTICS = {
                            "something — never answer those from general knowledge of the "
                            "provider.")},
         "cues": ["what did I spend", "my biggest expenses", "what was that charge",
+                 "largest spend", "biggest purchase", "highest expense",
+                 "largest transaction", "what did I spend the most money on",
+                 "top 5 purchases", "my biggest expenses last month",
                  "transactions at", "what did I spend at", "my accounts", "my balances",
                  "how do my accounts update", "does it sync automatically",
                  "do I have to refresh", "sync now", "why is this transaction missing",

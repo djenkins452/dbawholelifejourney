@@ -60,6 +60,22 @@ RANKING_SUBJECTS = {
         # "what was in it" is answered from truth in hand — never a generic substitution.
         "detail_keys": ("meal_type", "item_count", "items"),
     },
+    "transaction_by_spend": {
+        "domain": "finance", "entity_type": "transaction",
+        "measure_source": "definition", "measure_key": "spend_amount",
+        "unit": "USD", "label": "spending",
+        # A "transaction" is one OCCURRENCE — the individual purchase, ranked by its
+        # own outflow magnitude. NOT aggregated by merchant or category: "which single
+        # purchase was biggest" is a different question from "which merchant did I
+        # spend the most at", and conflating them is how a ranking starts lying.
+        "aggregation": "occurrence",
+        # The producer must order by the MEASURE, not by date: its result is capped, so
+        # a date-ordered population could omit the largest spend entirely.
+        "producer_filters": {"order_by": "spend_desc"},
+        # Identifying detail carried into each ranked result, so "what was it / where /
+        # which account" is answered from the row itself.
+        "detail_keys": ("payee", "category", "account", "direction", "amount"),
+    },
     "workout_by_volume": {
         "domain": "health", "entity_type": "workout",
         "measure_source": "performance", "measure_key": "strength_load_lb",
@@ -213,9 +229,13 @@ def get_domain_ranked_entity(user, subject, *, period="this_month",
 
     try:
         truth = get_domain_truth(user, domain)
-        entities = truth.describe(spec["entity_type"],
-                                  filters={"start": dates[0].isoformat(),
-                                           "end": dates[1].isoformat()})
+        # A subject may declare the retrieval its MEASURE requires (e.g. order by the
+        # measure so a capped producer cannot truncate the ranking). Declaration-only —
+        # the model still cannot send arbitrary filters.
+        producer_filters = dict(spec.get("producer_filters") or {})
+        producer_filters.update({"start": dates[0].isoformat(),
+                                 "end": dates[1].isoformat()})
+        entities = truth.describe(spec["entity_type"], filters=producer_filters)
     except Exception as exc:
         logger.warning("domain_ranked_entity: describe failed user=%s subject=%s",
                        uid, subject_norm, exc_info=True)

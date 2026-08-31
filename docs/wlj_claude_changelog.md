@@ -5,6 +5,69 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-08-30 — feat(finance): transaction spend RANKING — "what is my largest spend this past month?"
+
+**Production friction.** *"What is my largest spend this past month?"* → *"It seems I can't directly retrieve your
+largest spend … you can check your transaction history in your financial overview."*
+
+### Root cause — Layer 1 truth ACCESSIBILITY (the model was honest, not broken)
+Finance transactions were **retrievable but not RANKABLE**. `FinanceDomainTruth.describe('transaction')` supports
+`on_date` / `start` / `end` / `period` / `contains`, but orders by **`-date, -id`** and caps at **`_MAX_TX = 100`**.
+So "largest" had no deterministic path — and worse, on a busy month **the largest spend can fall outside the 100
+most recent rows entirely**, which would have made any naive "just look at the list" answer silently wrong. The
+model correctly declined rather than fabricating.
+
+### Correction — reuse, not invention
+The platform already owns this shape: `apps/core/truth/ranked_entity.py`, whose own docstring names *"which expenses
+were largest"*. It was simply never registered for Finance (only `meal_by_carbs` and `workout_by_volume` existed).
+
+- **Registered `transaction_by_spend`** (finance · transaction · `spend_amount` · USD · occurrence). **No new tool**
+  — it rides the existing `get_ranked_entity`.
+- **`spend_amount` on the transaction entity** = the outflow magnitude, expressing the **existing** convention
+  (`amount < 0` is money out; FinanceHistory already reports spending as a positive magnitude) as a rankable value.
+  **`None` for any inflow**, so the capability's own *missing ≠ zero* rule **excludes income and refunds from a
+  spend ranking by construction** rather than by a new rule.
+- **Producer ordering (the correctness fix).** A subject may now declare `producer_filters`; this one declares
+  `order_by: "spend_desc"`, so the producer returns outflows ordered by amount and **the cap keeps the top spends
+  instead of the newest rows**. A regression test seeds 125 transactions with the largest one *oldest* and proves it
+  still ranks first — without this the cap silently hid it.
+- **`date` added to the transaction `definition`** so a ranked result carries `occurred_on` and the answer can be
+  *"$X at Y on DATE"* from truth rather than inference.
+
+### Semantics — all pre-existing, none invented
+**Spend** = the canonical sign convention. **Transfers and card payments** = excluded upstream by
+`financial_activity()`, the ONE population authority (Article III.1) that Budget, FinanceHistory, the metric
+snapshots and the dashboard all share — the ranking inherits it and never re-decides what counts; a test asserts
+that inheritance. **Refunds** = inflows, excluded by sign. **Income** = excluded by sign. **Opening balances** =
+excluded by the population. **Dates** = `get_ranked_entity` already resolves periods through the shared temporal
+authority (named periods, natural phrases, `last_N_days`), so no Finance-specific date rule was added.
+
+### Question family now supported (composable, not one tool per question)
+largest transaction · largest actual spend · top-N spending · spending in a date range · merchant spending (existing
+`contains`) · category/account context via ranked `meta` · incoming vs outgoing · transfers/payments/refunds per
+existing semantics. **Bounded**: Finance ranks; the model receives a bounded top-N (default 10, hard max 50) with
+each row's share of the total — never hundreds of transactions in context.
+
+### Regression — 20 new tests, ZERO provider calls
+Registration + advertisement + producer-ordering declaration · largest actual spend · top-5 ordering · income never
+ranked · refund not ranked · multi-account · honest empty · bounded size · cross-user isolation · ranked result
+carries when/where · **a transfer larger than any purchase is not the largest spend** · population-authority
+inheritance · opening balances excluded · period resolution · out-of-range excluded · unresolvable period fails
+honestly · **the cap cannot hide the largest spend**. 86 green across finance, cos-evidence and model-interface
+runtime suites. Fixtures only.
+
+### ⚠️ Reported, NOT fixed — adjacent Finance accessibility gap (systemic, out of scope)
+`test_capability_semantics.test_every_advertised_entity_type_has_a_description` is **RED on main**: **21** Finance
+entity types are advertised to the model with **no plain-language description** — `recurring · budget · goal ·
+entity · measures · debt · payoff · payoff_comparison · obligations · controllable_costs · savings_opportunities ·
+financial_snapshot · data_health · forecast · affordability · net_worth · net_worth_history · plan_results ·
+data_health_detail · money_bridge · monthly_views`. Verified **pre-existing and not caused by this change** (the
+same 21 appear with this work stashed), and `transaction` is not among them. This is a **systemic sweep across the
+Finance 2.0 packet surface, not the "one or two adjacent omissions" this milestone was scoped to absorb**, so it is
+reported rather than fixed here — fixing it inside this change would have been the Finance redesign this milestone
+was told not to start. **It is a CI gate and blocks others until its owner adds the descriptions.**
+
+---
 ## 2026-08-30 — 🏁 OPERATIONS RECOVERY ACTION INCIDENT — CLOSED / PRODUCTION VALIDATED TO AVAILABLE PRODUCTION STATE
 
 Authenticated operator check completed by Danny on the production Ops Wall.

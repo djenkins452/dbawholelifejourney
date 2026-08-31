@@ -649,6 +649,10 @@ class Transaction(UserOwnedModel):
     ROLE_FEE_INTEREST = 'fee_or_interest_charged'
     ROLE_CASH_WITHDRAWAL = 'cash_withdrawal'
     ROLE_UNCERTAIN = 'uncertain'
+    #: Borrowed money arriving. Real cash in, but NOT income and NOT a refund:
+    #: it does not offset spending, and calling it either would flatter the
+    #: household's position with money it has to give back.
+    ROLE_LOAN_PROCEEDS = 'loan_proceeds'
     #: Not economic activity at all — an account's starting position.
     #: A ROLE rather than a filter, so this module never re-derives the
     #: activity exclusion that `attribution_population` alone owns.
@@ -668,6 +672,7 @@ class Transaction(UserOwnedModel):
         (ROLE_FEE_INTEREST, 'Fee or interest charged'),
         (ROLE_CASH_WITHDRAWAL, 'Cash withdrawal'),
         (ROLE_UNCERTAIN, 'Uncertain'),
+        (ROLE_LOAN_PROCEEDS, 'Loan proceeds / borrowed funds'),
         (ROLE_OPENING_BALANCE, 'Opening balance'),
     ]
 

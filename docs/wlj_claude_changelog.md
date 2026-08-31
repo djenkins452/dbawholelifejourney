@@ -60355,3 +60355,49 @@ scope.
 
 Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
 `apps/finance/tests/test_p1_dry_run_endpoint.py` (deleted).
+
+## 2026-08-31 — P1 Stage 1: the two rehearsal defects corrected
+
+**Borrowed money is not a refund.** `roles.classify` trusted `transfer_kind == refund`,
+which upstream sets for ANY credit that is neither a transfer nor INCOME — loan
+disbursements included. A refund now needs EVIDENCE: a proven `refund_of` link, or a
+provider `detailed` that actually says refund/return (chargeback and dispute become
+`reversal_chargeback`). Everything else is held.
+
+New role `loan_proceeds`: borrowing is real cash in, is NOT income, and offsets no
+spending. Checked before the refund rule, because a loan draw satisfies the generous
+upstream refund shape.
+
+Generic credits become `uncertain` with reason `ambiguous_credit` (was
+`unclassified_credit`) — WLJ cannot tell a reimbursement from an unlabelled refund from
+a transfer it cannot see, and each would move a different measure.
+
+**Mortgage payments are not card payments.** `transfer_detection._transfer_kind` labels
+any liability-touching transfer a credit-card payment. Correct for a card — the
+purchases it settles were already counted — and wrong for a mortgage, which left
+spending AND debt service. `classify` now reads the SETTLED LIABILITY (own account, else
+the paired leg) and only revolving credit is a card payment.
+
+Counting a payment once: both legs carry `debt_service`, and the measure counts the cash
+leg, plus any liability-side credit with no visible counterpart (the funding account is
+not connected, so the visible leg is all there is). `counterpart()` checks both link
+directions — `transfer_pair` is a OneToOne, so only one leg carries it, and checking one
+direction is how a de-duplicated total starts double counting.
+
+`_population` now `select_related`s both transfer legs: classification reads the
+counterpart's account, and on 3,800 rows a lazy reverse OneToOne is one query per row.
+
+**Activation groundwork.** `backfill.py` persists roles in bounded transactional batches
+— idempotent (writes only on difference), reversible (`clear()`), and structurally
+unable to overwrite a user decision (checked in the backfill AND in `classify`). New
+synced rows are classified on the same pass that stores them.
+
+The shadow-isolation guard becomes an ALLOW-LIST: while P1 was inert it asserted nothing
+read `economic_role`; activation adds readers deliberately, so it now names the owners
+and fails if a view or template starts classifying for itself.
+
+Classifier 1.1.0, measures 1.1.0. 80 focused tests.
+
+Files: `apps/finance/models.py`, `apps/finance/migrations/0036_*`,
+`apps/finance/services/finance_calc/{roles,measures,backfill}.py`,
+`apps/finance/services/sync_service.py`, `apps/finance/tests/test_p1_economic_roles.py`.

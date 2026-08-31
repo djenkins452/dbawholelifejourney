@@ -28,7 +28,7 @@ from apps.finance.services.finance_calc import roles as role_authority
 
 ZERO = Decimal("0.00")
 
-MEASURES_VERSION = "1.0.0"
+MEASURES_VERSION = "1.1.0"
 
 
 @dataclass
@@ -80,8 +80,13 @@ def _population(user, start=None, end=None):
     # `attribution_population`'s to define, and re-deriving it here would be a second
     # definition of what counts as activity. Opening balances are carried into the
     # classifier and given the `opening_balance` role, which enters no measure.
+    # The transfer legs are select_related deliberately: classification reads the
+    # counterpart's account to tell a mortgage payment from a card payment, and on a
+    # 3,800-row population a lazy reverse OneToOne would be one query per row.
     qs = (Transaction.objects.filter(user=user)
-          .select_related("account", "category"))
+          .select_related("account", "category",
+                          "transfer_pair", "transfer_pair__account",
+                          "transfer_counterpart", "transfer_counterpart__account"))
     if start:
         qs = qs.filter(date__gte=start)
     if end:
@@ -114,6 +119,34 @@ def _sum(rows, roles, *, sign=None):
         total += _abs(amount)
         count += 1
     return total, count
+
+
+def _debt_service(rows):
+    """Debt service, counting each payment ONCE across both of its legs.
+
+    A paid mortgage or loan appears twice: cash leaving the funding account, and the
+    matching credit landing on the liability. Both are genuinely part of servicing the
+    debt — so both carry the role — but summing both would double the number.
+
+    The cash leg is the one counted. A liability-side credit is counted only when WLJ
+    can see NO counterpart, which is the case where the cash leg is invisible (an
+    account that is not connected) and dropping it would understate the debt instead.
+    """
+    from apps.finance.models import Transaction as T
+    total, count, mirrored = ZERO, 0, 0
+    for txn, assignment in rows:
+        if assignment.role != T.ROLE_DEBT_SERVICE:
+            continue
+        amount = txn.amount or ZERO
+        if amount < 0:
+            total += _abs(amount)
+            count += 1
+        elif amount > 0 and role_authority.counterpart(txn) is None:
+            total += _abs(amount)
+            count += 1
+        else:
+            mirrored += 1
+    return total, count, mirrored
 
 
 def _base(measure, rows, start, end):
@@ -171,7 +204,7 @@ def net_spending(user, start=None, end=None, rows=None, refund_policy="offset_on
     result.exclusions = _spending_exclusions(rows)
     result.assumptions.append(f"refund policy: {refund_policy} ({refund_n} refund(s))")
 
-    unsplit, unsplit_n = _sum(rows, {T.ROLE_DEBT_SERVICE})
+    unsplit, unsplit_n, _mirrored = _debt_service(rows)
     if unsplit_n:
         result.assumptions.append(
             f"{unsplit_n} debt payment(s) totalling {unsplit} are UNSPLIT — no "
@@ -196,13 +229,16 @@ def _spending_exclusions(rows):
         ("internal_transfers", {T.ROLE_INTERNAL_TRANSFER}),
         ("savings_allocations", {T.ROLE_SAVINGS_ALLOCATION}),
         ("investment_contributions", {T.ROLE_INVESTMENT_CONTRIBUTION}),
-        ("debt_service_unsplit", {T.ROLE_DEBT_SERVICE}),
         ("cash_withdrawals", {T.ROLE_CASH_WITHDRAWAL}),
         ("uncertain", {T.ROLE_UNCERTAIN}),
+        ("loan_proceeds", {T.ROLE_LOAN_PROCEEDS}),
     ):
         total, count = _sum(rows, roles)
         if count:
             out[label] = total
+    debt, debt_n, _mirrored = _debt_service(rows)
+    if debt_n:
+        out["debt_service_unsplit"] = debt
     return out
 
 
@@ -221,8 +257,22 @@ def cash_inflow(user, start=None, end=None, rows=None):
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("cash_inflow", rows, start, end)
     result.value, _ = _sum(
-        rows, {T.ROLE_INCOME, T.ROLE_REFUND, T.ROLE_REIMBURSEMENT, T.ROLE_REVERSAL},
+        rows, {T.ROLE_INCOME, T.ROLE_REFUND, T.ROLE_REIMBURSEMENT, T.ROLE_REVERSAL,
+               T.ROLE_LOAN_PROCEEDS},
         sign="in")
+    result.components = {
+        "income": _sum(rows, {T.ROLE_INCOME}, sign="in")[0],
+        "refunds": _sum(rows, {T.ROLE_REFUND}, sign="in")[0],
+        "reimbursements": _sum(rows, {T.ROLE_REIMBURSEMENT}, sign="in")[0],
+        "reversals": _sum(rows, {T.ROLE_REVERSAL}, sign="in")[0],
+        "loan_proceeds": _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")[0],
+    }
+    borrowed, borrowed_n = _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")
+    if borrowed_n:
+        result.assumptions.append(
+            f"{borrowed_n} loan disbursement(s) totalling {borrowed} are included as "
+            f"cash received but are NOT income and do not offset spending — borrowed "
+            f"money has to be repaid")
     return result
 
 
@@ -277,8 +327,12 @@ def debt_service(user, start=None, end=None, rows=None):
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("debt_service", rows, start, end)
-    total, count = _sum(rows, {T.ROLE_DEBT_SERVICE})
+    total, count, mirrored = _debt_service(rows)
     result.value = total
+    if mirrored:
+        result.assumptions.append(
+            f"{mirrored} liability-side leg(s) of a matched payment are recorded but "
+            f"not added again — the payment is counted once, on the cash side")
     result.components = {
         "principal_known": ZERO, "interest_known": ZERO, "escrow_known": ZERO,
         "unsplit": total,
@@ -371,6 +425,17 @@ def reconcile(measures):
 
     expected_out = sum(co.components.values(), ZERO)
     checks["cash_outflow_identity"] = (expected_out == co.value, expected_out, co.value)
+
+    expected_in = sum(ci.components.values(), ZERO)
+    checks["cash_inflow_identity"] = (expected_in == ci.value, expected_in, ci.value)
+
+    # The income measure and the inflow decomposition must agree on what income IS.
+    # This is what catches borrowed money or a refund leaking into earnings: the
+    # component would move while the measure did not.
+    inc = measures["income"].value
+    checks["income_excludes_non_earnings"] = (
+        ci.components.get("income", ZERO) == inc,
+        ci.components.get("income", ZERO), inc)
 
     expected_ds = sum(
         (ds.components.get(k, ZERO)

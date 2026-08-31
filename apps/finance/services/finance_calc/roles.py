@@ -33,7 +33,7 @@ from typing import Optional
 
 #: Bump when the RULES change. A different version is a new opinion, which is what makes
 #: reclassification explicable rather than mysterious.
-CLASSIFIER_VERSION = "1.0.0"
+CLASSIFIER_VERSION = "1.1.0"
 
 ZERO = Decimal("0.00")
 
@@ -51,6 +51,23 @@ CASH_DETAILED_HINTS = ("ATM", "CASH_ADVANCE", "WITHDRAWAL")
 #: Loan servicing that is NOT a credit-card payment.
 LOAN_PAYMENT_PRIMARY = "LOAN_PAYMENTS"
 CARD_PAYMENT_DETAILED = "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT"
+
+#: Borrowed money ARRIVING. The 2026-08-30 rehearsal found 259,531.55 of this
+#: classified as refunds, offsetting purchases and driving net spending negative in 9
+#: of 25 months, because the upstream `_looks_like_refund` treats any credit that is
+#: neither a transfer nor INCOME as a refund. Borrowing is real cash in and it is
+#: neither income nor a refund — it has to be given back.
+LOAN_PROCEEDS_PRIMARIES = frozenset({"LOAN_DISBURSEMENTS", "LOAN_DISBURSEMENT"})
+LOAN_PROCEEDS_DETAILED_HINTS = ("LOAN_DISBURSEMENT", "CASH_ADVANCES_AND_LOANS",
+                                "LINE_OF_CREDIT", "STUDENT_LOAN_DISBURSEMENT")
+
+#: Evidence that a credit really is money coming BACK from a purchase.
+REFUND_DETAILED_HINTS = ("REFUND", "RETURN")
+REVERSAL_DETAILED_HINTS = ("CHARGEBACK", "DISPUTE", "REVERSAL", "ADJUSTMENT")
+
+#: Liability accounts whose payment settles revolving purchases already counted as
+#: spending. Everything else on the liability side is debt service.
+REVOLVING_LIABILITY_TYPES = frozenset({"credit_card"})
 
 
 @dataclass(frozen=True)
@@ -96,6 +113,78 @@ def _looks_like_cash(txn):
     return any(hint in detailed for hint in CASH_DETAILED_HINTS)
 
 
+def _looks_like_loan_proceeds(txn):
+    """Borrowed money arriving — a draw, an advance, a disbursement."""
+    if _primary(txn) in LOAN_PROCEEDS_PRIMARIES:
+        return True
+    detailed = _detailed(txn)
+    return any(hint in detailed for hint in LOAN_PROCEEDS_DETAILED_HINTS)
+
+
+def _refund_evidence(txn):
+    """Why WLJ believes this credit is money coming back — or `None`.
+
+    A refund OFFSETS spending, so it needs evidence, not a shape. The upstream
+    `transfer_detection._looks_like_refund` is deliberately generous — it answers "is
+    this a transfer?", where a wrong `kind` on a NOT_TRANSFER row costs nothing. Here
+    the same guess would silently reduce net spending, so P1 tests the evidence itself
+    rather than inheriting that verdict.
+
+    Returns `(reason, confidence, source)` or `None`.
+    """
+    from apps.finance.models import Transaction as T
+
+    # A proven relationship to the original purchase. Nothing beats this.
+    if getattr(txn, "refund_of_id", None):
+        return ("linked_refund_of_purchase", T.ROLE_CONFIDENCE_HIGH,
+                T.ROLE_SOURCE_PAIRING)
+
+    detailed = _detailed(txn)
+    if any(hint in detailed for hint in REVERSAL_DETAILED_HINTS):
+        return ("provider_reversal_or_chargeback", T.ROLE_CONFIDENCE_HIGH,
+                T.ROLE_SOURCE_PROVIDER)
+    if any(hint in detailed for hint in REFUND_DETAILED_HINTS):
+        return ("provider_states_refund", T.ROLE_CONFIDENCE_HIGH,
+                T.ROLE_SOURCE_PROVIDER)
+    return None
+
+
+def counterpart(txn):
+    """The other leg of a matched transfer, whichever side holds the link.
+
+    `transfer_pair` is a OneToOne, so only ONE of the two rows carries it; the other
+    reaches back through `transfer_counterpart`. Checking a single direction would make
+    a payment look paired from one leg and unpaired from the other — which is how a
+    de-duplicated total quietly starts double counting.
+    """
+    from django.core.exceptions import ObjectDoesNotExist
+
+    pair = getattr(txn, "transfer_pair", None)
+    if pair is not None:
+        return pair
+    try:
+        return txn.transfer_counterpart
+    except ObjectDoesNotExist:
+        return None
+
+
+def _settled_liability_type(txn):
+    """Which liability does this payment settle? Own account first, then its pair.
+
+    A payment has two legs and only one of them sits on the liability. Reading the
+    other leg is what tells a mortgage payment apart from a card payment — from the
+    cash side alone the two look identical.
+    """
+    account = getattr(txn, "account", None)
+    if account is not None and getattr(account, "is_liability", False):
+        return getattr(account, "account_type", "") or ""
+    other = counterpart(txn)
+    other_account = getattr(other, "account", None) if other is not None else None
+    if other_account is not None and getattr(other_account, "is_liability", False):
+        return getattr(other_account, "account_type", "") or ""
+    return ""
+
+
 def _looks_like_fee(txn):
     if _primary(txn) in FEE_PRIMARIES:
         return True
@@ -125,6 +214,16 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_OPENING_BALANCE, T.ROLE_CONFIDENCE_HIGH,
                               T.ROLE_SOURCE_DERIVED, "opening_balance")
 
+    # ------------------------------------------------- 0b. a role the USER decided
+    # Once a person tells WLJ what a transaction is, no derivation may take it back.
+    # Returning it here (rather than only skipping it in the backfill) makes the rule
+    # true of the classifier itself, so every caller inherits it.
+    if txn.economic_role and txn.role_source == T.ROLE_SOURCE_USER:
+        return RoleAssignment(txn.economic_role, T.ROLE_CONFIDENCE_HIGH,
+                              T.ROLE_SOURCE_USER,
+                              txn.role_reason or "user_confirmed_role",
+                              txn.role_classifier_version or CLASSIFIER_VERSION)
+
     # ------------------------------------------------------------------ 0. user
     # A user decision outranks every derivation, exactly as `category_source='user'`
     # already does for categories. Nothing below may overturn it.
@@ -149,6 +248,15 @@ def classify(txn) -> RoleAssignment:
         }.get(classified_by, T.ROLE_SOURCE_DERIVED)
 
         if txn.transfer_kind == T.TRANSFER_KIND_CARD_PAYMENT:
+            # `transfer_detection._transfer_kind` calls ANY transfer touching a
+            # liability a card payment. That is fine for its own question, but here it
+            # would drop mortgage and instalment payments out of spending (right) AND
+            # out of debt service (wrong) — the 2026-08-30 rehearsal showed exactly
+            # that. Only revolving credit settles purchases already counted.
+            liability = _settled_liability_type(txn)
+            if liability and liability not in REVOLVING_LIABILITY_TYPES:
+                return RoleAssignment(T.ROLE_DEBT_SERVICE, T.ROLE_CONFIDENCE_HIGH,
+                                      source, "confirmed_non_card_debt_payment")
             # Paying a card is NOT spending — the purchases it settles already were.
             return RoleAssignment(T.ROLE_CARD_PAYMENT, T.ROLE_CONFIDENCE_HIGH,
                                   source, "confirmed_card_payment")
@@ -168,12 +276,24 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_INTERNAL_TRANSFER, T.ROLE_CONFIDENCE_HIGH,
                               source, "confirmed_internal_transfer")
 
-    # ------------------------------------------------------ 2. refund / reversal
-    if txn.transfer_kind == T.TRANSFER_KIND_REFUND and amount > 0:
-        return RoleAssignment(T.ROLE_REFUND, T.ROLE_CONFIDENCE_MEDIUM,
-                              T.ROLE_SOURCE_PROVIDER, "provider_refund")
+    # -------------------------------------------- 2. borrowed money arriving
+    # Checked BEFORE refunds, because a loan draw satisfies the generous upstream
+    # refund shape and would otherwise offset spending with money that must be repaid.
+    if amount > 0 and _looks_like_loan_proceeds(txn):
+        return RoleAssignment(T.ROLE_LOAN_PROCEEDS, T.ROLE_CONFIDENCE_HIGH,
+                              T.ROLE_SOURCE_PROVIDER, "loan_proceeds_received")
 
-    # ----------------------------------------------- 3. held-for-review transfers
+    # ------------------------------------------------------ 3. refund / reversal
+    # Evidence only. `transfer_kind == refund` is NOT evidence — see `_refund_evidence`.
+    if amount > 0:
+        evidence = _refund_evidence(txn)
+        if evidence:
+            reason, confidence, source = evidence
+            role = (T.ROLE_REVERSAL if reason == "provider_reversal_or_chargeback"
+                    else T.ROLE_REFUND)
+            return RoleAssignment(role, confidence, source, reason)
+
+    # ----------------------------------------------- 4. held-for-review transfers
     # A possible transfer whose counterpart WLJ cannot see. The cash genuinely moved —
     # that is not in doubt — but its economic meaning is. It keeps its cash movement
     # and enters NO spending measure.
@@ -181,7 +301,7 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_UNCERTAIN, T.ROLE_CONFIDENCE_LOW,
                               T.ROLE_SOURCE_DERIVED, "unmatched_transfer_candidate")
 
-    # --------------------------------------------------------- 4. debt servicing
+    # --------------------------------------------------------- 5. debt servicing
     detailed, primary = _detailed(txn), _primary(txn)
     if amount < 0 and primary == LOAN_PAYMENT_PRIMARY and detailed != CARD_PAYMENT_DETAILED:
         # Real cash out and real debt service. NOT net spending: the principal is
@@ -193,7 +313,7 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_DEBT_SERVICE, T.ROLE_CONFIDENCE_MEDIUM,
                               T.ROLE_SOURCE_DERIVED, "liability_account_loan_payment")
 
-    # ------------------------------------------------------------- 5. fees / cash
+    # ------------------------------------------------------------- 6. fees / cash
     if amount < 0 and _looks_like_fee(txn):
         return RoleAssignment(T.ROLE_FEE_INTEREST, T.ROLE_CONFIDENCE_MEDIUM,
                               T.ROLE_SOURCE_PROVIDER, "provider_fee_or_interest")
@@ -203,20 +323,21 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_CASH_WITHDRAWAL, T.ROLE_CONFIDENCE_MEDIUM,
                               T.ROLE_SOURCE_PROVIDER, "cash_withdrawal_unresolved")
 
-    # ----------------------------------------------------------------- 6. income
+    # ----------------------------------------------------------------- 7. income
     if amount > 0 and primary in INCOME_PRIMARIES:
         return RoleAssignment(T.ROLE_INCOME, T.ROLE_CONFIDENCE_HIGH,
                               T.ROLE_SOURCE_PROVIDER, "provider_income")
 
-    # ------------------------------------------------- 7. unexplained credits
-    # A credit that is neither income, refund nor transfer might be a reimbursement —
-    # but WLJ cannot TELL them apart from provider data alone, and claiming a
-    # reimbursement offset it cannot evidence would understate spending. Held.
+    # ------------------------------------------------- 8. ambiguous credits
+    # Money arrived and WLJ cannot say why. It might be a reimbursement, a refund the
+    # provider did not label, or a transfer from an account WLJ cannot see. Each of
+    # those would change a different measure, so it is held for review and enters
+    # NEITHER income nor any spending offset — while its cash movement stays real.
     if amount > 0:
         return RoleAssignment(T.ROLE_UNCERTAIN, T.ROLE_CONFIDENCE_LOW,
-                              T.ROLE_SOURCE_DERIVED, "unclassified_credit")
+                              T.ROLE_SOURCE_DERIVED, "ambiguous_credit")
 
-    # ---------------------------------------------------------- 8. the ordinary case
+    # ---------------------------------------------------------- 9. the ordinary case
     if amount < 0:
         confidence = (T.ROLE_CONFIDENCE_HIGH if primary
                       else T.ROLE_CONFIDENCE_MEDIUM)

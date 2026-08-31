@@ -551,7 +551,13 @@ class TransactionSyncService:
         return transaction
 
     def _classify(self, transaction):
-        """Assess transfer state from provider facts. One liability lookup per sync."""
+        """Assess transfer state, then economic role. One liability lookup per sync.
+
+        The economic role is assigned HERE, on the same pass, so a new transaction is
+        never a row the measures have an opinion about but the database does not. A
+        population that is partly classified is worse than one that is not classified
+        at all: the totals would be silently incomplete rather than obviously absent.
+        """
         from apps.finance.services.transfer_detection import (
             classify,
             liability_account_names,
@@ -560,6 +566,22 @@ class TransactionSyncService:
         if self._liability_names is None:
             self._liability_names = liability_account_names(self.user)
         classify(transaction, liability_names=self._liability_names)
+        self._assign_economic_role(transaction)
+
+    def _assign_economic_role(self, transaction):
+        """Economic role for a freshly synced row. Never overwrites a user decision."""
+        from apps.finance.services.finance_calc import backfill
+
+        try:
+            # commit=True: `_classify` runs AFTER the row is saved, so an in-memory
+            # assignment would be discarded. It writes only the role fields.
+            backfill.classify_one(transaction, commit=True)
+        except Exception:
+            # A classification failure must not cost the user the TRANSACTION. The row
+            # is still recorded; it simply arrives unclassified and the measures report
+            # it as such, which is the honest outcome.
+            logger.error("Economic-role classification failed for a synced "
+                         "transaction; the row is kept unclassified", exc_info=True)
 
     def _remove_transaction(self, plaid_txn_id: str) -> bool:
         """

@@ -111,7 +111,8 @@ class RoleMatrixTests(RoleBase):
 
     def test_refund(self):
         t = self._txn(80, kind=Transaction.TRANSFER_KIND_REFUND,
-                      primary="GENERAL_MERCHANDISE")
+                      primary="GENERAL_MERCHANDISE",
+                      detailed="GENERAL_MERCHANDISE_REFUND")
         self.assertEqual(self._role(t), Transaction.ROLE_REFUND)
 
     def test_reversal(self):
@@ -138,7 +139,7 @@ class RoleMatrixTests(RoleBase):
         t = self._txn(120, primary="")
         assignment = R.classify(t)
         self.assertEqual(assignment.role, Transaction.ROLE_UNCERTAIN)
-        self.assertEqual(assignment.reason, "unclassified_credit")
+        self.assertEqual(assignment.reason, "ambiguous_credit")
 
     def test_zero_amount_has_no_economic_meaning(self):
         self.assertEqual(self._role(self._txn(0)), Transaction.ROLE_UNCERTAIN)
@@ -172,7 +173,8 @@ class MeasureTests(RoleBase):
                   kind=Transaction.TRANSFER_KIND_CARD_PAYMENT,
                   by=Transaction.TRANSFER_BY_PROVIDER)                # card payment
         self._txn(30, kind=Transaction.TRANSFER_KIND_REFUND,
-                  primary="GENERAL_MERCHANDISE")                      # refund
+                  primary="GENERAL_MERCHANDISE",
+                  detailed="GENERAL_MERCHANDISE_REFUND")              # refund
         self._txn(3000, primary="INCOME")                             # income
         self._txn(-1500, primary="LOAN_PAYMENTS",
                   detailed="LOAN_PAYMENTS_MORTGAGE_PAYMENT")          # debt service
@@ -377,8 +379,17 @@ class ShadowIsolationTests(RoleBase):
             self.client.get(reverse("finance:dashboard")).context["net_worth"],
             before_dash)
 
-    def test_nothing_outside_finance_calc_reads_the_shadow_fields(self):
-        """The activation gate is the ABSENCE of a reader, not a flag to forget."""
+    def test_the_role_field_has_a_named_set_of_owners(self):
+        """Shadow mode is over; uncontrolled sprawl is still forbidden.
+
+        While P1 was inert this asserted that NOTHING read `economic_role` — absence of
+        a reader was the activation gate. Activation deliberately added readers, so the
+        guard becomes an allow-list: the role is written in exactly one place, read
+        through `finance_calc`, and reached elsewhere only through that seam.
+
+        Adding a file here should feel like a decision. If a view or a template starts
+        classifying transactions for itself, this fails, and it should.
+        """
         import subprocess
         out = subprocess.run(
             ["grep", "-rln", "economic_role", "apps/", "templates/"],
@@ -388,12 +399,16 @@ class ShadowIsolationTests(RoleBase):
             "apps/finance/services/finance_calc/roles.py",
             "apps/finance/services/finance_calc/measures.py",
             "apps/finance/services/finance_calc/dry_run.py",
+            "apps/finance/services/finance_calc/backfill.py",
+            # The sanctioned write path for newly synced rows. It NAMES the role but
+            # never decides one — it delegates to `backfill.classify_one`.
+            "apps/finance/services/sync_service.py",
             "apps/finance/tests/test_p1_economic_roles.py",
         }
         unexpected = [p for p in out
                       if p not in allowed and "migrations" not in p]
         self.assertEqual(unexpected, [],
-                         "a reader outside finance_calc would end shadow mode")
+                         "classify through finance_calc; do not read the raw field")
 
     def test_cos_truth_does_not_expose_the_new_measures(self):
         from apps.finance.services.finance_domain_truth import FinanceDomainTruth
@@ -424,3 +439,336 @@ class OwnershipTests(RoleBase):
         dupe.save(update_fields=["status"])
         m = M.all_measures(self.user)
         self.assertEqual(m["gross_purchases"].value, Decimal("100.00"))
+
+
+class BorrowedMoneyIsNotARefundTests(RoleBase):
+    """The first defect the 2026-08-30 rehearsal caught, and its fix.
+
+    `transfer_detection._looks_like_refund` calls ANY credit that is neither a transfer
+    nor INCOME a refund. That is a reasonable answer to *its* question and a dangerous
+    one to ours: 259,531.55 of loan disbursements were proposed as refunds against
+    335,225.50 of purchases, and net spending went negative in 9 of 25 months. A refund
+    now needs evidence.
+    """
+
+    def test_a_loan_disbursement_is_borrowing_not_a_refund(self):
+        t = self._txn(5000, primary="LOAN_DISBURSEMENTS")
+        t.transfer_kind = Transaction.TRANSFER_KIND_REFUND  # what upstream decided
+        self.assertEqual(self._role(t), Transaction.ROLE_LOAN_PROCEEDS)
+
+    def test_a_cash_advance_is_borrowing(self):
+        t = self._txn(1200, primary="TRANSFER_IN",
+                      detailed="TRANSFER_IN_CASH_ADVANCES_AND_LOANS")
+        self.assertEqual(self._role(t), Transaction.ROLE_LOAN_PROCEEDS)
+
+    def test_borrowing_is_cash_in_but_never_income(self):
+        self._txn(5000, primary="LOAN_DISBURSEMENTS")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["income"].value, Decimal("0.00"))
+        self.assertEqual(m["cash_inflow"].value, Decimal("5000.00"))
+        self.assertEqual(m["cash_inflow"].components["loan_proceeds"],
+                         Decimal("5000.00"))
+
+    def test_borrowing_does_not_offset_spending(self):
+        self._txn(-300, primary="FOOD_AND_DRINK")
+        self._txn(5000, primary="LOAN_DISBURSEMENTS")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["net_spending"].value, Decimal("300.00"))
+
+    def test_a_generic_credit_is_held_not_called_a_refund(self):
+        t = self._txn(220, primary="GENERAL_MERCHANDISE")
+        t.transfer_kind = Transaction.TRANSFER_KIND_REFUND
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_UNCERTAIN)
+        self.assertEqual(a.reason, "ambiguous_credit")
+
+    def test_a_generic_credit_offsets_nothing(self):
+        self._txn(-300, primary="FOOD_AND_DRINK")
+        self._txn(220, primary="GENERAL_MERCHANDISE")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["net_spending"].value, Decimal("300.00"))
+        self.assertEqual(m["income"].value, Decimal("0.00"))
+
+    def test_an_explicit_provider_refund_still_offsets(self):
+        self._txn(-300, primary="GENERAL_MERCHANDISE")
+        t = self._txn(75, primary="GENERAL_MERCHANDISE",
+                      detailed="GENERAL_MERCHANDISE_REFUND")
+        self.assertEqual(self._role(t), Transaction.ROLE_REFUND)
+        self.assertEqual(M.all_measures(self.user)["net_spending"].value,
+                         Decimal("225.00"))
+
+    def test_a_chargeback_is_a_reversal(self):
+        t = self._txn(75, primary="GENERAL_MERCHANDISE",
+                      detailed="GENERAL_MERCHANDISE_CHARGEBACK")
+        self.assertEqual(self._role(t), Transaction.ROLE_REVERSAL)
+
+    def test_a_proven_link_to_the_purchase_is_the_strongest_evidence(self):
+        original = self._txn(-300, primary="GENERAL_MERCHANDISE")
+        t = self._txn(300, primary="GENERAL_MERCHANDISE")
+        t.refund_of = original
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_REFUND)
+        self.assertEqual(a.reason, "linked_refund_of_purchase")
+        self.assertEqual(a.source, Transaction.ROLE_SOURCE_PAIRING)
+
+    def test_net_spending_cannot_go_negative_on_borrowing_alone(self):
+        """The exact production shape: a large draw against modest purchases."""
+        self._txn(-500, primary="FOOD_AND_DRINK")
+        for _ in range(3):
+            t = self._txn(9000, primary="LOAN_DISBURSEMENTS")
+            t.transfer_kind = Transaction.TRANSFER_KIND_REFUND
+            t.save()
+        self.assertEqual(M.all_measures(self.user)["net_spending"].value,
+                         Decimal("500.00"))
+
+
+class MortgageIsNotACardPaymentTests(RoleBase):
+    """The second defect the rehearsal caught.
+
+    `transfer_detection._transfer_kind` labels ANY transfer touching a liability a
+    credit-card payment. For a card that is right — the purchases it settles were
+    already counted. For a mortgage it removed the payment from spending AND from debt
+    service, so the household appeared to service no mortgage at all.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mortgage = FinancialAccount.objects.create(
+            user=self.user, name="Mortgage", account_type="mortgage",
+            current_balance=Decimal("-200000"))
+
+    def _paid(self, liability, amount="2000"):
+        """A matched payment: cash out of checking, credit onto the liability."""
+        credit = self._txn(amount, account=liability,
+                           state=Transaction.TRANSFER_STATE_CONFIRMED,
+                           kind=Transaction.TRANSFER_KIND_CARD_PAYMENT,
+                           by=Transaction.TRANSFER_BY_PAIRING,
+                           primary="TRANSFER_IN")
+        cash = self._txn("-" + amount, state=Transaction.TRANSFER_STATE_CONFIRMED,
+                         kind=Transaction.TRANSFER_KIND_CARD_PAYMENT,
+                         by=Transaction.TRANSFER_BY_PAIRING,
+                         primary="LOAN_PAYMENTS")
+        cash.transfer_pair = credit
+        cash.save(update_fields=["transfer_pair"])
+        return cash, credit
+
+    def test_a_mortgage_payment_is_debt_service_from_the_cash_side(self):
+        cash, _ = self._paid(self.mortgage)
+        self.assertEqual(self._role(cash), Transaction.ROLE_DEBT_SERVICE)
+
+    def test_a_mortgage_payment_is_debt_service_from_the_liability_side(self):
+        _, credit = self._paid(self.mortgage)
+        self.assertEqual(self._role(credit), Transaction.ROLE_DEBT_SERVICE)
+
+    def test_a_real_card_payment_is_still_a_card_payment(self):
+        cash, credit = self._paid(self.card)
+        self.assertEqual(self._role(cash), Transaction.ROLE_CARD_PAYMENT)
+        self.assertEqual(self._role(credit), Transaction.ROLE_CARD_PAYMENT)
+
+    def test_the_payment_is_counted_once_not_twice(self):
+        self._paid(self.mortgage, "2000")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["debt_service"].value, Decimal("2000.00"))
+
+    def test_the_cash_movement_is_still_visible(self):
+        self._paid(self.mortgage, "2000")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["cash_outflow"].components["debt_service"],
+                         Decimal("2000.00"))
+
+    def test_a_mortgage_payment_is_not_consumer_spending(self):
+        self._paid(self.mortgage, "2000")
+        self._txn(-40, primary="FOOD_AND_DRINK")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["net_spending"].value, Decimal("40.00"))
+
+    def test_an_unpaired_liability_credit_is_still_counted(self):
+        """When the funding account is not connected, the visible leg is all there is."""
+        self._txn(1500, account=self.mortgage,
+                  state=Transaction.TRANSFER_STATE_CONFIRMED,
+                  kind=Transaction.TRANSFER_KIND_CARD_PAYMENT,
+                  by=Transaction.TRANSFER_BY_PROVIDER, primary="TRANSFER_IN")
+        self.assertEqual(M.all_measures(self.user)["debt_service"].value,
+                         Decimal("1500.00"))
+
+    def test_debt_service_stays_unsplit_and_says_so(self):
+        self._paid(self.mortgage, "2000")
+        ds = M.all_measures(self.user)["debt_service"]
+        self.assertEqual(ds.components["unsplit"], Decimal("2000.00"))
+        self.assertEqual(ds.components["principal_known"], Decimal("0.00"))
+        self.assertIn("loan_terms", ds.inputs_missing)
+
+    def test_a_student_loan_payment_is_debt_service_too(self):
+        loan = FinancialAccount.objects.create(
+            user=self.user, name="Student", account_type="student_loan",
+            current_balance=Decimal("-9000"))
+        cash, _ = self._paid(loan, "300")
+        self.assertEqual(self._role(cash), Transaction.ROLE_DEBT_SERVICE)
+
+
+class CashTruthTests(RoleBase):
+    """Uncertainty may cost a measure its number. It may never cost the cash its row."""
+
+    def test_an_uncertain_credit_keeps_its_row_and_its_reason(self):
+        t = self._txn(220, primary="GENERAL_MERCHANDISE")
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_UNCERTAIN)
+        self.assertTrue(a.reason)
+        self.assertEqual(a.confidence, Transaction.ROLE_CONFIDENCE_LOW)
+
+    def test_a_cash_withdrawal_leaves_the_account_but_buys_nothing_known(self):
+        t = self._txn(-200, primary="TRANSFER_OUT", detailed="TRANSFER_OUT_ATM")
+        self.assertEqual(self._role(t), Transaction.ROLE_CASH_WITHDRAWAL)
+        m = M.all_measures(self.user)
+        self.assertEqual(m["cash_outflow"].components["cash_withdrawals"],
+                         Decimal("200.00"))
+        self.assertEqual(m["net_spending"].value, Decimal("0.00"))
+
+    def test_an_unmatched_transfer_candidate_keeps_its_cash_movement(self):
+        self._txn(-500, state=Transaction.TRANSFER_STATE_CANDIDATE,
+                  primary="TRANSFER_OUT")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["net_spending"].value, Decimal("0.00"))
+        self.assertEqual(m["net_spending"].exclusions["uncertain"], Decimal("500.00"))
+
+    def test_every_uncertain_row_can_explain_itself(self):
+        self._txn(220, primary="GENERAL_MERCHANDISE")
+        self._txn(-500, state=Transaction.TRANSFER_STATE_CANDIDATE, primary="TRANSFER_OUT")
+        for txn, a in R.classify_many(M._population(self.user)):
+            if a.role == Transaction.ROLE_UNCERTAIN:
+                self.assertIn(a.reason,
+                              {"ambiguous_credit", "unmatched_transfer_candidate",
+                               "zero_amount"})
+
+
+class UserRoleAuthorityTests(RoleBase):
+    """A decision the person made is not a hypothesis to be re-tested."""
+
+    def test_a_user_set_role_survives_reclassification(self):
+        t = self._txn(220, primary="GENERAL_MERCHANDISE")
+        t.economic_role = Transaction.ROLE_REIMBURSEMENT
+        t.role_source = Transaction.ROLE_SOURCE_USER
+        t.role_reason = "danny_said_so"
+        t.save()
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_REIMBURSEMENT)
+        self.assertEqual(a.source, Transaction.ROLE_SOURCE_USER)
+
+    def test_a_user_reimbursement_offsets_spending(self):
+        self._txn(-300, primary="GENERAL_MERCHANDISE")
+        t = self._txn(100, primary="GENERAL_MERCHANDISE")
+        t.economic_role = Transaction.ROLE_REIMBURSEMENT
+        t.role_source = Transaction.ROLE_SOURCE_USER
+        t.save()
+        self.assertEqual(M.all_measures(self.user)["net_spending"].value,
+                         Decimal("200.00"))
+
+
+class BackfillTests(RoleBase):
+    """Writing four thousand financial rows is only safe if doing it twice is safe."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.services.finance_calc import backfill
+        self.backfill = backfill
+        self._txn(-50, primary="FOOD_AND_DRINK")
+        self._txn(3000, primary="INCOME")
+        self._txn(5000, primary="LOAN_DISBURSEMENTS")
+
+    def test_a_dry_run_writes_nothing(self):
+        report = self.backfill.run(self.user, commit=False)
+        self.assertEqual(report["scanned"], 3)
+        self.assertEqual(report["written"], 0)
+        self.assertEqual(
+            Transaction.objects.filter(economic_role__isnull=False).count(), 0)
+
+    def test_a_committed_run_classifies_every_row(self):
+        report = self.backfill.run(self.user, commit=True)
+        self.assertEqual(report["written"], 3)
+        self.assertEqual(report["after"]["unclassified"], 0)
+        self.assertEqual(report["before"]["classified"], 0)
+
+    def test_running_it_again_changes_nothing(self):
+        self.backfill.run(self.user, commit=True)
+        second = self.backfill.run(self.user, commit=True)
+        self.assertEqual(second["written"], 0)
+        self.assertEqual(second["unchanged"], 3)
+
+    def test_it_is_reversible(self):
+        self.backfill.run(self.user, commit=True)
+        self.backfill.clear(self.user, commit=True)
+        self.assertEqual(
+            Transaction.objects.filter(economic_role__isnull=False).count(), 0)
+
+    def test_reversal_leaves_a_user_decision_alone(self):
+        t = self._txn(120, primary="GENERAL_MERCHANDISE")
+        t.economic_role = Transaction.ROLE_REIMBURSEMENT
+        t.role_source = Transaction.ROLE_SOURCE_USER
+        t.save()
+        self.backfill.run(self.user, commit=True)
+        self.backfill.clear(self.user, commit=True)
+        t.refresh_from_db()
+        self.assertEqual(t.economic_role, Transaction.ROLE_REIMBURSEMENT)
+
+    def test_the_backfill_never_overwrites_a_user_decision(self):
+        t = self._txn(120, primary="GENERAL_MERCHANDISE")
+        t.economic_role = Transaction.ROLE_REIMBURSEMENT
+        t.role_source = Transaction.ROLE_SOURCE_USER
+        t.save()
+        report = self.backfill.run(self.user, commit=True)
+        t.refresh_from_db()
+        self.assertEqual(t.economic_role, Transaction.ROLE_REIMBURSEMENT)
+        self.assertEqual(report["user_protected"], 1)
+
+    def test_it_records_before_and_after_counts_and_checkpoints(self):
+        report = self.backfill.run(self.user, commit=True, batch_size=2)
+        self.assertEqual(report["before"]["unclassified"], 3)
+        self.assertEqual(report["after"]["classified"], 3)
+        self.assertGreaterEqual(len(report["checkpoints"]), 2)
+
+    def test_the_source_transaction_is_not_edited(self):
+        """A role is an added opinion, never a change to the record."""
+        before = list(Transaction.objects.values_list("id", "amount", "date",
+                                                      "description"))
+        self.backfill.run(self.user, commit=True)
+        self.assertEqual(
+            before,
+            list(Transaction.objects.values_list("id", "amount", "date",
+                                                 "description")))
+
+
+class NewTransactionsAreClassifiedTests(RoleBase):
+    """A partly classified population is worse than an unclassified one.
+
+    Unclassified is visibly absent. Partly classified is silently incomplete — the
+    totals look finished and are not. So a row synced after activation is classified on
+    the same pass that stores it.
+    """
+
+    def test_the_sync_path_classifies_on_arrival(self):
+        from apps.finance.services import sync_service
+        source = open(sync_service.__file__).read()
+        self.assertIn("_assign_economic_role", source)
+        self.assertIn("classify_one", source)
+
+    def test_classify_one_persists_and_is_idempotent(self):
+        from apps.finance.services.finance_calc import backfill
+        t = self._txn(-50, primary="FOOD_AND_DRINK")
+        backfill.classify_one(t)
+        t.refresh_from_db()
+        self.assertEqual(t.economic_role, Transaction.ROLE_PURCHASE)
+        self.assertEqual(t.role_classifier_version, R.CLASSIFIER_VERSION)
+        stamped = t.role_classified_at
+        backfill.classify_one(t)
+        t.refresh_from_db()
+        self.assertEqual(t.role_classified_at, stamped, "no needless rewrite")
+
+    def test_classify_one_refuses_to_touch_a_user_decision(self):
+        from apps.finance.services.finance_calc import backfill
+        t = self._txn(120, primary="GENERAL_MERCHANDISE")
+        t.economic_role = Transaction.ROLE_REIMBURSEMENT
+        t.role_source = Transaction.ROLE_SOURCE_USER
+        t.save()
+        self.assertIsNone(backfill.classify_one(t))
+        t.refresh_from_db()
+        self.assertEqual(t.economic_role, Transaction.ROLE_REIMBURSEMENT)

@@ -231,6 +231,8 @@ urlpatterns = [
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
     path("api/claude/truth-probe/", views.TruthProbeAPIView.as_view(), name="api_claude_truth_probe"),
     path("api/claude/finance-audit/", views.FinanceAuditAPIView.as_view(), name="api_claude_finance_audit"),
+    # TEMPORARY — P1 rehearsal/backfill/rollback. Remove with the view in one commit.
+    path("api/claude/finance-p1/", views.FinanceP1OperatorAPIView.as_view(), name="api_claude_finance_p1"),
     path("api/claude/cos-run/", views.CoSAcceptanceRunAPIView.as_view(), name="api_claude_cos_run"),
     path("api/claude/cost-summary/", views.CostSummaryAPIView.as_view(), name="api_claude_cost_summary"),
     path("api/claude/pk-corpus/", views.PKCorpusAPIView.as_view(), name="api_claude_pk_corpus"),

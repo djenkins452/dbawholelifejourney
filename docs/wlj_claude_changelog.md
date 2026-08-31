@@ -60401,3 +60401,14 @@ Classifier 1.1.0, measures 1.1.0. 80 focused tests.
 Files: `apps/finance/models.py`, `apps/finance/migrations/0036_*`,
 `apps/finance/services/finance_calc/{roles,measures,backfill}.py`,
 `apps/finance/services/sync_service.py`, `apps/finance/tests/test_p1_economic_roles.py`.
+
+## 2026-08-31 — P1 operator endpoint (TEMPORARY)
+
+`GET /admin-console/api/claude/finance-p1/?email=&action=rehearse|backfill|verify|clear`.
+Key-gated. `rehearse` verifies its own read-only claim; `backfill` and `clear` refuse
+unless `reviewed=yes` is passed, so neither can be reached by a guessed URL or a stray
+retry. **Delete the view, the URL and `test_p1_operator_endpoint.py` in one commit once
+activation is verified** — the allow-list test names both as a reminder.
+
+Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
+`apps/finance/tests/test_p1_operator_endpoint.py`.

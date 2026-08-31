@@ -404,6 +404,11 @@ class ShadowIsolationTests(RoleBase):
             # never decides one — it delegates to `backfill.classify_one`.
             "apps/finance/services/sync_service.py",
             "apps/finance/tests/test_p1_economic_roles.py",
+            # TEMPORARY — the operator endpoint used to run the one-time rehearsal
+            # and backfill, and its test. BOTH go when activation is verified; if
+            # they are still here later, this list is the reminder.
+            "apps/admin_console/views.py",
+            "apps/finance/tests/test_p1_operator_endpoint.py",
         }
         unexpected = [p for p in out
                       if p not in allowed and "migrations" not in p]

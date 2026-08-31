@@ -3614,6 +3614,124 @@ class EffortConfigDeleteView(AdminRequiredMixin, DeleteView):
 # Claude Code API - Ready Tasks Endpoint
 # ==============================================================================
 
+class FinanceP1OperatorAPIView(APIRateLimitMixin, View):
+    """TEMPORARY operator surface for the P1 rehearsal, backfill and rollback.
+
+    WLJ has no production shell, so work that must be done exactly once, under review,
+    still has to be run somewhere. Every action is explicit and fail-closed:
+
+      * `rehearse`  — read-only. Verifies its own claim: the count of classified rows is
+                      taken before and after and a mismatch returns an error, not a
+                      report.
+      * `backfill`  — writes roles in bounded transactional batches. Refuses unless the
+                      caller passes `reviewed=yes`, so it cannot be reached by guessing
+                      a URL or by a stray retry.
+      * `verify`    — post-activation reconciliation and coverage.
+      * `clear`     — undoes a backfill. Derived roles only; user decisions survive.
+
+    Delete this view, its URL and its test in ONE commit once activation is verified.
+
+    GET /admin-console/api/claude/finance-p1/?email=&action=
+    Auth: X-Claude-API-Key.
+    """
+
+    rate_limit_requests_per_minute = 5
+    rate_limit_requests_per_hour = 40
+    rate_limit_key_prefix = 'admin_api_finance_p1'
+
+    ACTIONS = ('rehearse', 'backfill', 'verify', 'clear')
+
+    def get(self, request):
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        email = (request.GET.get('email') or '').strip()
+        action = (request.GET.get('action') or 'rehearse').strip()
+        if not email:
+            return JsonResponse({'error': 'email query param required'}, status=400)
+        if action not in self.ACTIONS:
+            return JsonResponse({'error': f'action must be one of {self.ACTIONS}'},
+                                status=400)
+
+        User = get_user_model()
+        try:
+            user = User.objects.get(email__iexact=email)
+        except User.DoesNotExist:
+            return JsonResponse({'error': 'user not found'}, status=404)
+
+        handler = getattr(self, f'_{action}')
+        return handler(request, user)
+
+    # -- read-only -----------------------------------------------------------
+    def _rehearse(self, request, user):
+        from apps.finance.models import Transaction
+        from apps.finance.services.finance_calc import dry_run
+
+        before = Transaction.objects.filter(
+            user=user, economic_role__isnull=False).count()
+        report = dry_run.run(user)
+        after = Transaction.objects.filter(
+            user=user, economic_role__isnull=False).count()
+        if before != after:
+            return JsonResponse({
+                'error': 'REHEARSAL WROTE TO THE DATABASE — report withheld',
+                'classified_before': before, 'classified_after': after,
+            }, status=500)
+        report['read_only_proof'] = {
+            'classified_before': before, 'classified_after': after,
+        }
+        return JsonResponse(report, json_dumps_params={'indent': 1})
+
+    def _verify(self, request, user):
+        from apps.finance.models import Transaction
+        from apps.finance.services.finance_calc import measures as M
+
+        rows = Transaction.objects.filter(user=user)
+        measures = M.all_measures(user)
+        return JsonResponse({
+            'coverage': {
+                'total': rows.count(),
+                'classified': rows.filter(economic_role__isnull=False).count(),
+                'unclassified': rows.filter(economic_role__isnull=True).count(),
+                'user_decided': rows.filter(
+                    role_source=Transaction.ROLE_SOURCE_USER).count(),
+            },
+            'measures': {k: v.as_dict() for k, v in measures.items()},
+            'reconciliation': M.reconcile(measures),
+        }, json_dumps_params={'indent': 1})
+
+    # -- writes --------------------------------------------------------------
+    def _backfill(self, request, user):
+        from apps.finance.services.finance_calc import backfill
+
+        if (request.GET.get('reviewed') or '').lower() != 'yes':
+            return JsonResponse({
+                'error': 'refusing to write: pass reviewed=yes only after the '
+                         'rehearsal has been read',
+            }, status=400)
+        report = backfill.run(user, commit=True)
+        return JsonResponse(report, json_dumps_params={'indent': 1})
+
+    def _clear(self, request, user):
+        from apps.finance.services.finance_calc import backfill
+
+        if (request.GET.get('reviewed') or '').lower() != 'yes':
+            return JsonResponse({'error': 'refusing to clear: pass reviewed=yes'},
+                                status=400)
+        return JsonResponse(backfill.clear(user, commit=True))
+
+
 class FinanceAuditAPIView(APIRateLimitMixin, View):
     """Read-only aggregate health audit of Finance truth in this environment.
 

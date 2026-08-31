@@ -28,7 +28,7 @@ from apps.finance.services.finance_calc import roles as role_authority
 
 ZERO = Decimal("0.00")
 
-MEASURES_VERSION = "1.1.0"
+MEASURES_VERSION = "1.2.0"
 
 
 @dataclass
@@ -110,6 +110,40 @@ def _sum(rows, roles, *, sign=None):
     count = 0
     for txn, assignment in rows:
         if assignment.role not in roles:
+            continue
+        amount = txn.amount or ZERO
+        if sign == "out" and amount >= 0:
+            continue
+        if sign == "in" and amount <= 0:
+            continue
+        total += _abs(amount)
+        count += 1
+    return total, count
+
+
+def _on_cash_account(txn):
+    """Does this row move the household's actual cash?
+
+    A payment landing on a credit card is not money arriving, and counting it as cash
+    in would overstate inflow by the size of the card payment. Cash is measured where
+    the cash is.
+    """
+    account_type = getattr(getattr(txn, "account", None), "account_type", "") or ""
+    return account_type in role_authority.CASH_ACCOUNT_TYPES
+
+
+def _uncertain_cash(rows, sign):
+    """Cash that genuinely moved on a cash account but whose MEANING is unresolved.
+
+    Uncertainty about what a payment was for is not uncertainty about whether the money
+    left. A mortgage payment whose counterpart WLJ failed to match still leaves the
+    chequing account, and a cash-flow figure that omits it is simply wrong. So it stays
+    in the cash measures, as its own named component, and out of every spending measure.
+    """
+    from apps.finance.models import Transaction as T
+    total, count = ZERO, 0
+    for txn, assignment in rows:
+        if assignment.role != T.ROLE_UNCERTAIN or not _on_cash_account(txn):
             continue
         amount = txn.amount or ZERO
         if sign == "out" and amount >= 0:
@@ -256,17 +290,25 @@ def cash_inflow(user, start=None, end=None, rows=None):
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("cash_inflow", rows, start, end)
-    result.value, _ = _sum(
+    known, _ = _sum(
         rows, {T.ROLE_INCOME, T.ROLE_REFUND, T.ROLE_REIMBURSEMENT, T.ROLE_REVERSAL,
                T.ROLE_LOAN_PROCEEDS},
         sign="in")
+    unresolved, unresolved_n = _uncertain_cash(rows, "in")
+    result.value = known + unresolved
     result.components = {
+        "unresolved_movement": unresolved,
         "income": _sum(rows, {T.ROLE_INCOME}, sign="in")[0],
         "refunds": _sum(rows, {T.ROLE_REFUND}, sign="in")[0],
         "reimbursements": _sum(rows, {T.ROLE_REIMBURSEMENT}, sign="in")[0],
         "reversals": _sum(rows, {T.ROLE_REVERSAL}, sign="in")[0],
         "loan_proceeds": _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")[0],
     }
+    if unresolved_n:
+        result.assumptions.append(
+            f"{unresolved_n} credit(s) totalling {unresolved} arrived in a cash "
+            f"account but WLJ cannot say what they were — counted as money received, "
+            f"counted as income by nothing")
     borrowed, borrowed_n = _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")
     if borrowed_n:
         result.assumptions.append(
@@ -285,16 +327,24 @@ def cash_outflow(user, start=None, end=None, rows=None):
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("cash_outflow", rows, start, end)
-    result.value, _ = _sum(
+    known, _ = _sum(
         rows, {T.ROLE_PURCHASE, T.ROLE_DEBT_SERVICE, T.ROLE_FEE_INTEREST,
                T.ROLE_CASH_WITHDRAWAL},
         sign="out")
+    unresolved, unresolved_n = _uncertain_cash(rows, "out")
+    result.value = known + unresolved
     result.components = {
         "purchases": _sum(rows, {T.ROLE_PURCHASE}, sign="out")[0],
         "debt_service": _sum(rows, {T.ROLE_DEBT_SERVICE}, sign="out")[0],
         "fees": _sum(rows, {T.ROLE_FEE_INTEREST}, sign="out")[0],
         "cash_withdrawals": _sum(rows, {T.ROLE_CASH_WITHDRAWAL}, sign="out")[0],
+        "unresolved_movement": unresolved,
     }
+    if unresolved_n:
+        result.assumptions.append(
+            f"{unresolved_n} payment(s) totalling {unresolved} left a cash account "
+            f"but their purpose is unresolved — the money moved, so it is counted "
+            f"here; it is in NO spending measure")
     return result
 
 

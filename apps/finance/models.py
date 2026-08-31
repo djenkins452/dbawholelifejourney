@@ -3334,3 +3334,13 @@ class AssetLoanLink(UserOwnedModel):
 # here so `apps.finance.models.SpendingClassification` is the one import path.
 # ---------------------------------------------------------------------------
 from apps.finance.models_controllability import SpendingClassification  # noqa: E402,F401
+from apps.finance.models_recurring import RecurringSeries  # noqa: E402,F401
+
+
+# Link a transaction to the series it belongs to. Added here rather than on
+# RecurringSeries so the FK lives with the Transaction it annotates.
+Transaction.add_to_class(
+    'recurring_series',
+    models.ForeignKey('finance.RecurringSeries', null=True, blank=True,
+                      on_delete=models.SET_NULL, related_name='transactions',
+                      help_text="The repeating series this row is an occurrence of."))

@@ -783,3 +783,97 @@ class NewTransactionsAreClassifiedTests(RoleBase):
         self.assertIsNone(backfill.classify_one(t))
         t.refresh_from_db()
         self.assertEqual(t.economic_role, Transaction.ROLE_REIMBURSEMENT)
+
+
+class LiabilityCreditTests(RoleBase):
+    """The third defect, found by the 2026-08-31 rehearsal on real history.
+
+    249,246.70 of credits on a credit card carried the provider category
+    LOAN_DISBURSEMENTS — which reads as borrowing — and every one matched, to the cent
+    and to the month, a payment leaving chequing that the same provider called a
+    credit-card payment. Removing them made cash inflow equal income plus refunds
+    exactly: the arithmetic of money that never entered the household.
+
+    The provider category cannot separate "a payment arrived" from "I borrowed more"
+    on a revolving account. The instrument can.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.mortgage = FinancialAccount.objects.create(
+            user=self.user, name="Mortgage", account_type="mortgage",
+            current_balance=Decimal("-200000"))
+        self.loan = FinancialAccount.objects.create(
+            user=self.user, name="Auto", account_type="loan",
+            current_balance=Decimal("-20000"))
+
+    def test_a_credit_on_a_closed_end_loan_can_only_be_a_payment(self):
+        t = self._txn(2388.95, account=self.mortgage, primary="TRANSFER_IN",
+                      detailed="TRANSFER_IN_ACCOUNT_TRANSFER")
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_DEBT_SERVICE)
+        self.assertEqual(a.reason, "payment_received_on_closed_end_loan")
+
+    def test_the_same_holds_for_an_instalment_loan(self):
+        t = self._txn(500, account=self.loan, primary="TRANSFER_IN")
+        self.assertEqual(self._role(t), Transaction.ROLE_DEBT_SERVICE)
+
+    def test_an_unmatched_credit_on_a_card_is_held_not_called_borrowing(self):
+        t = self._txn(15000, account=self.card, primary="LOAN_DISBURSEMENTS",
+                      detailed="LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT")
+        a = R.classify(t)
+        self.assertEqual(a.role, Transaction.ROLE_UNCERTAIN)
+        self.assertEqual(a.reason, "unmatched_liability_credit")
+
+    def test_it_does_not_inflate_cash_inflow(self):
+        self._txn(15000, account=self.card, primary="LOAN_DISBURSEMENTS",
+                  detailed="LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT")
+        self._txn(3000, primary="INCOME")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["cash_inflow"].value, Decimal("3000.00"))
+        self.assertEqual(m["income"].value, Decimal("3000.00"))
+
+    def test_a_loan_that_funds_a_cash_account_is_still_borrowing(self):
+        """The role is not abolished — it is confined to where it can be true."""
+        t = self._txn(9000, primary="LOAN_DISBURSEMENTS",
+                      detailed="LOAN_DISBURSEMENTS_OTHER_DISBURSEMENT")
+        self.assertEqual(self._role(t), Transaction.ROLE_LOAN_PROCEEDS)
+        self.assertEqual(M.all_measures(self.user)["cash_inflow"].value,
+                         Decimal("9000.00"))
+
+
+class CashMovementSurvivesUncertaintyTests(RoleBase):
+    """Not knowing WHY the money moved is not doubt about WHETHER it moved."""
+
+    def test_an_unresolved_outflow_still_leaves_the_account(self):
+        self._txn(-2388.95, state=Transaction.TRANSFER_STATE_CANDIDATE,
+                  primary="TRANSFER_OUT", detailed="TRANSFER_OUT_WITHDRAWAL")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["cash_outflow"].value, Decimal("2388.95"))
+        self.assertEqual(m["cash_outflow"].components["unresolved_movement"],
+                         Decimal("2388.95"))
+
+    def test_but_it_is_not_spending(self):
+        self._txn(-2388.95, state=Transaction.TRANSFER_STATE_CANDIDATE,
+                  primary="TRANSFER_OUT")
+        self.assertEqual(M.all_measures(self.user)["net_spending"].value,
+                         Decimal("0.00"))
+
+    def test_an_unresolved_credit_to_a_cash_account_is_money_received(self):
+        self._txn(5392.80, primary="TRANSFER_IN", detailed="TRANSFER_IN_DEPOSIT")
+        m = M.all_measures(self.user)
+        self.assertEqual(m["cash_inflow"].value, Decimal("5392.80"))
+        self.assertEqual(m["income"].value, Decimal("0.00"))
+
+    def test_an_unresolved_credit_on_a_LIABILITY_is_not_cash_received(self):
+        self._txn(15000, account=self.card, primary="LOAN_DISBURSEMENTS")
+        self.assertEqual(M.all_measures(self.user)["cash_inflow"].value,
+                         Decimal("0.00"))
+
+    def test_the_cash_measures_still_reconcile(self):
+        self._txn(-2388.95, state=Transaction.TRANSFER_STATE_CANDIDATE,
+                  primary="TRANSFER_OUT")
+        self._txn(5392.80, primary="TRANSFER_IN", detailed="TRANSFER_IN_DEPOSIT")
+        self._txn(-50, primary="FOOD_AND_DRINK")
+        self._txn(3000, primary="INCOME")
+        self.assertTrue(M.reconcile(M.all_measures(self.user))["all_hold"])

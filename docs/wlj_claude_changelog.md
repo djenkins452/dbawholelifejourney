@@ -60412,3 +60412,32 @@ activation is verified** — the allow-list test names both as a reminder.
 
 Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
 `apps/finance/tests/test_p1_operator_endpoint.py`.
+
+## 2026-08-31 — P1 third defect: a credit on a liability is not borrowing
+
+The 2026-08-31 rehearsal on real history found 249,246.70 of credits on a credit card
+carrying the provider category `LOAN_DISBURSEMENTS`. Each matched, to the cent and to
+the month, a payment leaving chequing that the same provider called a credit-card
+payment. Removing them made cash inflow equal income plus refunds **exactly**
+(419,725.18) — the arithmetic of money that never entered the household.
+
+The provider category cannot separate "a payment arrived" from "I borrowed more" on a
+revolving account. The **instrument** can, so the rule follows from what the account IS:
+
+* **Closed-end** (mortgage, loan, student loan): nothing can be drawn on it, so a credit
+  is a payment received → `debt_service`, high confidence.
+* **Revolving, counterpart visible** → `card_payment`.
+* **Revolving, no counterpart** → `uncertain` (`unmatched_liability_credit`). It is a
+  payment or it is borrowing and WLJ cannot tell, so it states neither.
+
+`loan_proceeds` is not abolished — it is confined to where it can be true: a loan
+funding a CASH account really is money arriving and really is not income.
+
+**Cash truth restored.** Not knowing why money moved is not doubt about whether it
+moved. `cash_inflow`/`cash_outflow` now include unresolved movement on cash accounts as
+a named `unresolved_movement` component — the mortgage payment whose counterpart pairing
+missed still leaves the chequing account, and a cash-flow figure that omits it is simply
+wrong. Cash is measured where the cash is, so a payment landing on a credit card is
+still not money arriving.
+
+Classifier 1.2.0, measures 1.2.0. 106 focused tests.

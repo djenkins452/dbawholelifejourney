@@ -80,9 +80,10 @@ class ReviewQueueTests(RoleBase):
             review_state=RecurringSeries.REVIEW_CANDIDATE)
         self.url = reverse("finance:money_review")
 
-    def test_held_transactions_are_listed_with_a_readable_reason(self):
+    def test_held_transactions_appear_as_a_grouped_decision(self):
+        """The queue groups now. A flat list of 155 rows gets abandoned at row nine."""
         response = self.client.get(self.url)
-        self.assertContains(response, 'data-testid="held-row"')
+        self.assertContains(response, 'data-testid="review-group"')
         self.assertContains(response, "cannot say why")
 
     def test_candidates_are_listed_and_labelled_as_not_yet_counted(self):

@@ -77,8 +77,15 @@ def candidate_counterparts(txn, pool, *, window_days=PAIRING_WINDOW_DAYS):
         and _counterpart_free(other)
         and other.account_id != txn.account_id
         and other.amount == target
+        and (other.amount or ZERO) < ZERO
+        and not _is_liability(other)
         and window_start <= other.date <= window_end
     ]
+
+
+def _is_liability(txn):
+    account = getattr(txn, "account", None)
+    return bool(account is not None and getattr(account, "is_liability", False))
 
 
 def _counterpart_free(txn):

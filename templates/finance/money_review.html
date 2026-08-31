@@ -16,48 +16,131 @@
     <div class="page-header">
         <div>
             <h1 class="page-title">What WLJ would not guess</h1>
-            <p class="page-subtitle">These are held out of the totals until you say what they are.</p>
+            <p class="page-subtitle">Grouped, so one answer can settle a whole pattern.</p>
         </div>
     </div>
 
-    <section class="mr-section" aria-labelledby="held-heading">
-        <h2 id="held-heading" class="mr-heading">Transactions held for review
-            <span class="mr-count">{{ review_counts.held_transactions }}</span></h2>
+    {% if shortlist.groups %}
+    <section class="mr-shortlist" aria-labelledby="short-heading" data-testid="shortlist">
+        <h2 id="short-heading" class="mr-heading">Start here</h2>
+        <p class="mr-intro">
+            These {{ shortlist.groups|length }} group{{ shortlist.groups|length|pluralize }}
+            cover {{ shortlist.covers }} of {{ shortlist.of }} held transactions
+            ({{ shortlist.pct }}%). You do not have to work through everything to get
+            value from this.
+        </p>
+    </section>
+    {% endif %}
 
-        {% if held %}
+    <section class="mr-section" aria-labelledby="groups-heading">
+        <h2 id="groups-heading" class="mr-heading">Decisions
+            <span class="mr-count">{{ review_counts.held_transactions }} transactions</span></h2>
+
+        {% if groups %}
+        {% for group in groups %}
+        <article class="mr-group" data-testid="review-group" data-group="{{ group.key }}"
+                 aria-labelledby="g-{{ group.key }}">
+            <header class="mr-group-head">
+                <h3 class="mr-group-title" id="g-{{ group.key }}">{{ group.payee }}</h3>
+                <p class="mr-group-figures">
+                    <strong>{{ group.count }}</strong> transaction{{ group.count|pluralize }}
+                    &middot; <strong>{{ group.total_amount|money }}</strong>
+                    &middot; {{ group.direction|yesno:"in,out,out" }}
+                </p>
+                <p class="mr-group-reason">{{ group.reason_label }}</p>
+            </header>
+
+            <p class="mr-group-explain">{{ group.explain }}</p>
+
+            <dl class="mr-group-evidence">
+                <div><dt>Confidence these belong together</dt><dd>{{ group.confidence }}</dd></div>
+                <div><dt>Seen</dt><dd>{{ group.evidence.first_seen }} to {{ group.evidence.last_seen }}</dd></div>
+                <div><dt>Accounts</dt><dd>{% for a in group.accounts %}{{ a }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd></div>
+                <div><dt>Amounts</dt><dd>{% for b in group.magnitude_bands %}{{ b }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd></div>
+                {% if group.affects %}
+                <div><dt>Deciding changes</dt><dd>{% for m in group.affects %}{{ m }}{% if not forloop.last %}, {% endif %}{% endfor %}</dd></div>
+                {% endif %}
+            </dl>
+
+            <details class="mr-group-rows">
+                <summary>Show the transactions</summary>
+                <ul class="mr-rows">
+                    {% for txn in group.rows %}
+                    <li><span>{{ txn.date }}</span> <span>{{ txn.account.name }}</span>
+                        <span class="mr-row-amount">{{ txn.amount|money_signed }}</span></li>
+                    {% endfor %}
+                </ul>
+                {% if group.more_rows %}
+                <p class="mr-more">…and {{ group.more_rows }} more in this group.</p>
+                {% endif %}
+            </details>
+
+            <form method="post" action="{% url 'finance:money_apply_bulk' %}"
+                  class="mr-group-form">
+                {% csrf_token %}
+                <input type="hidden" name="ids" value="{% for id in group.ids %}{{ id }}{% if not forloop.last %},{% endif %}{% endfor %}">
+                <input type="hidden" name="token" value="{{ group.token }}">
+                <input type="hidden" name="group_label" value="{{ group.payee }}">
+
+                <label class="sr-only" for="d-{{ group.key }}">What are these {{ group.count }} transactions?</label>
+                <select class="mr-select" id="d-{{ group.key }}" name="decision">
+                    {% for value, label in role_choices %}
+                    <option value="{{ value }}"{% if value == group.suggested_role %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                    <option value="{{ leave_uncertain }}">I looked &mdash; still not sure</option>
+                </select>
+
+                <label class="mr-rule">
+                    <input type="checkbox" name="create_rule">
+                    <span>Remember this for {{ group.payee }}</span>
+                </label>
+
+                <button type="submit" class="btn btn-primary mr-btn">
+                    Apply to all {{ group.count }}
+                </button>
+            </form>
+        </article>
+        {% endfor %}
+        {% else %}
+        <p class="mr-empty" data-testid="no-groups">
+            Nothing is being held. Every transaction has a classification you or WLJ
+            can stand behind.
+        </p>
+        {% endif %}
+    </section>
+
+    {% if recent_batches %}
+    <section class="mr-section" aria-labelledby="batches-heading">
+        <h2 id="batches-heading" class="mr-heading">Recent bulk decisions</h2>
         <ul class="mr-list">
-            {% for txn in held %}
-            <li class="mr-item" data-testid="held-row">
-                <div class="mr-item-main">
-                    <p class="mr-item-title">{{ txn.date }} &middot; {{ txn.account.name }}</p>
-                    <p class="mr-item-amount">{{ txn.amount|money_signed }}</p>
-                    <p class="mr-item-reason">{{ txn.reason_label }}</p>
+            {% for batch in recent_batches %}
+            <li class="mr-item" data-testid="batch-row">
+                <div>
+                    <p class="mr-item-title">{{ batch.row_count }} transaction{{ batch.row_count|pluralize }}
+                        &rarr; {{ batch.decision }}</p>
+                    <p class="mr-item-reason">{{ batch.group_label }}
+                        &middot; {{ batch.total_amount|money }}
+                        &middot; {{ batch.get_batch_status_display|lower }}</p>
                 </div>
-                <form method="post" action="{% url 'finance:money_set_role' txn.pk %}" class="mr-item-form">
+                {% if batch.can_undo %}
+                <form method="post" action="{% url 'finance:money_undo_bulk' batch.pk %}">
                     {% csrf_token %}
-                    <label class="sr-only" for="role-{{ txn.pk }}">What is this transaction?</label>
-                    <select class="mr-select" id="role-{{ txn.pk }}" name="economic_role">
-                        {% for value, label in role_choices %}
-                        <option value="{{ value }}"{% if value == txn.economic_role %} selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn btn-primary mr-btn">Save</button>
+                    <button type="submit" class="btn btn-secondary mr-btn">Undo</button>
                 </form>
+                {% endif %}
             </li>
             {% endfor %}
         </ul>
-        {% else %}
-        <p class="mr-empty">Nothing is being held. Every transaction has a classification.</p>
-        {% endif %}
     </section>
+    {% endif %}
 
     <section class="mr-section" aria-labelledby="recurring-heading">
         <h2 id="recurring-heading" class="mr-heading">Recurring patterns to confirm
             <span class="mr-count">{{ review_counts.recurring_candidates }}</span></h2>
         <p class="mr-intro">
-            WLJ noticed these repeating. None of them counts towards your committed
-            monthly total until you confirm it &mdash; a bill WLJ invented would quietly
-            make every plan unachievable.
+            WLJ noticed these repeating. None counts towards your committed monthly total
+            until you confirm it &mdash; a bill WLJ invented would quietly make every plan
+            unachievable.
         </p>
 
         {% if candidates %}
@@ -113,10 +196,40 @@
 
 <style nonce="{{ csp_nonce }}">
 .mr-section { margin-bottom: 2.5rem; }
-.mr-heading { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; }
+.mr-heading { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem;
+  flex-wrap: wrap; }
 .mr-count { background: var(--surface-2, #f1f3f5); border-radius: 999px;
   padding: 0.15rem 0.6rem; font-size: 0.85rem; }
-.mr-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+.mr-intro { font-size: 0.9rem; color: var(--muted, #667); max-width: 64ch; }
+.mr-shortlist { background: var(--info-bg, #e7f0fd); border-radius: 12px;
+  padding: 0.9rem 1rem; margin-bottom: 1.5rem; }
+.mr-shortlist .mr-heading { margin-top: 0; }
+.mr-group { border: 1px solid var(--border, #dee2e6); border-radius: 12px;
+  padding: 1rem; margin-bottom: 1rem; }
+.mr-group-head { margin-bottom: 0.5rem; }
+.mr-group-title { margin: 0; font-size: 1.05rem; text-transform: capitalize; }
+.mr-group-figures { margin: 0.15rem 0; font-variant-numeric: tabular-nums;
+  font-size: 0.9rem; }
+.mr-group-reason { margin: 0; font-size: 0.85rem; color: var(--muted, #667); }
+.mr-group-explain { font-size: 0.88rem; max-width: 66ch; }
+.mr-group-evidence { display: grid; gap: 0.25rem 1rem; margin: 0.5rem 0;
+  font-size: 0.82rem; }
+.mr-group-evidence div { display: flex; gap: 0.5rem; }
+.mr-group-evidence dt { color: var(--muted, #667); }
+.mr-group-evidence dd { margin: 0; font-weight: 600; }
+.mr-group-rows { font-size: 0.85rem; margin-bottom: 0.6rem; }
+.mr-group-rows summary { cursor: pointer; min-height: 44px; display: flex;
+  align-items: center; }
+.mr-rows { list-style: none; margin: 0; padding: 0; }
+.mr-rows li { display: flex; justify-content: space-between; gap: 1rem;
+  padding: 0.2rem 0; border-bottom: 1px solid var(--border, #dee2e6); }
+.mr-row-amount { font-variant-numeric: tabular-nums; }
+.mr-more { font-size: 0.8rem; color: var(--muted, #667); }
+.mr-group-form { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.mr-rule { display: flex; align-items: center; gap: 0.4rem; min-height: 44px;
+  font-size: 0.85rem; }
+.mr-select { min-height: 44px; font-size: 16px; max-width: 100%; flex: 1 1 14rem; }
+.mr-btn { min-height: 44px; }
 .mr-list { list-style: none; margin: 0; padding: 0; }
 .mr-item { border: 1px solid var(--border, #dee2e6); border-radius: 10px;
   padding: 0.85rem; margin-bottom: 0.6rem; display: flex; flex-direction: column;
@@ -125,8 +238,6 @@
 .mr-item-amount { margin: 0.1rem 0; font-variant-numeric: tabular-nums; }
 .mr-item-reason { margin: 0; font-size: 0.82rem; color: var(--muted, #667); }
 .mr-item-form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
-.mr-select { min-height: 44px; font-size: 16px; max-width: 100%; flex: 1 1 12rem; }
-.mr-btn { min-height: 44px; }
 .mr-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
 .mr-detect { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
   margin-top: 1rem; }
@@ -134,6 +245,7 @@
 @media (min-width: 769px) {
   .mr-item { flex-direction: row; align-items: center; justify-content: space-between; }
   .mr-item-form { flex: 0 0 auto; }
+  .mr-group-evidence { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
 {% endblock %}

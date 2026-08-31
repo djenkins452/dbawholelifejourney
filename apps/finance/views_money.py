@@ -27,7 +27,7 @@ from django.views.generic import TemplateView
 
 from apps.core.current_context import PageSummaryMixin
 from apps.finance.access import FinanceEnabledRequiredMixin, finance_enabled_required
-from apps.finance.models import (RecurringSeries, SavingsOpportunity,
+from apps.finance.models import (RecurringSeries, ReviewBatch, SavingsOpportunity,
                                  SpendingClassification, Transaction)
 
 #: Presented in this order because it is the order a person asks the questions in:
@@ -114,26 +114,25 @@ class MoneyOverviewView(_SignedInFinanceView):
 
 
 class ReviewQueueView(_SignedInFinanceView):
-    """Everything WLJ has held back rather than guessed about."""
+    """Everything WLJ held back rather than guessed about — as decisions, not rows.
+
+    A flat list asks the same question 155 times and gets abandoned around row nine.
+    The rows cluster by WHY they were held and by WHO took the money, and one answer
+    usually settles a whole cluster.
+    """
 
     template_name = "finance/money_review.html"
     page_summary_key = "finance.money_review"
     page_summary_title = "Money Review Queue"
 
     def get_context_data(self, **kwargs):
+        from apps.finance.services.finance_calc import review_queue as RQ
+
         context = super().get_context_data(**kwargs)
         user = self.request.user
 
-        labels = _held_reason_labels()
-        held = list(Transaction.objects.filter(
-            user=user, economic_role=Transaction.ROLE_UNCERTAIN)
-            .select_related("account")
-            .order_by("-date")[:100])
-        # Resolved here rather than in the template: a dictionary lookup by key is not
-        # something Django templates do, and adding a filter for it would be a new
-        # piece of platform surface for one page.
-        for txn in held:
-            txn.reason_label = labels.get(txn.role_reason, txn.role_reason)
+        groups = RQ.build_groups(user)
+        shortlist = RQ.highest_impact(user, limit=5)
 
         candidates = (RecurringSeries.objects.filter(
             user=user, status="active",
@@ -142,10 +141,14 @@ class ReviewQueueView(_SignedInFinanceView):
             .order_by("-confidence", "name")[:100])
 
         context.update({
-            "held": held,
+            "groups": groups,
+            "shortlist": shortlist,
             "candidates": candidates,
             "review_counts": _review_counts(user),
             "role_choices": Transaction.ECONOMIC_ROLE_CHOICES,
+            "leave_uncertain": RQ.DECISION_LEAVE,
+            "recent_batches": ReviewBatch.objects.filter(
+                user=user, status="active").order_by("-applied_at")[:5],
         })
         return context
 
@@ -258,6 +261,82 @@ def confirm_series(request, pk):
 
 @require_POST
 @finance_enabled_required
+def preview_bulk(request):
+    """What would this decision do? Returns a token that binds the answer to the set."""
+    from apps.finance.services.finance_calc import review_queue as RQ
+
+    ids = _int_list(request.POST.getlist("ids"))
+    decision = (request.POST.get("decision") or "").strip()
+    if not ids:
+        return JsonResponse({"error": "select at least one transaction"}, status=400)
+
+    result = RQ.preview(request.user, ids, decision)
+    return JsonResponse({
+        "eligible_count": result["eligible_count"],
+        "refused_count": result["refused_count"],
+        "refused_reason": result["refused_reason"],
+        "total_amount": str(result["total_amount"]),
+        "inflow": str(result["inflow"]),
+        "outflow": str(result["outflow"]),
+        "affects": result["affects"],
+        "token": result["token"],
+    })
+
+
+@require_POST
+@finance_enabled_required
+def apply_bulk(request):
+    """Apply a previewed decision. Refuses any set the preview did not cover."""
+    from apps.finance.services.finance_calc import review_queue as RQ
+
+    ids = _int_list(request.POST.getlist("ids"))
+    decision = (request.POST.get("decision") or "").strip()
+    token = (request.POST.get("token") or "").strip()
+    create_rule = request.POST.get("create_rule") == "on"
+
+    try:
+        result = RQ.apply_bulk(request.user, ids, decision, token=token,
+                               create_rule=create_rule,
+                               group_label=(request.POST.get("group_label") or "")[:200])
+    except ValueError:
+        messages.error(request, "That is not a decision WLJ recognises.")
+        return redirect(reverse("finance:money_review"))
+
+    from apps.finance.security import get_audit_logger
+    get_audit_logger(request).log(
+        action="update", entity_type="transaction",
+        details={"bulk_decision": decision, "rows": result.get("applied", 0),
+                 "refused": result.get("refused", False)})
+
+    if result.get("refused"):
+        messages.warning(request, f"Nothing was changed: {result['reason']}.")
+    else:
+        messages.success(
+            request,
+            f"{result['applied']} transaction(s) set to {decision.replace('_', ' ')}. "
+            f"You can undo this.")
+    return redirect(reverse("finance:money_review"))
+
+
+@require_POST
+@finance_enabled_required
+def undo_bulk(request, pk):
+    from apps.finance.services.finance_calc import review_queue as RQ
+
+    result = RQ.undo(request.user, pk)
+    if result.get("refused"):
+        messages.warning(request, f"Nothing was undone: {result['reason']}.")
+    else:
+        skipped = result.get("skipped_edited_since", 0)
+        tail = (f" {skipped} row(s) you edited afterwards were left as you set them."
+                if skipped else "")
+        messages.success(request,
+                         f"Restored {result['restored']} transaction(s).{tail}")
+    return redirect(reverse("finance:money_review"))
+
+
+@require_POST
+@finance_enabled_required
 def set_transaction_role(request, pk):
     """Resolve a held transaction. The user's decision becomes the authority."""
     txn = get_object_or_404(Transaction, pk=pk, user=request.user)
@@ -340,6 +419,17 @@ def decide_opportunity(request, pk):
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _int_list(raw_values):
+    """Only well-formed ids. A malformed one is dropped, never guessed at."""
+    out = []
+    for raw in raw_values:
+        for part in str(raw).split(","):
+            part = part.strip()
+            if part.isdigit():
+                out.append(int(part))
+    return out
+
 
 def _decimal(raw, default="0"):
     try:

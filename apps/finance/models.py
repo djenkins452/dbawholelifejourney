@@ -3339,6 +3339,7 @@ from apps.finance.models_liability import (  # noqa: E402,F401
     LoanTerms, LoanTermsChange)
 from apps.finance.models_opportunity import SavingsOpportunity  # noqa: E402,F401
 from apps.finance.models_networth import NetWorthSnapshot  # noqa: E402,F401
+from apps.finance.models_review import ReviewBatch  # noqa: E402,F401
 
 
 # Link a transaction to the series it belongs to. Added here rather than on

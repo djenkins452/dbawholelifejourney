@@ -60632,3 +60632,30 @@ per user per day, updated in place. History begins at the first snapshot and ref
 reconstruct — drawing a line back from today's numbers looks like history and is fiction.
 
 16 bridge tests, 20 pairing tests, 22 net-worth tests.
+
+## 2026-08-31 — Money Review becomes decisions instead of rows
+
+A flat queue asks the same question 155 times and gets abandoned around row nine. The
+rows are not 155 independent puzzles: they cluster by WHY WLJ held them and by WHO took
+the money, and one answer usually settles a cluster.
+
+Grouped by (reason, payee, direction), ranked by money weighted 1.5× when the group moves
+a figure people plan from. A "start here" shortlist reports what share of the queue the
+top groups cover, so value arrives before row 155.
+
+Three properties make bulk safe:
+
+* **Preview binds the set.** `preview()` returns a token derived from the exact ids it
+  counted; `apply_bulk()` refuses any set whose token does not match. A transaction that
+  syncs between looking and clicking cannot be swept in.
+* **Every batch is reversible.** `ReviewBatch` records the prior role of every row.
+  `undo()` restores exactly those and skips any row edited by hand since — that later
+  decision outranks the log.
+* **A confirmed decision is never bulk-overwritten.** User-decided rows are excluded
+  before grouping, so they cannot be selected.
+
+"I looked and I still do not know" is a recorded decision, not a skip. A group sharing one
+payee can become an enduring rule; a group spanning several payees cannot, because the
+rule would over-reach.
+
+29 review-queue service tests, 12 page tests.

@@ -216,3 +216,37 @@ class MeasureImpactTests(PairingBase):
         backfill.run(self.user, commit=True)
         credit.refresh_from_db()
         self.assertEqual(credit.economic_role, Transaction.ROLE_REIMBURSEMENT)
+
+
+class FundingLegTests(PairingBase):
+    """The counterpart must look like the leg that FUNDED the payment.
+
+    Every unambiguous match in the production rehearsal was a chequing outflow facing a
+    card credit. Requiring that shape costs nothing there and refuses a class of wrong
+    match: a card-to-card balance transfer is not a payment, and stays held.
+    """
+
+    def test_a_card_to_card_credit_is_not_treated_as_a_payment(self):
+        second_card = FinancialAccount.objects.create(
+            user=self.user, name="Other card", account_type="credit_card",
+            current_balance=Decimal("200"))
+        self._held_credit(1500)
+        self._txn(-1500, account=second_card, on=JAN, primary="TRANSFER_OUT")
+        report = TD.pair_liability_credits(self.user)
+        self.assertEqual(report["paired"], 0)
+        self.assertEqual(report["no_counterpart"], 1)
+
+    def test_an_inflow_is_never_the_counterpart_of_an_inflow(self):
+        self._held_credit(1500)
+        self._txn(1500, on=JAN, primary="TRANSFER_IN")
+        self.assertEqual(TD.pair_liability_credits(self.user)["paired"], 0)
+
+    def test_a_chequing_outflow_still_pairs(self):
+        self._held_credit(1500)
+        self._payment(1500)
+        self.assertEqual(TD.pair_liability_credits(self.user)["paired"], 1)
+
+    def test_savings_can_fund_a_payment_too(self):
+        self._held_credit(1500)
+        self._payment(1500, account=self.savings)
+        self.assertEqual(TD.pair_liability_credits(self.user)["paired"], 1)

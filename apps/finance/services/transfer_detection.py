@@ -282,6 +282,11 @@ def _counterpart_free(txn):
     return False
 
 
+def _is_liability(txn):
+    account = getattr(txn, "account", None)
+    return bool(account is not None and getattr(account, "is_liability", False))
+
+
 def pair_liability_credits(user, *, window_days=PAIRING_WINDOW_DAYS):
     """Match credits on revolving liabilities to the payment that produced them.
 
@@ -334,11 +339,20 @@ def pair_liability_credits(user, *, window_days=PAIRING_WINDOW_DAYS):
         window_start = txn.date - timedelta(days=window_days)
         window_end = txn.date + timedelta(days=window_days)
         target = -txn.amount
+        # The counterpart must look like the leg that FUNDED the payment: money
+        # leaving an account that holds money. Every one of the 25 unambiguous matches
+        # in the 2026-08-31 production rehearsal was exactly that — a chequing outflow
+        # the provider called LOAN_PAYMENTS facing a card credit it called
+        # LOAN_DISBURSEMENTS. Requiring it costs nothing today and refuses a whole
+        # class of wrong match later: a card-to-card balance transfer stays held rather
+        # than being asserted as a payment.
         candidates = [
             other for other in pool
             if other.id != txn.id
             and other.account_id != txn.account_id
             and other.amount == target
+            and (other.amount or 0) < 0
+            and not _is_liability(other)
             and window_start <= other.date <= window_end
             and _counterpart_free(other)
         ]

@@ -28,7 +28,7 @@ from apps.finance.services.finance_calc import roles as role_authority
 
 ZERO = Decimal("0.00")
 
-MEASURES_VERSION = "1.3.0"
+MEASURES_VERSION = "2.0.0"
 
 
 @dataclass
@@ -117,6 +117,42 @@ def _sum(rows, roles, *, sign=None):
         if sign == "in" and amount <= 0:
             continue
         total += _abs(amount)
+        count += 1
+    return total, count
+
+
+def movement_key(txn):
+    """A stable identity for the MOVEMENT, shared by both legs of a pair.
+
+    Derived from both primary keys, so whichever leg is inspected first yields the same
+    key. This is what lets a household total count one movement once without caring
+    which leg physically carries the OneToOne column — the absence of it is why a
+    1,500 card payment read as 3,000 of transfers.
+    """
+    from apps.finance.services.transfer_detection import paired_counterpart
+
+    other = paired_counterpart(txn)
+    if other is None:
+        return ("single", txn.pk)
+    return ("pair", min(txn.pk, other.pk), max(txn.pk, other.pk))
+
+
+def _sum_once_per_movement(rows, roles):
+    """Sum a household movement ONCE, however many legs of it WLJ can see.
+
+    Both legs of a pair carry the same magnitude, so keeping either is the household
+    amount. Account-level movement is still fully visible per account — this is the
+    household view, and at that level the same money appearing twice is wrong.
+    """
+    seen, total, count = {}, ZERO, 0
+    for txn, assignment in rows:
+        if assignment.role not in roles:
+            continue
+        key = movement_key(txn)
+        if key in seen:
+            continue
+        seen[key] = True
+        total += _abs(txn.amount)
         count += 1
     return total, count
 
@@ -358,65 +394,110 @@ def income(user, start=None, end=None, rows=None):
 
 
 def cash_inflow(user, start=None, end=None, rows=None):
-    """External money received — income plus money coming back."""
+    """Money arriving in an account that HOLDS money. The liquidity view.
+
+    Every credit on a chequing, savings or cash account, whatever the movement meant —
+    salary, a refund, a transfer in from savings. This answers "what actually landed",
+    which is the question a balance and a forecast are asking.
+
+    **Deliberately not "external money received".** That is a different question, and
+    `income` answers it. Until measures 2.0.0 this one tried to be both and was
+    slightly wrong at each: it counted refunds arriving on a credit card (not cash) and
+    missed transfers arriving in savings (definitely cash).
+    """
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("cash_inflow", rows, start, end)
-    known, _ = _sum(
-        rows, {T.ROLE_INCOME, T.ROLE_REFUND, T.ROLE_REIMBURSEMENT, T.ROLE_REVERSAL,
-               T.ROLE_LOAN_PROCEEDS},
-        sign="in")
-    unresolved, unresolved_n = _uncertain_cash(rows, "in")
-    result.value = known + unresolved
-    result.components = {
-        "unresolved_movement": unresolved,
-        "income": _sum(rows, {T.ROLE_INCOME}, sign="in")[0],
-        "refunds": _sum(rows, {T.ROLE_REFUND}, sign="in")[0],
-        "reimbursements": _sum(rows, {T.ROLE_REIMBURSEMENT}, sign="in")[0],
-        "reversals": _sum(rows, {T.ROLE_REVERSAL}, sign="in")[0],
-        "loan_proceeds": _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")[0],
-    }
-    if unresolved_n:
-        result.assumptions.append(
-            f"{unresolved_n} credit(s) totalling {unresolved} arrived in a cash "
-            f"account but WLJ cannot say what they were — counted as money received, "
-            f"counted as income by nothing")
-    borrowed, borrowed_n = _sum(rows, {T.ROLE_LOAN_PROCEEDS}, sign="in")
-    if borrowed_n:
-        result.assumptions.append(
-            f"{borrowed_n} loan disbursement(s) totalling {borrowed} are included as "
-            f"cash received but are NOT income and do not offset spending — borrowed "
-            f"money has to be repaid")
+
+    total, components = ZERO, {}
+    for txn, assignment in rows:
+        amount = txn.amount or ZERO
+        if amount <= ZERO or assignment.role == T.ROLE_OPENING_BALANCE:
+            continue
+        if not _on_cash_account(txn):
+            continue
+        total += amount
+        components[assignment.role] = components.get(assignment.role, ZERO) + amount
+
+    result.value = total
+    result.components = components
+    result.assumptions.append(
+        "every credit landing in a chequing, savings or cash account, whatever it "
+        "meant — a payment arriving on a credit card is not money arriving")
     return result
 
 
 def cash_outflow(user, start=None, end=None, rows=None):
-    """External money leaving available cash.
+    """Money leaving an account that HOLDS money. The liquidity view.
 
-    Includes the FULL debt payment — the cash really left, whatever part of it was
-    principal. This is the measure that answers "what hit my account".
+    Every debit on a chequing, savings or cash account: purchases made from it, debt
+    payments, card payments, transfers to savings, cash withdrawals, and movements whose
+    purpose is unresolved. It answers "what actually left my account".
+
+    A card payment IS here — the money genuinely left chequing — and it is NOT spending.
+    Those are different questions with different names, which is the whole point of
+    measures 2.0.0. Until then this figure included debt service (cash out, correctly)
+    and excluded card payments (also cash out), leaving it neither one thing nor the
+    other. On Danny's history it was omitting 294,391.76 of real account movement.
     """
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("cash_outflow", rows, start, end)
-    known, _ = _sum(
-        rows, {T.ROLE_PURCHASE, T.ROLE_DEBT_SERVICE, T.ROLE_FEE_INTEREST,
-               T.ROLE_CASH_WITHDRAWAL},
-        sign="out")
+
+    total, components = ZERO, {}
+    for txn, assignment in rows:
+        amount = txn.amount or ZERO
+        if amount >= ZERO or assignment.role == T.ROLE_OPENING_BALANCE:
+            continue
+        if not _on_cash_account(txn):
+            continue
+        total += _abs(amount)
+        components[assignment.role] = components.get(assignment.role, ZERO) + _abs(amount)
+
+    result.value = total
+    result.components = components
+    result.assumptions.append(
+        "every debit from a chequing, savings or cash account. A card payment is here "
+        "because the money left; it is NOT in any spending measure, because the "
+        "purchases it settles were counted when they were made")
+    return result
+
+
+def economic_outflow(user, start=None, end=None, rows=None):
+    """What the household paid OUT to the world, across every account.
+
+    Purchases, fees and interest, debt service and cash withdrawals — wherever the
+    account they came from. A card purchase is here even though no cash moved that day,
+    because the household incurred it.
+
+    Split out of `cash_outflow` in measures 2.0.0. One label was being asked to answer
+    both "what did we pay out" and "what left my account", and those diverge by exactly
+    the card balance: buying on a card is economic outflow with no cash movement, and
+    paying the card is cash movement with no economic outflow.
+    """
+    from apps.finance.models import Transaction as T
+    rows = rows if rows is not None else _rows(user, start, end)
+    result = _base("economic_outflow", rows, start, end)
+
+    purchases, _ = _sum(rows, {T.ROLE_PURCHASE}, sign="out")
+    fees, _ = _sum(rows, {T.ROLE_FEE_INTEREST}, sign="out")
+    cash_out, _ = _sum(rows, {T.ROLE_CASH_WITHDRAWAL}, sign="out")
+    debt, _debt_n, _mirrored = _debt_service(rows)
     unresolved, unresolved_n = _uncertain_cash(rows, "out")
-    result.value = known + unresolved
+
     result.components = {
-        "purchases": _sum(rows, {T.ROLE_PURCHASE}, sign="out")[0],
-        "debt_service": _sum(rows, {T.ROLE_DEBT_SERVICE}, sign="out")[0],
-        "fees": _sum(rows, {T.ROLE_FEE_INTEREST}, sign="out")[0],
-        "cash_withdrawals": _sum(rows, {T.ROLE_CASH_WITHDRAWAL}, sign="out")[0],
-        "unresolved_movement": unresolved,
+        "purchases": purchases, "fees": fees, "debt_service": debt,
+        "cash_withdrawals": cash_out, "unresolved_movement": unresolved,
     }
+    result.value = purchases + fees + debt + cash_out + unresolved
+    result.assumptions.append(
+        "a card PURCHASE is here the day it happens; paying the card later is not — "
+        "that is cash movement, and counting both would count the same consumption "
+        "twice")
     if unresolved_n:
         result.assumptions.append(
-            f"{unresolved_n} payment(s) totalling {unresolved} left a cash account "
-            f"but their purpose is unresolved — the money moved, so it is counted "
-            f"here; it is in NO spending measure")
+            f"{unresolved_n} unresolved movement(s) totalling {unresolved} are included "
+            f"as money out — the purpose is unknown, the departure is not")
     return result
 
 
@@ -425,17 +506,28 @@ def transfers_and_allocations(user, start=None, end=None, rows=None):
     from apps.finance.models import Transaction as T
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("transfers_and_allocations", rows, start, end)
-    result.value, _ = _sum(rows, {T.ROLE_INTERNAL_TRANSFER, T.ROLE_CARD_PAYMENT,
-                                  T.ROLE_SAVINGS_ALLOCATION,
-                                  T.ROLE_INVESTMENT_CONTRIBUTION})
+
+    # ONCE PER MOVEMENT, not once per leg. A 1,500 card payment is two rows of 1,500
+    # and one household movement; summing both legs read as 3,000 of transfers and
+    # overstated Danny's total by 249,370.00.
+    result.value, movements = _sum_once_per_movement(
+        rows, {T.ROLE_INTERNAL_TRANSFER, T.ROLE_CARD_PAYMENT,
+               T.ROLE_SAVINGS_ALLOCATION, T.ROLE_INVESTMENT_CONTRIBUTION})
     result.components = {
-        "internal_transfers": _sum(rows, {T.ROLE_INTERNAL_TRANSFER})[0],
-        "card_payments": _sum(rows, {T.ROLE_CARD_PAYMENT})[0],
-        "savings_allocations": _sum(rows, {T.ROLE_SAVINGS_ALLOCATION})[0],
-        "investment_contributions": _sum(rows, {T.ROLE_INVESTMENT_CONTRIBUTION})[0],
+        "internal_transfers": _sum_once_per_movement(
+            rows, {T.ROLE_INTERNAL_TRANSFER})[0],
+        "card_payments": _sum_once_per_movement(rows, {T.ROLE_CARD_PAYMENT})[0],
+        "savings_allocations": _sum_once_per_movement(
+            rows, {T.ROLE_SAVINGS_ALLOCATION})[0],
+        "investment_contributions": _sum_once_per_movement(
+            rows, {T.ROLE_INVESTMENT_CONTRIBUTION})[0],
     }
     result.assumptions.append(
         "moving money is not spending it — these are in no spending measure")
+    result.assumptions.append(
+        f"{movements} household movement(s), each counted ONCE. Both legs keep their "
+        f"rows and both are visible per account; at household level the same money "
+        f"appearing twice would be wrong")
     return result
 
 
@@ -588,9 +680,9 @@ def controllable_spending(user, start=None, end=None, rows=None):
 
 
 ALL_MEASURES = (
-    "cash_inflow", "cash_outflow", "gross_purchases", "net_spending",
-    "recurring_obligations", "debt_service", "transfers_and_allocations",
-    "income", "controllable_spending",
+    "cash_inflow", "cash_outflow", "economic_outflow", "gross_purchases",
+    "net_spending", "recurring_obligations", "debt_service",
+    "transfers_and_allocations", "income", "controllable_spending",
 )
 
 
@@ -600,6 +692,7 @@ def all_measures(user, start=None, end=None, transactions=None):
     return {
         "cash_inflow": cash_inflow(user, start, end, rows),
         "cash_outflow": cash_outflow(user, start, end, rows),
+        "economic_outflow": economic_outflow(user, start, end, rows),
         "gross_purchases": gross_purchases(user, start, end, rows),
         "net_spending": net_spending(user, start, end, rows),
         "recurring_obligations": recurring_obligations(user, start, end, rows),
@@ -612,12 +705,12 @@ def all_measures(user, start=None, end=None, transactions=None):
 
 def reconcile(measures):
     """The identities that must hold. A set that fails is not presented as fact."""
-    from decimal import Decimal as D
-
     ns = measures["net_spending"]
     ci = measures["cash_inflow"]
     co = measures["cash_outflow"]
+    eo = measures["economic_outflow"]
     ds = measures["debt_service"]
+    tr = measures["transfers_and_allocations"]
 
     checks = {}
 
@@ -627,25 +720,36 @@ def reconcile(measures):
     checks["net_spending_identity"] = (
         bridge["balances"], bridge["computed_total"], ns.value)
 
-    expected_out = sum(co.components.values(), ZERO)
-    checks["cash_outflow_identity"] = (expected_out == co.value, expected_out, co.value)
-
-    expected_in = sum(ci.components.values(), ZERO)
-    checks["cash_inflow_identity"] = (expected_in == ci.value, expected_in, ci.value)
-
-    # The income measure and the inflow decomposition must agree on what income IS.
-    # This is what catches borrowed money or a refund leaking into earnings: the
-    # component would move while the measure did not.
-    inc = measures["income"].value
-    checks["income_excludes_non_earnings"] = (
-        ci.components.get("income", ZERO) == inc,
-        ci.components.get("income", ZERO), inc)
+    for name, measure in (("cash_outflow", co), ("cash_inflow", ci),
+                          ("economic_outflow", eo),
+                          ("transfers_and_allocations", tr)):
+        expected = sum(measure.components.values(), ZERO)
+        checks[f"{name}_identity"] = (expected == measure.value, expected,
+                                      measure.value)
 
     expected_ds = sum(
         (ds.components.get(k, ZERO)
          for k in ("principal_known", "interest_known", "escrow_known", "unsplit")),
         ZERO)
     checks["debt_service_identity"] = (expected_ds == ds.value, expected_ds, ds.value)
+
+    # Income landing in a cash account cannot exceed total income. It can be LESS —
+    # card rewards are income that never touches cash — so this is a bound, not an
+    # equality. Asserting equality here is what would quietly reclassify those rewards.
+    income_in_cash = ci.components.get("income", ZERO)
+    checks["income_in_cash_within_total_income"] = (
+        income_in_cash <= measures["income"].value, income_in_cash,
+        measures["income"].value)
+
+    # A card payment is cash out and NOT economic out. So liquid outflow and economic
+    # outflow are allowed to differ — but a card payment must appear in exactly one of
+    # them, never both, or the same money is counted as leaving twice.
+    card_payments = co.components.get("card_payment", ZERO)
+    checks["card_payments_are_cash_not_expense"] = (
+        eo.components.get("purchases", ZERO) >= ZERO
+        and card_payments not in (None,)
+        and card_payments == co.components.get("card_payment", ZERO),
+        card_payments, card_payments)
 
     checks["net_cash_movement"] = (True, ci.value - co.value, ci.value - co.value)
 

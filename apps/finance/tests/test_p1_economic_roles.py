@@ -238,7 +238,10 @@ class MeasureTests(RoleBase):
     def test_cash_withdrawal_is_outflow_but_not_spending(self):
         self._txn(-100, detailed="TRANSFER_OUT_ATM_WITHDRAWAL")
         m = M.all_measures(self.user)
-        self.assertEqual(m["cash_outflow"].components["cash_withdrawals"],
+        self.assertEqual(
+            m["cash_outflow"].components[Transaction.ROLE_CASH_WITHDRAWAL],
+            Decimal("100.00"))
+        self.assertEqual(m["economic_outflow"].components["cash_withdrawals"],
                          Decimal("100.00"))
         self.assertEqual(m["net_spending"].value, Decimal("120.00"))
 
@@ -664,8 +667,11 @@ class CashTruthTests(RoleBase):
         t = self._txn(-200, primary="TRANSFER_OUT", detailed="TRANSFER_OUT_ATM")
         self.assertEqual(self._role(t), Transaction.ROLE_CASH_WITHDRAWAL)
         m = M.all_measures(self.user)
-        self.assertEqual(m["cash_outflow"].components["cash_withdrawals"],
-                         Decimal("200.00"))
+        self.assertEqual(
+            m["cash_outflow"].components[Transaction.ROLE_CASH_WITHDRAWAL],
+            Decimal("200.00"))
+        self.assertEqual(
+            m["economic_outflow"].components["cash_withdrawals"], Decimal("200.00"))
         self.assertEqual(m["net_spending"].value, Decimal("0.00"))
 
     def test_an_unmatched_transfer_candidate_keeps_its_cash_movement(self):
@@ -883,7 +889,9 @@ class CashMovementSurvivesUncertaintyTests(RoleBase):
                   primary="TRANSFER_OUT", detailed="TRANSFER_OUT_WITHDRAWAL")
         m = M.all_measures(self.user)
         self.assertEqual(m["cash_outflow"].value, Decimal("2388.95"))
-        self.assertEqual(m["cash_outflow"].components["unresolved_movement"],
+        # Components are keyed by ROLE from measures 2.0.0 — the liquid view reports
+        # what each kind of movement contributed, not a bespoke label per measure.
+        self.assertEqual(m["cash_outflow"].components[Transaction.ROLE_UNCERTAIN],
                          Decimal("2388.95"))
 
     def test_but_it_is_not_spending(self):

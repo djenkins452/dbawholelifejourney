@@ -60846,3 +60846,44 @@ records that look like verification artifacts; `transfer_audit.py` computes curr
 versus proposed transfer and cash semantics side by side.
 
 37 pairing tests.
+
+## 2026-08-31 — measures 2.0.0: cash semantics split, transfers counted once
+
+Two accounting defects, both confirmed against Danny's real data by a read-only audit
+before anything was changed.
+
+**Transfers double counted by exactly 249,370.00.** Both legs of a paired card payment
+carry the `card_payment` role, and summing both is right per ACCOUNT and wrong per
+HOUSEHOLD — one payment of 1,500 is not 3,000 of transfers. `movement_key()` gives a pair
+one identity derived from both primary keys, so whichever leg is inspected first yields
+the same key, and household totals count each movement once. Both legs keep their rows and
+stay visible per account.
+
+    transfers_and_allocations   549,702.15 → 300,332.15
+
+**`cash_outflow` was two measures wearing one name.** It included debt service (cash out,
+correctly) and excluded card payments (also cash out), so it meant neither "what left my
+account" nor "what we paid out". On Danny's history it was omitting **294,391.76** of real
+account movement. Split:
+
+* `cash_outflow` / `cash_inflow` — **liquid cash**: every debit/credit on a chequing,
+  savings or cash account, whatever the movement meant. A card payment is here; a card
+  PURCHASE is not, because no cash moved that day.
+* `economic_outflow` — **NEW**: purchases, fees, debt service and cash withdrawals across
+  every account. A card purchase is here on the day it happens; paying the card later is
+  not, and counting both would count the same consumption twice.
+
+Components are now keyed by ROLE, so every measure reports what each kind of movement
+contributed instead of a bespoke label per measure.
+
+Reconciliation gains component-sum identities for all four composed measures. The income
+check became a BOUND rather than an equality — income landing in cash cannot exceed total
+income, and can legitimately be less, because card rewards are income that never touches
+cash. Asserting equality there would have quietly reclassified them.
+
+Documented as §5.1 of the architecture: **six meanings that must never share a label**,
+with the rule that prevents recurrence — before adding a measure, name the question it
+answers; if an existing measure answers a DIFFERENT question, add a name rather than
+widening it.
+
+1,248 tests green.

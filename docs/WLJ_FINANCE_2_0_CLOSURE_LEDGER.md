@@ -12,19 +12,19 @@ is `PENDING` or `IN PROGRESS`.
 
 | # | Item | Status | Evidence | Commit |
 |---|---|---|---|---|
-| 1.1 | Read-only source reconciliation service | PENDING | | |
-| 1.2 | Financial assets by account type + institution totals | PENDING | | |
-| 1.3 | Tangible assets: count, valuation totals by type | PENDING | | |
-| 1.4 | Investment balances | PENDING | | |
-| 1.5 | Liabilities by type | PENDING | | |
-| 1.6 | Excluded / archived records | PENDING | | |
-| 1.7 | Unvalued and stale records | PENDING | | |
-| 1.8 | Exact arithmetic producing the reported net worth | PENDING | | |
-| 1.9 | Valuation source types and effective dates | PENDING | | |
-| 1.10 | Ownership check — every included record is Danny's | PENDING | | |
-| 1.11 | Verification/test artifact detection | PENDING | | |
-| 1.12 | Artifact removal (only if PROVEN) + snapshot regeneration | PENDING | | |
-| 1.13 | Snapshot and live reconciliation share one authority + version | PENDING | | |
+| 1.1 | Read-only source reconciliation service | **DONE** | `reconciliation.py`, zero writes; before/after row counts equal `[6,7]` | `356181ba` |
+| 1.2 | Financial assets by type + institution | **DONE** | checking 25,805.45 (1) · savings 21,162.60 (3) = **46,968.05**, all First Horizon | `356181ba` |
+| 1.3 | Tangible assets by type | **DONE** | real_estate 869,100.00 (1) · vehicle 37,000.00 (4) · boat 22,500.00 (2) = **928,600.00** | `c28d3b5b` |
+| 1.4 | Investment balances | **DONE** | **0.00** — no investment accounts | `356181ba` |
+| 1.5 | Liabilities by type | **DONE** | mortgage 405,507.93 (1) · credit_card 37,638.70 (1) = **443,146.63** | `356181ba` |
+| 1.6 | Excluded / archived records | **DONE** | 0 archived accounts, 0 archived assets, 0 excluded assets | `356181ba` |
+| 1.7 | Unvalued and stale records | **DONE** | 0 unvalued, 0 stale — every asset valued 2026-08-31 | `356181ba` |
+| 1.8 | Exact arithmetic | **DONE** | 46,968.05 + 0 + 928,600.00 = 975,568.05 − 443,146.63 = **532,421.42**; `balances: true` | `356181ba` |
+| 1.9 | Valuation sources and dates | **DONE** | all 7 `source: manual`, all effective 2026-08-31 | `356181ba` |
+| 1.10 | Ownership | **DONE** | 6 accounts + 7 assets checked, **0 foreign**, `all_owned: true` | `356181ba` |
+| 1.11 | Artifact detection | **DONE** | **0 suspects.** Created 11:26:32–11:43:03 over 17 min with a 10-min gap; each asset valued in a separate step 10–240 s later; `created_via: manual`; all carry purchase detail; no test-shaped names | `c28d3b5b` |
+| 1.12 | Artifact removal | **DONE — none to remove.** | The figure is Danny's own data, entered by hand this morning through the Asset Registry. The earlier "no tangible assets" state predates that entry. **PRESERVED.** | — |
+| 1.13 | One authority + version | **DONE** | snapshot 532,421.42 vs live 532,421.42, both `1.0.0`, `agrees: true` | `356181ba` |
 
 ## Package 2 — Card-payment cash semantics
 

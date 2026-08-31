@@ -201,3 +201,109 @@ class BridgeIsVisibleTests(RoleBase):
         self.assertEqual(
             response.context["bridge"]["computed_total"],
             M.spending_bridge(M.all_measures(self.user)["net_spending"])["computed_total"])
+
+
+class SixMeaningsTests(RoleBase):
+    """One movement has several true descriptions. Each one gets its own name.
+
+    A single card payment is two account movements, one household movement, zero
+    spending, a real cash reduction, a real debt reduction, and zero change in net
+    worth. Collapsing any two of those is what produced a transfer total roughly double
+    what it should be and a cash figure that was neither of the things it might mean.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.services import transfer_detection as TD
+        from apps.finance.services.finance_calc import backfill
+
+        # A card purchase, then the payment that settles it.
+        self._txn(-1500, account=self.card, primary="GENERAL_MERCHANDISE")
+        self.credit = self._txn(1500, account=self.card, primary="TRANSFER_IN",
+                                detailed="TRANSFER_IN_ACCOUNT_TRANSFER")
+        self.payment = self._txn(-1500, primary="LOAN_PAYMENTS",
+                                 detailed="LOAN_PAYMENTS_CREDIT_CARD_PAYMENT")
+        TD.pair_all(self.user)
+        backfill.run(self.user, commit=True)
+        self.m = M.all_measures(self.user)
+
+    def test_1_the_purchase_is_spending_exactly_once(self):
+        self.assertEqual(self.m["gross_purchases"].value, Decimal("1500.00"))
+        self.assertEqual(self.m["net_spending"].value, Decimal("1500.00"))
+
+    def test_2_the_payment_is_a_real_reduction_in_liquid_cash(self):
+        self.assertEqual(self.m["cash_outflow"].value, Decimal("1500.00"))
+        self.assertEqual(
+            self.m["cash_outflow"].components[Transaction.ROLE_CARD_PAYMENT],
+            Decimal("1500.00"))
+
+    def test_2b_the_card_purchase_is_NOT_liquid_cash(self):
+        """Buying on a card moves no cash on the day it happens."""
+        self.assertNotIn(Transaction.ROLE_PURCHASE,
+                         self.m["cash_outflow"].components)
+
+    def test_3_the_household_transfer_is_counted_once_not_twice(self):
+        self.assertEqual(
+            self.m["transfers_and_allocations"].components["card_payments"],
+            Decimal("1500.00"), "two legs, one movement")
+
+    def test_4_economic_outflow_holds_the_purchase_not_the_payment(self):
+        self.assertEqual(self.m["economic_outflow"].components["purchases"],
+                         Decimal("1500.00"))
+        self.assertNotIn("card_payment", self.m["economic_outflow"].components)
+
+    def test_5_both_account_movements_are_still_present(self):
+        """Account-level truth keeps both legs — that is what ties to a statement."""
+        legs = Transaction.objects.filter(
+            user=self.user, economic_role=Transaction.ROLE_CARD_PAYMENT)
+        self.assertEqual(legs.count(), 2)
+
+    def test_6_net_cash_movement_reflects_the_payment(self):
+        check = M.reconcile(self.m)["checks"]["net_cash_movement"]
+        self.assertEqual(Decimal(check["actual"]), Decimal("-1500.00"))
+
+    def test_the_payment_never_becomes_spending(self):
+        """The purchase it settles was counted when it happened."""
+        self.assertEqual(self.m["net_spending"].value, Decimal("1500.00"))
+
+    def test_every_identity_still_holds(self):
+        self.assertTrue(M.reconcile(self.m)["all_hold"])
+
+
+class MortgageSemanticsTests(RoleBase):
+    """A mortgage payment is cash out, debt service, and mostly not an expense."""
+
+    def setUp(self):
+        super().setUp()
+        from apps.finance.models import FinancialAccount
+        from apps.finance.services import transfer_detection as TD
+        from apps.finance.services.finance_calc import backfill
+
+        self.mortgage = FinancialAccount.objects.create(
+            user=self.user, name="Mortgage", account_type="mortgage",
+            current_balance=Decimal("-200000"))
+        self._txn(2000, account=self.mortgage, primary="TRANSFER_IN",
+                  detailed="TRANSFER_IN_ACCOUNT_TRANSFER")
+        self._txn(-2000, primary="LOAN_PAYMENTS",
+                  detailed="LOAN_PAYMENTS_MORTGAGE_PAYMENT")
+        TD.pair_all(self.user)
+        backfill.run(self.user, commit=True)
+        self.m = M.all_measures(self.user)
+
+    def test_the_cash_outflow_stays_visible_for_liquidity(self):
+        self.assertEqual(self.m["cash_outflow"].value, Decimal("2000.00"))
+
+    def test_it_remains_debt_service_counted_once(self):
+        self.assertEqual(self.m["debt_service"].value, Decimal("2000.00"))
+
+    def test_it_is_not_consumer_spending(self):
+        self.assertEqual(self.m["net_spending"].value, Decimal("0.00"))
+
+    def test_the_unsplit_payment_says_it_is_unsplit(self):
+        debt = self.m["debt_service"]
+        self.assertEqual(debt.components["unsplit"], Decimal("2000.00"))
+        self.assertEqual(debt.components["principal_known"], Decimal("0.00"))
+        self.assertIn("loan_terms", debt.inputs_missing)
+
+    def test_identities_hold(self):
+        self.assertTrue(M.reconcile(self.m)["all_hold"])

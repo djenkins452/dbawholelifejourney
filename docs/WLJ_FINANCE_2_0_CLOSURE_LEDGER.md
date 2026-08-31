@@ -61,6 +61,7 @@ is `PENDING` or `IN PROGRESS`.
 | 3.12 | Full read-only rehearsal over ALL eligible rows | DONE | Prod rehearsal: population **3,796** (old cap 2,000), eligible outflows 3,509, proposed 25, ambiguous 0, unmatched 3,504, held_income_counterpart 5. Zero writes. | `49995948` |
 | 3.13 | Deterministic backfill applied | DONE | 25 pairs applied, 50 rows reclassified; pairs 25→50; held_for_review 130→109. The 5 income-facing candidates were held, not guessed. | `49995948` |
 | 3.14 | Second run produces zero changes | DONE | Re-run after the `544531a0` deploy: `proposed 0, ambiguous 0, already_paired 100 rows (=50 pairs)`. Nothing written. | `544531a0` |
+| 3.15 | The one-directional read removed from every reader | DONE | Verifying 3.14 in production exposed the same defect in the **counting**: `pairing_coverage` called all 50 counterpart legs unpaired, and four more readers (`attribution_population`, `opportunity_detection`, `finance_audit`, `dry_run`) had written the raw predicate by hand. One `paired_q()` now; `OneCanonicalPairPredicateTests` fails if a sixth appears. | `81dfd8f6` |
 
 ## Regression and deployment
 

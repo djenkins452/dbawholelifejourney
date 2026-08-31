@@ -60936,3 +60936,24 @@ pair, and reporting the two interchangeably is how this stayed invisible.
 
 Files: `transfer_detection.py`, `attribution_population.py`, `opportunity_detection.py`,
 `finance_audit.py`, `finance_calc/dry_run.py`, `tests/test_liability_pairing.py`.
+
+## 2026-08-31 — the closure instruments come back out
+
+The accounting closure needed three answers that only production could give: where the
+net-worth total came from, whether the transfer total double counted, and what
+full-population pairing would actually find. Getting them meant a temporary key-gated
+operator endpoint and two read-only analysis modules.
+
+All three answers are now recorded in `docs/WLJ_FINANCE_2_0_CLOSURE_LEDGER.md`, and the
+properties they proved are held by permanent tests rather than by the instruments:
+nine reconciliation identities in `measures.reconcile()`, `MoneyBridgeTests`,
+`OneCanonicalPairPredicateTests`. So the endpoint, its URL, and both modules
+(`reconciliation.py`, `transfer_audit.py` — 614 lines that nothing else imported) are
+removed in this one commit. A debug endpoint left in place is production code.
+
+Removed: `FinanceClosureAPIView` + its URL, `finance_calc/reconciliation.py`,
+`finance_calc/transfer_audit.py`, and their entries in the role-owner allow-list.
+
+Unrelated observation, not fixed here: `admin_console.tests.test_admin_console`
+`CodebaseMetricsServiceTest` walks the entire repository and does not finish in
+seven minutes. Pre-existing; nothing in this work touches it.

@@ -60327,3 +60327,31 @@ nobody owns.
 
 Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
 `apps/finance/tests/test_p1_dry_run_endpoint.py`.
+
+## 2026-08-30 — P1 dry-run endpoint removed; rehearsal complete
+
+The one authorised read-only rehearsal ran against production (3,792 transactions,
+2024-08-26 → 2026-08-29) and wrote nothing: rows carrying an `economic_role` were 0
+before and 0 after. Live Finance truth was probed either side and is identical
+(spending 13,939.83, income 11,812.52, net −2,127.31, Emergency Fund 5,001.11).
+
+The endpoint, its URL and its test are removed in this commit, as promised.
+
+**The rehearsal found two defects in the P1 classification contract. Reported to Danny;
+NOT fixed here** — the standing instruction is to stop and report rather than expand
+scope.
+
+1. **Refunds absorb borrowing.** `roles.classify` trusts `transfer_kind == refund`, and
+   the existing `_looks_like_refund` calls *any* credit whose provider primary is neither
+   a transfer nor INCOME a refund. `LOAN_DISBURSEMENTS` — money borrowed — passes that
+   test. 58 rows totalling 259,531.55 are proposed as refunds against 335,225.50 of
+   purchases, driving net spending negative in 9 of 25 months. This is the same class the
+   contract already forbids for reimbursements; the rule was applied to reimbursements but
+   inherited unexamined for refunds.
+2. **Mortgage payments are labelled card payments.** `_transfer_kind` returns
+   `credit_card_payment` whenever a transfer `_touches_liability`, so mortgage payments
+   become card payments — excluded from spending (right) *and* from debt service (wrong).
+   Debt service of 49,550.35 counts only loan payments the provider did not pair.
+
+Files: `apps/admin_console/views.py`, `apps/admin_console/urls.py`,
+`apps/finance/tests/test_p1_dry_run_endpoint.py` (deleted).

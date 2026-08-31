@@ -60659,3 +60659,62 @@ payee can become an enduring rule; a group spanning several payees cannot, becau
 rule would over-reach.
 
 29 review-queue service tests, 12 page tests.
+
+## 2026-08-31 — pairing applied: spending was overstated by 40,500
+
+Rehearsal (read-only, verified: 0 paired before, 0 after) over 53 held liability credits:
+
+* **25 had exactly one counterpart** — 249,370.00 — every one a `LOAN_DISBURSEMENTS`
+  card credit facing a `LOAN_PAYMENTS` chequing outflow. 23 of those counterparts were
+  already classified `card_payment`.
+* **28 had none** — 3,619.94 — small `GENERAL_MERCHANDISE`/`OTHER` credits, almost
+  certainly unlabelled merchant refunds. They stay held.
+* **Zero ambiguous.** No guessing was required to apply this.
+
+Applied: 25 paired, 0 ambiguous, 0 lost races, 0 closed-end skipped. Reclassification
+wrote 50 rows (both legs of each pair) and protected every user decision.
+
+**The correction that matters:** two of the counterpart legs — 40,500.00 of chequing
+outflows — were classified as PURCHASES. They are credit-card payments, and the purchases
+they settle were already counted from the card side. Spending was overstated by 40,500.
+
+| Measure | Before | After |
+|---|---:|---:|
+| gross_purchases | 335,318.34 | 294,818.34 |
+| net_spending | 341,029.72 | 300,529.72 |
+| cash_outflow | 464,784.56 | 424,284.56 |
+| transfers_and_allocations | 259,832.15 | 549,702.15 |
+
+Transfers gained 289,870.00 = 249,370.00 + 40,500.00, both legs of the same payments.
+Cash inflow, income and debt service are unchanged. All identities still hold, and the
+gross→net gap is still exactly 5,711.38. Held for review: 155 → 130.
+
+**Recorded, not fixed:** `pair_transfers` reads at most 2,000 unpaired rows ordered by
+date and silently stops, dropping the most recent third of a 3,796-row history. And
+`_assess` reads `transfer_pair_id` in ONE direction, so the leg not holding the OneToOne
+is not recognised as paired. Both need their own rehearsal — widening either changes
+classification for every existing pair.
+
+## 2026-08-31 — P4 reserves, sinking funds and the cash-flow forecast
+
+Four numbers households conflate, kept apart: balance, income, spending, and **free cash
+flow** — the only one that answers "can I afford this", and the one no bank shows.
+
+`CashReserve` holds the two claims on cash that are not transactions: a **reserve floor**
+you do not go below, and a **sinking fund** accumulating towards a known cost. Both reduce
+free cash. Neither is invented — an existing Emergency Fund goal is LINKED and read live,
+never copied, and a household with no reserve is told its free-cash figure has nothing
+under it rather than being given a made-up floor.
+
+The forecast degrades rather than disappearing or lying. With nothing confirmed it reports
+the real starting balance, refuses to project, names every missing input, and hands back a
+`setup_state` whose steps route to the exact page that supplies each one.
+
+A monthly bill lands a WHOLE number of times in a horizon. Scaling by `days / 30.4375`
+would put 0.9856 of a rent payment into a 30-day forecast — understating commitments by
+1.4% in exactly the flattering direction.
+
+Provisional never mixes with committed: unconfirmed candidates are computed and shown in
+their own column, and excluded from every committed total.
+
+27 forecast tests.

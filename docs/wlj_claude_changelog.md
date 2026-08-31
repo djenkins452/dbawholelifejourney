@@ -60576,3 +60576,17 @@ Everything it produces is a candidate. It confirms nothing and never reopens a d
 
 Files: `apps/finance/tasks.py`, `apps/finance/views_money.py`, `apps/finance/urls.py`,
 `templates/finance/money_review.html`.
+
+## 2026-08-31 — P1 operator endpoint removed; activation verified
+
+The rehearsal/backfill endpoint, its URL and its test are gone in one commit, as the
+allow-list test promised. Production verified before removal:
+
+* 3,795 transactions, 0 unclassified, 0 user-decided rows to protect
+* all six reconciliation identities hold
+* rendered Finance truth unchanged: spending 14,032.67 · income 11,812.52 ·
+  net −2,220.15
+* web and worker both on `dc0b2424`
+* all four Money workspace URLs live (302 to login when signed out)
+
+983 Finance + request-path-safety tests green.

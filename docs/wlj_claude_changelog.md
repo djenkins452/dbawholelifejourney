@@ -60790,3 +60790,22 @@ connection is required is what stops someone entering the one debt that would ma
 plan real.
 
 25 debt-usability tests.
+
+## 2026-08-31 — Finance 2.0 completion verified; operator endpoint removed
+
+Production, after the pairing correction and the first net-worth snapshot:
+
+* 3,796 transactions, 0 unclassified, **130 held for review** (was 155), 25 paired
+* all reconciliation identities hold; the gross→net gap is exactly 5,711.38
+* first net-worth snapshot: **532,421.42** — gross assets 975,568.05, liabilities
+  443,146.63, **0 unvalued assets, 0 stale valuations**
+* 1,347 tests green on a CLEAN database
+
+A note on the earlier red runs: four errors and a truncation failure appeared under
+`--keepdb` while migrations were being added mid-run. The same modules pass 72/72 on a
+fresh database, and the full suite passes 1,347/1,347. The failures were the stale test
+database, not the code — worth recording, because "it passed when I re-ran it" is exactly
+what someone says when they are wrong.
+
+The `finance-ops` endpoint, its URL and its allow-list entry are removed in this commit,
+as promised. Its rehearsals are done and its writes are applied.

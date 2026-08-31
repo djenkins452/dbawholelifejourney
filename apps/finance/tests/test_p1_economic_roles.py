@@ -439,9 +439,6 @@ class ShadowIsolationTests(RoleBase):
             "apps/finance/tests/test_outcomes.py",
             "apps/finance/tests/test_forecast.py",
             "apps/finance/tests/test_debt_usability.py",
-            # TEMPORARY — the Finance 2.0 completion operator endpoint. Goes when the
-            # rehearsals and backfills are verified.
-            "apps/admin_console/views.py",
             "apps/finance/tests/test_money_workspaces.py",
             # The review queue template renders the CURRENT role in its select so the
             # person can see what WLJ decided before overriding it. It reads the field;

@@ -107,9 +107,18 @@ class FixtureJSONValidationTest(TestCase):
                     continue  # Natural key fixtures don't have explicit PKs
                 key = (model, pk)
                 with self.subTest(fixture=path.name, model=model, pk=pk):
-                    self.assertNotIn(key, seen,
-                        f"{path.name}: duplicate PK {pk} for {model}")
-                seen[key] = True
+                    # `assertNotIn` against the dict prints every PK seen so far,
+                    # which buried the one real duplicate under 250 lines of noise —
+                    # this failure sat on main unread. Say the one thing that matters.
+                    if key in seen:
+                        self.fail(
+                            f"{path.name}: duplicate PK {pk} for {model}. "
+                            f"loaddata applies records in order, so "
+                            f"{record.get('fields', {}).get('title', '?')!r} "
+                            f"silently overwrites "
+                            f"{seen[key].get('fields', {}).get('title', '?')!r} "
+                            f"and one of them never reaches production.")
+                seen[key] = record
 
     def test_fixture_models_exist(self):
         """Every model referenced in fixtures must be a valid Django model."""

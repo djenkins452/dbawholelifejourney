@@ -61080,3 +61080,20 @@ Files: `finance_calc/monthly_views.py` (new), `roles.py`, `measures.py`, `cos_ev
 Not fixed here, flagged: nine `apps/dashboard` tests assert the retired
 `dashboard_v2/home.html`; the app renders v3. Pre-existing — no file under `apps/dashboard`
 was touched by this change.
+
+## 2026-08-31 — a release note that could never reach production
+
+Adding this release's What's New turned up a duplicate PK in
+`apps/core/fixtures/release_notes.json`: two records both claimed pk 242. `loaddata`
+applies records in order, so "Fix old Apple Health timestamps in one tap" silently
+overwrote "Your timeline now shows what's truly scheduled" — a shipped feature whose
+announcement no user could ever see.
+
+`test_no_duplicate_pks` **already catches this and was already failing on main.** Nobody
+read it: the assertion was `assertNotIn(key, seen)` against a dict of every PK seen so
+far, so the one useful sentence sat under 250 lines of noise. A test that fails
+illegibly is close to a test that does not run. It now fails with the two titles and
+what happens to them.
+
+The earlier record moved to pk 317; the winner stays at 242, which is what production
+already holds.

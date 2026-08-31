@@ -113,7 +113,7 @@
   },
   {
     "model": "core.releasenote",
-    "pk": 242,
+    "pk": 317,
     "fields": {
       "title": "Your timeline now shows what's truly scheduled — nothing faked",
       "description": "The Time Command Center timeline now shows only what actually has a set time — calendar events, appointments, routines, and tasks you've scheduled. Tasks that are due today but don't have a time yet no longer get dropped onto the timeline at a made-up time (they used to appear pinned to 11:59 PM, which looked like they were already scheduled). Instead they now sit in a clear \"Due Today (No Time Assigned)\" list above the timeline, so you can see at a glance what's due without being told it's scheduled when it isn't. Your Chief of Staff still recommends the best time to do each one — those suggestions live in the Smart Suggestions panel, and accepting one places it on the timeline for real.",

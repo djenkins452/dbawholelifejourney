@@ -795,3 +795,85 @@ to remain correct and complete whether or not a provider is ever connected. They
 placeholders waiting to be replaced, and the architecture must never describe them as a
 lesser mode. Where a provider is later added, it becomes **one more source with its own
 provenance** (§7.1a) — it does not take ownership of the record.
+
+---
+
+# §5.1 — Six meanings that must never share a label
+
+*Added 2026-08-31 during the accounting closure.*
+
+The Finance 2.0 measures collapsed two different ideas into `cash_outflow`, and counted
+one household movement twice in `transfers_and_allocations`. Both are the same underlying
+error: **a movement has several true descriptions, and each one needs its own name.**
+
+A single credit-card payment of $1,500 is simultaneously:
+
+* two account movements (chequing −1,500, card +1,500);
+* one household movement;
+* zero consumer spending (the purchases it settles were counted when they happened);
+* a real reduction in liquid cash;
+* a real reduction in liabilities;
+* zero change in net worth.
+
+Six of those are different questions. They get six names.
+
+## 1. Consumer spending — `net_spending`
+What consumption cost: purchases plus fees and interest, less refunds, reimbursements
+and reversals. **A card payment is never here.** The purchases it settles were counted
+once, when they were made; counting the payment too would count the same consumption
+twice.
+
+## 2. Liquid cash — `cash_inflow` / `cash_outflow`
+Every movement on an account that holds money — chequing, savings, cash. Debits out,
+credits in, whatever the movement MEANT. This is the liquidity view: it answers "what
+actually left my account", which is what a forecast and a low-balance warning need.
+
+A card payment IS here, because the money genuinely left the chequing account. So is a
+transfer to savings. Neither is spending.
+
+**Deliberately not "external economic outflow".** That question is answered by
+`net_spending` plus `debt_service`, and asking one label to mean both is what produced a
+figure that included debt service (cash out, correctly) and excluded card payments (also
+cash out).
+
+## 3. Household transfers — `transfers_and_allocations`
+The household's own money moving between its own accounts, counted **once per movement,
+not once per leg**. Both legs keep their rows and both are visible per account; the
+household total takes one.
+
+A pair has one canonical identity derived from both primary keys, so whichever leg is
+inspected first yields the same key. Without that, a $1,500 payment reads as $3,000 of
+transfers.
+
+## 4. Debt service — `debt_service`
+Money paid towards a liability, counted once across both legs of the payment.
+Principal is balance-sheet movement, not expense. Interest, fees, taxes and insurance
+are expense — but only when authoritative data separates them. **An unsplit payment
+stays unsplit**, and says so.
+
+## 5. Account-level movement
+Both legs of every pair, per account, always preserved. This is the reconciliation view
+a person uses to tie WLJ back to a bank statement. It is deliberately NOT a household
+total: at this level the same $1,500 appearing twice is correct.
+
+## 6. Household net cash movement
+`cash_inflow − cash_outflow`. The change in liquid cash over the period. Distinct from
+net worth, which also moves with debt and asset values.
+
+## The net-worth identity for a principal payment
+
+    cash          −1,500
+    liabilities   −1,500
+    net worth          0
+
+Paying down principal does not make a household richer or poorer; it converts one form
+of position into another. Only fees and interest are an expense, and only when known.
+
+## Why this is written down
+
+Each of these six was individually obvious and collectively ignored, and the result was a
+transfer total roughly double what it should have been and a cash figure that was neither
+of the two things it might have meant. The rule that prevents recurrence:
+
+> **Before adding a measure, name the question it answers. If an existing measure already
+> answers a DIFFERENT question, do not widen it — add a name.**

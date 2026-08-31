@@ -3327,3 +3327,10 @@ class AssetLoanLink(UserOwnedModel):
 
     def __str__(self):
         return f"{self.asset_id} ← {self.account_id}"
+
+
+# ---------------------------------------------------------------------------
+# Controllability taxonomy (P2). Defined in its own module for length; imported
+# here so `apps.finance.models.SpendingClassification` is the one import path.
+# ---------------------------------------------------------------------------
+from apps.finance.models_controllability import SpendingClassification  # noqa: E402,F401

@@ -365,20 +365,59 @@ def recurring_obligations(user, start=None, end=None, rows=None):
 
 
 def controllable_spending(user, start=None, end=None, rows=None):
-    """The actionable subset of purchases.
+    """The purchases the person has a LEVER on — not merely the discretionary ones.
 
-    P1 ships the CONTRACT. Controllability classification is P2, so nothing qualifies
-    yet — and "everything that is not a transfer" is exactly the wrong answer this
-    measure exists to prevent.
+    Controllable means a classification records something that could be done:
+    cancelled, negotiated, reduced, avoided or deferred. An essential cost can still
+    be negotiable (insurance), and treating "essential" as "untouchable" would hide
+    some of the largest genuine savings a household has.
+
+    The number is reported WITH its coverage, because "controllable spending: $412"
+    means something very different when 90% of purchases are classified than when 9%
+    are, and the figure alone cannot tell them apart. Unclassified spending is
+    reported as unclassified — never as uncontrollable.
     """
+    from apps.finance.models import Transaction as T
+    from apps.finance.services.finance_calc import controllability as C
+
     rows = rows if rows is not None else _rows(user, start, end)
     result = _base("controllable_spending", rows, start, end)
-    result.value = ZERO
-    result.confidence = "low"
-    result.inputs_missing.append("controllability_taxonomy (P2)")
+
+    cover = C.coverage(user, rows)
+    verdicts = cover["verdicts"]
+
+    total, count = ZERO, 0
+    by_lever = {}
+    for txn, assignment in rows:
+        if assignment.role != T.ROLE_PURCHASE:
+            continue
+        verdict = verdicts.get(txn.pk)
+        if verdict is None or not verdict.is_controllable:
+            continue
+        amount = _abs(txn.amount)
+        total += amount
+        count += 1
+        for lever in verdict.levers:
+            by_lever[lever] = by_lever.get(lever, ZERO) + amount
+
+    result.value = total
+    result.components = dict(by_lever)
+    result.components["classified_spend"] = cover["classified_amount"]
+    result.components["unclassified_spend"] = cover["unclassified_amount"]
+    result.exclusions = {"unclassified_spend": cover["unclassified_amount"]}
+
+    pct = cover["pct_of_spend_classified"]
     result.assumptions.append(
-        "no category carries a controllability classification yet; this is NOT "
-        "'nothing is controllable'")
+        f"{cover['classified']} of {cover['purchases']} purchase(s) carry a "
+        f"controllability classification ({pct:.1f}% of purchase value); "
+        f"{cover['unclassified']} are unclassified and are counted as NEITHER "
+        f"controllable nor uncontrollable")
+    if cover["unclassified"]:
+        result.inputs_missing.append("controllability_classification")
+    result.confidence = ("high" if pct >= 80 else "medium" if pct >= 30 else "low")
+    if not cover["purchases"]:
+        result.confidence = "low"
+        result.assumptions.append("no purchases in this period")
     return result
 
 

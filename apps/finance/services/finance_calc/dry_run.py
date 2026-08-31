@@ -58,6 +58,8 @@ def run(user, *, sample_per_class=3):
         "reconciliation": None,
         "gates": None,
         "protected_user_rows": _protected(rows),
+        "debt_composition": _debt_composition(rows),
+        "high_value": _high_value(rows),
         "samples": _samples(rows, sample_per_class),
         "classifier_version": R.CLASSIFIER_VERSION,
         "measures_version": M.MEASURES_VERSION,
@@ -140,6 +142,67 @@ def _totals(user, rows):
     return {
         "current_financial_activity_outflow": str(_current_activity(user, rows)),
     }
+
+
+def _debt_composition(rows):
+    """Where debt service comes from — the number that decides double counting.
+
+    A paid loan can appear twice: cash leaving the funding account and the credit
+    landing on the liability. The measure counts the cash leg, plus liability credits
+    with no visible counterpart (otherwise a loan paid from an unconnected account
+    would vanish). That second rule is only safe if the counterpart detection is
+    reliable, so the split is reported rather than assumed.
+    """
+    from apps.finance.models import Transaction as T
+    from apps.finance.services.finance_calc import roles as _R
+
+    out = {"cash_leg": ZERO, "cash_leg_n": 0,
+           "liability_credit_unpaired": ZERO, "liability_credit_unpaired_n": 0,
+           "liability_credit_mirrored": ZERO, "liability_credit_mirrored_n": 0,
+           "unpaired_by_account_type": {}}
+    for txn, a in rows:
+        if a.role != T.ROLE_DEBT_SERVICE:
+            continue
+        amount = txn.amount or ZERO
+        account_type = getattr(getattr(txn, "account", None), "account_type", "") or "?"
+        if amount < 0:
+            out["cash_leg"] += abs(amount)
+            out["cash_leg_n"] += 1
+        elif _R.counterpart(txn) is None:
+            out["liability_credit_unpaired"] += amount
+            out["liability_credit_unpaired_n"] += 1
+            bucket = out["unpaired_by_account_type"].setdefault(
+                account_type, {"count": 0, "amount": ZERO})
+            bucket["count"] += 1
+            bucket["amount"] += amount
+        else:
+            out["liability_credit_mirrored"] += amount
+            out["liability_credit_mirrored_n"] += 1
+    out["unpaired_by_account_type"] = {
+        k: {"count": v["count"], "amount": str(v["amount"])}
+        for k, v in out["unpaired_by_account_type"].items()}
+    return {k: (str(v) if isinstance(v, Decimal) else v) for k, v in out.items()}
+
+
+def _high_value(rows, top=8):
+    """The largest single rows per role, redacted. One misclassified big row can move
+    a measure more than a thousand small ones, so they are reviewed by hand."""
+    from collections import defaultdict as _dd
+    buckets = _dd(list)
+    for txn, a in rows:
+        buckets[a.role].append((abs(txn.amount or ZERO), txn, a))
+    out = {}
+    for role, items in buckets.items():
+        items.sort(key=lambda x: x[0], reverse=True)
+        out[role] = [{
+            "amount": str(amount), "month": _month(txn.date), "reason": a.reason,
+            "confidence": a.confidence,
+            "account_type": getattr(getattr(txn, "account", None), "account_type", ""),
+            "provider_primary": (txn.provider_category_primary or "")[:32],
+            "provider_detailed": (txn.provider_category_detailed or "")[:48],
+            "paired": bool(txn.transfer_pair_id),
+        } for amount, txn, a in items[:top]]
+    return out
 
 
 def _protected(rows):

@@ -3663,7 +3663,8 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
       * Which commit is WEB running, and (via the worker-stamped cache) the WORKER?
 
     GET /admin-console/api/claude/truth-probe/?email=&domain=health&subject=overall&period=
-      &entity=<name|*>&entity_type=<type>   -> ALSO run the certified ENTITY surface
+      &entity=<name|*>&entity_type=<type>&entity_filters=<json>
+                                           -> ALSO run the certified ENTITY surface
     Auth: X-Claude-API-Key. Read-only; request-path-safe (bounded truth reads).
     """
 
@@ -3790,10 +3791,24 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         if entity_q:
             try:
                 from apps.ai.cos_services.domain_entity import get_domain_entity
+                # `entity_filters` = a JSON object of the domain's OWN declared filters
+                # (period/start/end/on_date/contains/...). Required for period-scoped
+                # forensics: a domain whose record list is capped and date-ordered (e.g.
+                # finance's 100-row cap) otherwise returns only the most recent window,
+                # which cannot answer "what did last month actually contain".
+                _filters = None
+                raw_filters = (request.GET.get('entity_filters') or '').strip()
+                if raw_filters:
+                    try:
+                        import json as _json
+                        _filters = _json.loads(raw_filters)
+                    except Exception:
+                        _filters = None
                 entity_probe = get_domain_entity(
                     user, domain,
                     entity_type=(request.GET.get('entity_type') or None),
-                    name=(None if entity_q == '*' else entity_q))
+                    name=(None if entity_q == '*' else entity_q),
+                    filters=_filters)
             except Exception as exc:
                 entity_probe = {'error': repr(exc)}
 

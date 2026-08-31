@@ -163,6 +163,10 @@ def _tangible_assets(user, assets, today):
         "by_type": {k: {"count": v["count"], "valued": v["valued"],
                         "valuation_total": str(v["total"])}
                     for k, v in sorted(by_type.items())},
+        # Per-asset provenance, redacted. WHEN a record was created is the decisive
+        # evidence for whether it is a person's own entry or something a script left
+        # behind, and it cannot be inferred from the total.
+        "records": _asset_records(assets, today),
         "unvalued": unvalued,
         "excluded": excluded,
         "stale": stale,
@@ -170,6 +174,47 @@ def _tangible_assets(user, assets, today):
         "valuation_sources": dict(sources),
         "valuation_effective_dates": sorted(set(effective_dates)),
     }
+
+
+def _asset_records(assets, today):
+    """One redacted line per asset: what it is, what it is worth, and where it came from.
+
+    Deliberately includes creation timestamps to the minute. A cluster of records created
+    in the same few seconds is the signature of a script; records entered over minutes,
+    with differing values, is the signature of a person sitting at a keyboard.
+    """
+    from apps.finance.services import asset_registry
+
+    rows = []
+    for asset in assets:
+        if asset.status != "active":
+            continue
+        valuation = asset_registry.current_valuation(asset)
+        value = asset_registry.current_value(asset)
+        created = getattr(asset, "created_at", None)
+        valued_at = getattr(valuation, "created_at", None) if valuation else None
+        rows.append({
+            "name_redacted": _redact(asset.name),
+            "name_length": len(asset.name or ""),
+            "type": asset.asset_type,
+            "value": str(value) if value is not None else None,
+            "valuation_source": getattr(valuation, "source", None),
+            "valuation_effective": (str(valuation.effective_date)
+                                    if valuation else None),
+            "asset_created": created.isoformat(timespec="seconds") if created else None,
+            "valuation_created": (valued_at.isoformat(timespec="seconds")
+                                  if valued_at else None),
+            "created_via": getattr(asset, "created_via", None),
+            "looks_like_test_name": _looks_like_artifact_name(asset.name),
+            "round_thousand": _round_number(value),
+            "has_purchase_detail": bool(getattr(asset, "purchase_date", None)
+                                        or getattr(asset, "purchase_price", None)),
+            "has_identifying_detail": bool(
+                (getattr(asset, "vin", "") or "").strip()
+                or (getattr(asset, "street_address", "") or "").strip()
+                or (getattr(asset, "hull_identification_number", "") or "").strip()),
+        })
+    return sorted(rows, key=lambda r: r["asset_created"] or "")
 
 
 def _liabilities(accounts):

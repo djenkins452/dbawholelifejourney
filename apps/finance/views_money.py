@@ -208,6 +208,30 @@ class DebtView(_SignedInFinanceView):
 
 @require_POST
 @finance_enabled_required
+def run_detection(request):
+    """Ask the worker to look for recurring patterns. Never runs inline.
+
+    Detection classifies the whole population and then walks it looking for schedules.
+    Doing that on the request path would tie up a Gunicorn worker that should be
+    serving pages, so it is enqueued fire-and-forget and the page says so.
+    """
+    from apps.core.celery_utils import safe_enqueue
+    from apps.finance.tasks import detect_recurring_and_opportunities
+
+    enqueued = safe_enqueue(detect_recurring_and_opportunities, request.user.pk)
+    if enqueued:
+        messages.success(
+            request, "Looking for recurring patterns. Refresh in a moment — anything "
+                     "found will appear here as a candidate for you to confirm.")
+    else:
+        messages.warning(
+            request, "WLJ could not start the search just now. Nothing has changed; "
+                     "try again shortly.")
+    return redirect(reverse("finance:money_review"))
+
+
+@require_POST
+@finance_enabled_required
 def confirm_series(request, pk):
     """Confirm, ignore, or reopen a detected recurring series."""
     series = get_object_or_404(RecurringSeries, pk=pk, user=request.user,

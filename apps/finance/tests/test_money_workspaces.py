@@ -307,3 +307,50 @@ class ResponsiveAndAccessibilityTests(RoleBase):
             with self.subTest(page=name):
                 body = self.client.get(reverse(name)).content.decode()
                 self.assertIn("min-height: 44px", body)
+
+
+class DetectionTriggerTests(RoleBase):
+    """Detection reads every transaction. It must never do that on a request path."""
+
+    def test_the_page_offers_a_way_to_run_detection(self):
+        response = self.client.get(reverse("finance:money_review"))
+        self.assertContains(response, reverse("finance:money_detect"))
+        self.assertContains(response, "does not run while you wait")
+
+    def test_the_trigger_enqueues_and_never_computes_inline(self):
+        from unittest.mock import patch
+        with patch("apps.core.celery_utils.safe_enqueue", return_value=True) as enqueue:
+            response = self.client.post(reverse("finance:money_detect"))
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(enqueue.call_count, 1)
+
+    def test_a_degraded_queue_is_reported_not_swallowed(self):
+        from unittest.mock import patch
+        with patch("apps.core.celery_utils.safe_enqueue", return_value=False):
+            response = self.client.post(reverse("finance:money_detect"), follow=True)
+        self.assertContains(response, "could not start the search")
+
+    def test_the_task_detects_and_proposes_without_confirming(self):
+        from apps.finance.tasks import detect_recurring_and_opportunities
+        for i in range(6):
+            self._txn(-15, on=START + timedelta(days=30 * i), description="Filmflix",
+                      primary="ENTERTAINMENT")
+        detect_recurring_and_opportunities(self.user.pk)
+        series = RecurringSeries.objects.get(user=self.user)
+        self.assertEqual(series.review_state, RecurringSeries.REVIEW_CANDIDATE)
+        self.assertEqual(SavingsOpportunity.objects.count(), 0,
+                         "no lever recorded, so no opportunity may be claimed")
+
+    def test_the_task_is_idempotent(self):
+        from apps.finance.tasks import detect_recurring_and_opportunities
+        for i in range(6):
+            self._txn(-15, on=START + timedelta(days=30 * i), description="Filmflix",
+                      primary="ENTERTAINMENT")
+        detect_recurring_and_opportunities(self.user.pk)
+        detect_recurring_and_opportunities(self.user.pk)
+        self.assertEqual(RecurringSeries.objects.filter(user=self.user).count(), 1)
+
+    def test_one_failing_user_does_not_stop_the_sweep(self):
+        from apps.finance.tasks import detect_recurring_and_opportunities
+        result = detect_recurring_and_opportunities()
+        self.assertIn("users", result)

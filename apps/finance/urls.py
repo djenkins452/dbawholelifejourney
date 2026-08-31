@@ -24,6 +24,7 @@ urlpatterns = [
     path('money/review/', views_money.ReviewQueueView.as_view(), name='money_review'),
     path('money/control/', views_money.ControlView.as_view(), name='money_control'),
     path('money/debt/', views_money.DebtView.as_view(), name='money_debt'),
+    path('money/detect/', views_money.run_detection, name='money_detect'),
     path('money/series/<int:pk>/decide/', views_money.confirm_series,
          name='money_series_decide'),
     path('money/transactions/<int:pk>/role/', views_money.set_transaction_role,

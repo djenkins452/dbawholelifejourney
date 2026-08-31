@@ -122,3 +122,38 @@ def reconcile_stale_bank_connections():
             "those remains stale and will be retried next run.", summary["failed"])
 
     return summary
+
+
+@shared_task(name="apps.finance.tasks.detect_recurring_and_opportunities")
+def detect_recurring_and_opportunities(user_id=None):
+    """Look for recurring patterns and the savings they imply. Worker-only.
+
+    This classifies the whole transaction population and then walks it looking for
+    schedules, which is far too much work for a request path — a Gunicorn worker doing
+    this is a worker not serving anyone. It is enqueued from the page and runs here.
+
+    Everything it produces is a CANDIDATE. It confirms nothing, and it never reopens a
+    decision a person has already made.
+    """
+    from django.contrib.auth import get_user_model
+
+    from apps.finance.services.finance_calc import opportunities as OPP
+    from apps.finance.services.finance_calc import recurring as REC
+
+    User = get_user_model()
+    users = ([User.objects.filter(pk=user_id).first()] if user_id
+             else list(User.objects.filter(is_active=True)))
+
+    results = []
+    for user in filter(None, users):
+        try:
+            detected = REC.persist(user, REC.detect(user), commit=True)
+            # Opportunities depend on CONFIRMED series, so a first run usually finds
+            # none. That is correct: it is waiting for the person, not broken.
+            proposed = OPP.persist(user, OPP.generate(user), commit=True)
+            results.append({"user": user.pk, "recurring": detected,
+                            "opportunities": proposed})
+        except Exception:
+            logger.error("Recurring/opportunity detection failed for user %s",
+                         user.pk, exc_info=True)
+    return {"users": len(results), "results": results}

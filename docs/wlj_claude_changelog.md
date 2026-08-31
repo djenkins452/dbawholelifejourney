@@ -60561,3 +60561,18 @@ Navigation, four help topics, four teaching destinations, five release notes, an
 `load_initial_data` reset for all three fixtures.
 
 33 workspace tests.
+
+## 2026-08-31 — recurring detection runs in the worker, on request
+
+`detect_recurring_and_opportunities` classifies the whole transaction population and then
+walks it looking for schedules. That is far too much work for a request path — a Gunicorn
+worker doing it is a worker not serving anyone — so the Money Review page enqueues it via
+`safe_enqueue` (fire-and-forget, never blocking on a degraded Redis) and says so plainly.
+
+A degraded queue is reported to the user, not swallowed: "WLJ could not start the search
+just now. Nothing has changed."
+
+Everything it produces is a candidate. It confirms nothing and never reopens a decision.
+
+Files: `apps/finance/tasks.py`, `apps/finance/views_money.py`, `apps/finance/urls.py`,
+`templates/finance/money_review.html`.

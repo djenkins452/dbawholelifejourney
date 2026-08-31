@@ -101,6 +101,13 @@
             call something a schedule.
         </p>
         {% endif %}
+
+        <form method="post" action="{% url 'finance:money_detect' %}" class="mr-detect">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary mr-btn">Look for recurring patterns</button>
+            <span class="mr-detect-note">Runs in the background &mdash; it reads every
+                transaction, so it does not run while you wait.</span>
+        </form>
     </section>
 </div>
 
@@ -121,6 +128,9 @@
 .mr-select { min-height: 44px; font-size: 16px; max-width: 100%; flex: 1 1 12rem; }
 .mr-btn { min-height: 44px; }
 .mr-empty { font-size: 0.9rem; color: var(--muted, #667); max-width: 62ch; }
+.mr-detect { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center;
+  margin-top: 1rem; }
+.mr-detect-note { font-size: 0.8rem; color: var(--muted, #667); max-width: 40ch; }
 @media (min-width: 769px) {
   .mr-item { flex-direction: row; align-items: center; justify-content: space-between; }
   .mr-item-form { flex: 0 0 auto; }

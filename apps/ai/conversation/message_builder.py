@@ -15,7 +15,17 @@ logger = logging.getLogger(__name__)
 # Maximum characters per message content before truncation.
 # Long assistant responses (data dumps, briefings) are trimmed to keep
 # token costs reasonable while preserving conversational context.
+#
+# TRUNCATION IS LOSSY IN A DIRECTION THAT MATTERS. A prior answer reading
+# "$2,300 — though I couldn't verify that against your records" can be cut to
+# "$2,300", so the hedge disappears and the number looks settled. History is
+# therefore marked as narrative below, and the money boundary
+# (`apps.ai.finance_claim_guard`) does not accept anything from it as evidence.
 MAX_CONTENT_CHARS = 800
+
+#: Prefixed to a truncated assistant turn so the model can see that what it is
+#: reading is an abridged recollection rather than a complete prior answer.
+TRUNCATION_MARKER = "[earlier reply, abridged] "
 
 # Maximum number of history messages to include (before token trimming).
 # More recent messages are prioritized. 20 turns = ~10 exchanges.
@@ -82,6 +92,9 @@ def build_messages_from_history(
         # Truncate long messages to keep context manageable
         if len(content) > max_content_chars:
             content = content[:max_content_chars] + "..."
+            if role == "assistant":
+                # Say so, rather than letting an abridged answer read as a whole one.
+                content = TRUNCATION_MARKER + content
 
         messages.append({"role": role, "content": content})
 

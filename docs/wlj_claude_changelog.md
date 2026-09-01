@@ -61195,3 +61195,52 @@ Capability semantics updated so the model knows `spend_amount` is absent for pay
 transfers, and that "money that left my account" is a different question answered by
 `monthly_views`. Advertised-entity descriptions: 21 missing → 19 (the two added today);
 the remaining 19 are the pre-existing sweep flagged in `e4a79683`.
+
+## 2026-09-01 — the $2,300 that came out of the question
+
+Danny asked *"Didn't july have a $2300 is house payment? why did you ignore that one?"*
+There is no such transaction. He was testing. The assistant called **no tool at all**
+(`tools_called: []`), replied *"It seems I overlooked the $2,300.00 house payment from
+July"*, and placed **House Payment in July — $2,300.00** at number 3 of a ranked list of
+his largest expenses. His answer: *"You are making things up... I wanted to see if you
+would lie and you did."*
+
+Reproduced exactly from production ToolCallLog + message text. It had already happened
+twice in the same conversation: at 22:54 he mentioned a $5,000 payment and got *"I made
+an error by not including the $5,000.00 transaction"* — no tool call; at 22:55 both that
+figure and a $2,388.95 he had supplied were asserted as a ranked answer. **Every one of
+those numbers came out of his own messages and went back to him dressed as retrieved
+truth.**
+
+**Why the existing rule did not hold.** The constitution already forbade this. It also
+permitted reuse of a value *"already present as WLJ-grounded evidence in THIS
+conversation"* — and history reaches the model as ordinary turns with nothing marking
+which numbers were retrieved. The rule asked the model to make a distinction its context
+cannot express. The history builder also truncates at 800 characters, which can sever a
+hedge from the number it qualified.
+
+So the fix is a boundary, not another instruction. `apps/ai/finance_claim_guard.py`
+checks every currency amount in the drafted answer against what the turn actually
+retrieved, at `_dispatch` — the one place every tool result passes through. Unsupported
+amounts trigger one strict rewrite; if the second draft still states one, an honest
+fallback goes out instead, containing no number at all.
+
+Deliberately still allowed, because a guard that blocks the honest reply is worse than
+the bug: **denial** ("I don't see a $2,300 payment in July" — the answer this should have
+given), **general knowledge**, and **quoting a figure in order to question it**.
+
+The user's own message is explicitly NOT a source. That was the defect, not the exception
+to it.
+
+Also: truncated assistant turns are now marked `[earlier reply, abridged]`; the
+constitution names currency as the strict case and forbids adopting a challenged figure;
+and the three money questions (largest purchase / largest cash outflow / largest debt
+payment) are named as distinct, with instruction to answer the likely reading and name
+the distinction rather than silently pick one.
+
+30 regression tests. **Concurrent session note:** another session is fixing the *period*
+defect in the same incident ("this past month" resolved to all of July, which is why
+Danny's August transactions looked like omissions) and is writing its own claim-integrity
+prompt anchor. That work is not touched here; this is the deterministic boundary beneath
+it. Both are needed — the prompt changes whether the model retrieves, the guard catches
+it when the prompt does not.

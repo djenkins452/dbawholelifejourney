@@ -214,9 +214,15 @@ class ChatGPTCoSService:
         advertised = [t["function"]["name"] for t in tools]
         called = []
 
+        # Every tool result this turn produced, kept so the answer can be checked
+        # against what was ACTUALLY retrieved before the user sees it. `_dispatch` is
+        # the one place every result passes through, so nothing has to be threaded.
+        turn_evidence = []
+
         def _dispatch(name, args):
             called.append(name)
             res = dispatch_tool_call(self.user, name, args)
+            turn_evidence.append(res)
             # If this was a mutation that needs confirmation, remember it so the NEXT turn's
             # "yes" can complete it deterministically (the bridge at the top of generate()).
             maybe_store_pending_crud(self.user, name, args, res, original_input=message)
@@ -265,6 +271,16 @@ class ChatGPTCoSService:
             final = self._emergency_fallback()
             logger.warning("COS_EMERGENCY_FALLBACK user=%s reason=%s",
                            self.user.id, empty_reason)
+        # ── Unsupported-money boundary ───────────────────────────────────────
+        # A currency amount stated as this person's fact must have been retrieved on
+        # this turn. The incident that made this necessary had `tools_called: []` and a
+        # $2,300.00 lifted straight out of the user's own question into a ranked list.
+        # One strict rewrite, then an honest fallback — never a second unverified number.
+        final = self._enforce_money_evidence(
+            final, turn_evidence, system_prompt, message, history, tools,
+            _dispatch, called,
+        )
+
         logger.info(
             "COS_TOOL_LOOP_FINISH user=%s tools_called=%s answer_len=%d "
             "empty_reason=%s",
@@ -278,6 +294,61 @@ class ChatGPTCoSService:
             "tools_advertised": advertised,
             "tools_called": called,
         }
+
+    def _enforce_money_evidence(self, answer, turn_evidence, system_prompt, message,
+                                history, tools, dispatch, called):
+        """Refuse to show a money figure this turn did not retrieve.
+
+        Deliberately placed AFTER generation rather than in the prompt. The rule was
+        already in the constitution and the model broke it anyway, because conversation
+        history reaches it as ordinary turns with nothing marking which numbers were
+        retrieved — it was asked to make a distinction its context cannot express. A
+        boundary does not depend on the model agreeing with it.
+        """
+        from apps.ai import finance_claim_guard as guard
+        from apps.ai.services import ai_service
+
+        try:
+            violations = guard.validate_currency_claims(answer, turn_evidence)
+        except Exception:
+            logger.warning("money-evidence guard skipped (non-fatal)", exc_info=True)
+            return answer
+        if not violations:
+            return answer
+
+        guard.log_violations(self.user, violations, tools_called=called,
+                             stage="draft")
+        try:
+            retry = ai_service._call_api_with_tools(
+                system_prompt + "\n\n" + guard.strict_regeneration_note(violations),
+                message,
+                tools=tools,
+                dispatch=dispatch,
+                endpoint="cos_chat",
+                user=self.user,
+                conversation_history=history,
+                model=getattr(settings, "COS_MODEL", None),
+            )
+        except Exception:
+            logger.error("COS_EXCEPTION user=%s stage=money_guard_retry",
+                         self.user.id, exc_info=True)
+            return guard.honest_fallback(violations)
+
+        retry = (retry or "").strip()
+        if not retry:
+            return guard.honest_fallback(violations)
+
+        # The retry may have gone and RETRIEVED the figure, which is the outcome we
+        # want — so it is re-checked against the evidence as it now stands.
+        try:
+            still = guard.validate_currency_claims(retry, turn_evidence)
+        except Exception:
+            return retry
+        if still:
+            guard.log_violations(self.user, still, tools_called=called,
+                                 stage="after_retry")
+            return guard.honest_fallback(still)
+        return retry
 
     def _emergency_fallback(self):
         """Deterministic graceful response when no lane and no model output could

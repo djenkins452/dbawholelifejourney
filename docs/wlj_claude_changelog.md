@@ -5,6 +5,43 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-01 — fix(cos): the money-evidence boundary was installed on the runtime Danny is NOT using
+
+Reconciliation of the two claim-integrity mechanisms, per the Finance trust incident.
+
+**The finding.** `apps/ai/finance_claim_guard.py` (landed `58357344`) is the right mechanism and is well built: a
+**deterministic post-generation boundary** that extracts every currency amount from the finished answer, checks it
+against what the turn actually retrieved, and deliberately allows denial, general knowledge, and quoting the user
+back. But it was invoked from **`apps/ai/chatgpt_cos/service.py` only** — the legacy runtime. **Every ToolCallLog row
+for the incident shows surface `chat_stream` → `ModelInterfaceService`.** A safety boundary installed on a runtime
+the user is not on protects nobody, and the fabricated $2,300 would still reach production unchanged.
+
+**Reconciled to ONE authority.** The certified `model_interface` runtime now invokes the **same module** — no second
+implementation, no second opinion about what "grounded" means:
+
+| mechanism | role |
+|---|---|
+| **`finance_claim_guard.validate_currency_claims`** | **LOAD-BEARING** — deterministic enforcement, one authority |
+| constitution anchor (*"a number the user says is a hypothesis"*) | **defence in depth** — reduces how often the boundary must fire; never adjudicates |
+
+**Placed AFTER Phase-2 synthesis, deliberately.** Synthesis rewrites the answer, so it is precisely where an
+unsupported figure could re-enter; a check before it could be bypassed by the step most likely to reintroduce one.
+An unsupported amount is replaced by the guard's honest fallback rather than shown as retrieved truth, and the
+violation is logged with `stage="model_interface"`. The guard itself can never break a turn.
+
+**Coverage (6 new tests):** the certified runtime invokes the guard · it runs after synthesis (index-ordered, so a
+future refactor that moves it earlier fails) · an ungrounded `$2,300.00` does not survive · a retrieved `$688.95`
+does · **an honest denial naming the number is allowed** (the correct answer to the question that caused this) ·
+and **exactly one** call site adjudicates grounding.
+
+**110 green** across claim-integrity, the guard's own suite, spend ranking and the model-interface runtime.
+Fixtures only; **zero provider calls**.
+
+**Still open — Gate 2, owned by the Finance owner:** an unpaired credit-card payment from a cash account still
+classifies as `purchase`. `roles.py` has not been touched since `030981cf`, before the finding. The
+`@expectedFailure` marker stays until they close it in the canonical role authority.
+
+---
 ## 2026-09-01 — test(dashboard/admin_console): retire v2 assertions the v3 dashboard falsified; bound the metrics walk
 
 **Why:** Nine `apps/dashboard` tests still asserted the retired `dashboard_v2/home.html`

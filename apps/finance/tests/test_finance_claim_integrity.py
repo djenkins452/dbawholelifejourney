@@ -199,3 +199,54 @@ class SpendSemanticsAreDelegatedTests(TestCase):
         from apps.finance.services.finance_calc import measures as M
         t = self._tx(5400.00, payee="Payroll", provider_category_primary="INCOME")
         self.assertIsNone(M.spend_magnitude(t))
+
+
+class MoneyGuardIsWiredIntoTheCertifiedRuntimeTests(SimpleTestCase):
+    """The load-bearing boundary must live where the incident happened.
+
+    `finance_claim_guard` is the deterministic authority on whether a money figure is
+    grounded. It was installed only on the legacy `chatgpt_cos` runtime, while every
+    ToolCallLog row for the incident shows surface `chat_stream` — the certified
+    `model_interface` path. A boundary on a runtime the user is not on protects nobody.
+    """
+
+    def test_the_certified_runtime_invokes_the_guard(self):
+        from apps.ai.model_interface import service
+        src = inspect.getsource(service.ModelInterfaceService._generate_turn)
+        self.assertIn("finance_claim_guard", src)
+        self.assertIn("validate_currency_claims", src)
+
+    def test_it_runs_after_synthesis(self):
+        """Phase 2 rewrites the answer, so a check placed before it could be bypassed
+        by the very step most likely to reintroduce an unsupported figure."""
+        from apps.ai.model_interface import service
+        src = inspect.getsource(service.ModelInterfaceService._generate_turn)
+        self.assertLess(src.index("run_executive_synthesis"),
+                        src.index("validate_currency_claims"))
+
+    def test_an_unsupported_amount_does_not_survive(self):
+        from apps.ai import finance_claim_guard as guard
+        v = guard.validate_currency_claims(
+            "Your largest expense was the House Payment in July of $2,300.00.", [])
+        self.assertTrue(v, "an ungrounded amount passed the boundary")
+
+    def test_a_retrieved_amount_survives(self):
+        from apps.ai import finance_claim_guard as guard
+        evidence = [{"value": {"results": [{"name": "Myspacover", "value": 688.95}]}}]
+        v = guard.validate_currency_claims(
+            "Your largest spend was $688.95 at Myspacover.", evidence)
+        self.assertEqual(v, [], f"a retrieved amount was blocked: {v}")
+
+    def test_a_denial_is_allowed_to_name_the_number(self):
+        """"I don't see a $2,300 payment" is the CORRECT answer and must not be blocked."""
+        from apps.ai import finance_claim_guard as guard
+        v = guard.validate_currency_claims(
+            "I don't see a $2,300.00 house payment in July.", [])
+        self.assertEqual(v, [], f"an honest denial was blocked: {v}")
+
+    def test_one_authority_decides_grounding(self):
+        """No second mechanism may adjudicate whether a claim is grounded — the
+        constitution's rule is guidance, the guard is enforcement."""
+        import apps.ai.model_interface.service as svc
+        src = inspect.getsource(svc)
+        self.assertEqual(src.count("validate_currency_claims"), 1)

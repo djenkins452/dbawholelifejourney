@@ -1535,6 +1535,35 @@ class ModelInterfaceService:
             logger.warning("MI_SYNTHESIS phase skipped (error); kept phase-1 answer turn=%s",
                            turn_id, exc_info=True)
 
+        # ============================================================
+        # MONEY-EVIDENCE BOUNDARY. A currency amount stated as this user's fact must
+        # exist in what THIS turn actually retrieved.
+        #
+        # The guard (`apps.ai.finance_claim_guard`) is the LOAD-BEARING mechanism and
+        # already existed — but only on the legacy `chatgpt_cos` runtime, while the
+        # incident it was written for happened HERE, on the certified `model_interface`
+        # path (every ToolCallLog row for it: surface `chat_stream`). A safety boundary
+        # installed on a runtime the user is not on protects nobody. Wiring the SAME
+        # module in keeps ONE authority on what "grounded" means; the constitution's
+        # anchor rule is defence in depth, never the enforcement.
+        #
+        # It runs AFTER synthesis on purpose: Phase 2 rewrites the answer, and that is
+        # exactly where an unsupported figure could re-enter.
+        try:
+            from apps.ai import finance_claim_guard as _guard
+            _ev = [e.get("result") for e in (turn_capture.get("evidence") or [])]
+            _violations = _guard.validate_currency_claims(answer, _ev)
+            if _violations:
+                _guard.log_violations(self.user, _violations,
+                                      tools_called=tools_called, stage="model_interface")
+                # No silent pass-through: an amount WLJ cannot substantiate is replaced
+                # by an honest statement rather than shown as retrieved truth.
+                answer = _guard.honest_fallback(_violations)
+                logger.warning("MI_MONEY_GUARD blocked turn=%s violations=%s",
+                               turn_id, len(_violations))
+        except Exception:  # never break a turn on the guard itself
+            logger.warning("MI_MONEY_GUARD skipped (non-fatal)", exc_info=True)
+
         # CONVERSATION STATE — deterministically advance the working-state AFTER the turn:
         # this turn's uploads (attachments) or the entity the model just retrieved become the
         # ACTIVE SUBJECT carried to the next turn (the leak-video continuity). Durable in

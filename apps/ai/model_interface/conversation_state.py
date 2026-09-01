@@ -61,6 +61,11 @@ _KEY = "conversation_state"
 TTL_SECONDS = 1800          # whole-state INACTIVITY fallback (30 min)
 MAX_SUBJECT_TURNS = 12      # generous turn BACKSTOP for an unreinforced, never-superseded subject
 _MAX_ARTIFACTS = 6          # bounded active-artifact list
+_MAX_COMPLETED = 8          # bounded recent-completion list
+# A completed write stays authoritative for long enough to stop a re-proposal, then ages
+# out with everything else. It is EVIDENCE for the model, never a substitute for canonical
+# truth: the record itself remains the authority.
+MAX_COMPLETED_TURNS = 12
 SCHEMA_VERSION = 1
 # Deterministic pointer fields a retrieved subject may carry beyond {kind, ref, label}.
 # Strictly an allow-list: references the next turn can RE-RETRIEVE with, never content.
@@ -152,8 +157,23 @@ def read(conversation, *, now=None) -> dict | None:
     gr = state.get("guided_review")
     if isinstance(gr, dict) and gr.get("current"):
         out["guided_review"] = gr
+    # ALREADY DONE — verified completions, so a later turn cannot re-propose a write that
+    # has already happened. Facts only (what, when, which target); the canonical record
+    # remains the authority.
+    cur_turn = state.get("turn") or 0
+    done = [d for d in (state.get("completed_actions") or []) if isinstance(d, dict)]
+    done = [dict(d, turns_ago=max(0, cur_turn - (d.get("turn") or 0)))
+            for d in done
+            if (cur_turn - (d.get("turn") or 0)) <= MAX_COMPLETED_TURNS]
+    if done:
+        out["completed_actions"] = done[:_MAX_COMPLETED]
+    # AWAITING AN ANSWER — the unresolved action a short reply should refine.
+    pc = state.get("pending_clarification")
+    if isinstance(pc, dict) and pc.get("tool"):
+        out["pending_clarification"] = pc
     return out if (out.get("active_subject") or out.get("active_artifacts")
-                   or out.get("guided_review")) else None
+                   or out.get("guided_review") or out.get("completed_actions")
+                   or out.get("pending_clarification")) else None
 
 
 def set_guided_review(conversation, guided_review) -> None:
@@ -183,6 +203,98 @@ def clear_guided_review(conversation) -> None:
             _save(conversation, state)
     except Exception:
         logger.warning("conversation_state: clear_guided_review failed conv=%s",
+                       getattr(conversation, "id", "?"), exc_info=True)
+
+
+def record_completed_action(conversation, *, tool_name, summary, target=None,
+                            domain=None, now=None) -> None:
+    """Record that a confirmed action ACTUALLY SUCCEEDED — the missing continuity event.
+
+    Confirmations resolve on a DIFFERENT turn from the one that proposed them (the confirm
+    endpoint), and that turn never called `record_turn`. So a successful write left no trace
+    in working state at all: the next prompt carried the proposal in history with nothing
+    saying it had been carried out, and the model re-proposed it. Recording the completion
+    here is what makes "already done" a deterministic fact instead of something the model
+    has to infer from prose.
+
+    It also SUPERSEDES an active subject that the completed action consumed — an uploaded
+    label stops being the live subject once the thing it depicted has been logged. Without
+    that, an image stays dominant for its whole turn window and keeps re-suggesting itself,
+    even after the conversation has moved to another domain entirely.
+    """
+    if conversation is None:
+        return
+    try:
+        now = _now(now)
+        state = _load(conversation)
+        turn = state.get("turn") or 0
+        done = [d for d in (state.get("completed_actions") or []) if isinstance(d, dict)]
+        entry = {"tool": tool_name or "", "summary": (summary or "")[:200],
+                 "turn": turn, "ts": _iso(now)}
+        if target:
+            entry["target"] = str(target)[:120]
+        if domain:
+            entry["domain"] = str(domain)[:40]
+        done.insert(0, entry)
+        state["completed_actions"] = done[:_MAX_COMPLETED]
+
+        # SUPERSEDE a consumed artifact subject. An attachment is the live subject while it
+        # is being acted on; once a write derived from it succeeds, keeping it active is
+        # what let an old label hijack unrelated turns.
+        subj = state.get("active_subject")
+        if isinstance(subj, dict) and subj.get("artifact"):
+            state["active_subject"] = None
+        state["updated_ts"] = _iso(now)
+        state.setdefault("schema_version", SCHEMA_VERSION)
+        _save(conversation, state)
+    except Exception:
+        logger.warning("conversation_state: record_completed_action failed conv=%s",
+                       getattr(conversation, "id", "?"), exc_info=True)
+
+
+# ── unresolved clarification ─────────────────────────────────────────────────
+def set_pending_clarification(conversation, *, tool_name, question, args=None,
+                              target=None, domain=None, now=None) -> None:
+    """Persist an action that is WAITING ON AN ANSWER, not one that failed.
+
+    A handler that needs to know "this occurrence or the whole series?" is asking a
+    question, and the user's next message is the answer to it. Without this the reply
+    arrives with no intent to attach to, and the model resolves it against whatever else
+    is lying around — which is how "Just today" reopened an unrelated domain.
+    """
+    if conversation is None:
+        return
+    try:
+        now = _now(now)
+        state = _load(conversation)
+        state["pending_clarification"] = {
+            "tool": tool_name or "",
+            "question": (question or "")[:400],
+            "args": {k: v for k, v in (args or {}).items()
+                     if isinstance(k, str)},
+            "target": str(target)[:120] if target else None,
+            "domain": str(domain)[:40] if domain else None,
+            "turn": state.get("turn") or 0,
+            "ts": _iso(now),
+        }
+        state["updated_ts"] = _iso(now)
+        state.setdefault("schema_version", SCHEMA_VERSION)
+        _save(conversation, state)
+    except Exception:
+        logger.warning("conversation_state: set_pending_clarification failed conv=%s",
+                       getattr(conversation, "id", "?"), exc_info=True)
+
+
+def clear_pending_clarification(conversation) -> None:
+    """The question has been answered (or abandoned). Never raises."""
+    if conversation is None:
+        return
+    try:
+        state = _load(conversation)
+        if state.pop("pending_clarification", None) is not None:
+            _save(conversation, state)
+    except Exception:
+        logger.warning("conversation_state: clear_pending_clarification failed conv=%s",
                        getattr(conversation, "id", "?"), exc_info=True)
 
 
@@ -268,6 +380,12 @@ def record_turn(conversation, *, attachments=None, retrieved_subject=None,
         gr = state.get("guided_review")
         if isinstance(gr, dict) and gr.get("current"):
             new_state["guided_review"] = gr
+        # PRESERVE completions and any unresolved question across the rebuild — both are
+        # cross-turn continuity, and record_turn() rebuilds the whole dict.
+        if state.get("completed_actions"):
+            new_state["completed_actions"] = state["completed_actions"][:_MAX_COMPLETED]
+        if isinstance(state.get("pending_clarification"), dict):
+            new_state["pending_clarification"] = state["pending_clarification"]
         _save(conversation, new_state)
     except Exception:
         logger.warning("conversation_state: record_turn failed conv=%s",

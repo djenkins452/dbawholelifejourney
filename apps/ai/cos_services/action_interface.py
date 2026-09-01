@@ -39,6 +39,13 @@ OK = "ok"
 CONFIRMATION_REQUIRED = "confirmation_required"
 DECLINED = "declined"
 ERROR = "error"
+# A handler that needs to know WHICH of two valid scopes the user meant is asking a
+# question, not reporting a failure. Collapsing that into `error` told the user "that
+# couldn't be completed" while the system was in fact waiting for their answer — and left
+# their reply with no intent to attach to (production 2026-09-01).
+CLARIFICATION_REQUIRED = "clarification_required"
+# Handler error codes that are QUESTIONS. Generic by code, never by object or phrasing.
+_CLARIFICATION_CODES = frozenset({"series_scope_required"})
 
 
 def _map_result(env: dict) -> dict:
@@ -49,11 +56,18 @@ def _map_result(env: dict) -> dict:
         return {"status": OK, "result": message}
     if status == "confirmation_required":
         return {"status": CONFIRMATION_REQUIRED, "result": message}
+    code = env.get("code", status)
+    if code in _CLARIFICATION_CODES:
+        # Waiting on the user, not broken. Carries the question so the surface can ask it
+        # and the working-state can hold it open until it is answered.
+        return {"status": CLARIFICATION_REQUIRED, "result": message, "code": code,
+                "options": (env.get("result") or {}) if isinstance(env.get("result"), dict)
+                else {}}
     # failed / denied / error → error, but carry the REAL reason.
     out = {
         "status": ERROR,
         "result": message or "That action could not be completed.",
-        "code": env.get("code", status),
+        "code": code,
     }
     evidence = env.get("evidence")
     if isinstance(evidence, dict) and evidence:
@@ -164,6 +178,24 @@ def request_action(user, action, params=None, *, turn_id="", surface="",
             # whether exceptional authorization was required — travels with the result
             # so a blocked or exceptional write is fully reconstructable.
             out["validation"] = env["validation"]
+        if out["status"] == CLARIFICATION_REQUIRED:
+            # Hold the unresolved action open so a short reply ("just this one", "the whole
+            # series") refines THIS action instead of arriving with nothing to attach to.
+            try:
+                from apps.ai.model_interface import conversation_state as _cs
+                from apps.ai.models import AssistantConversation
+                conv = (AssistantConversation.objects
+                        .filter(id=conversation_id, user=user).first()
+                        if conversation_id else None)
+                if conv is not None:
+                    _cs.set_pending_clarification(
+                        conv, tool_name=action, question=out.get("result") or "",
+                        args=params,
+                        target=(params.get("task_query") or params.get("title")
+                                or params.get("name")))
+            except Exception:  # pragma: no cover - never block asking the question
+                logger.warning("action_interface: pending clarification not stored conv=%s",
+                               conversation_id, exc_info=True)
         if out["status"] == CONFIRMATION_REQUIRED:
             summary = _confirm.summarize(action, params)
             # Build the presentation-independent view (title/summary/preview/actions) from
@@ -415,6 +447,34 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                                   "result": out.get("result")})
 
     out["confirmation_id"] = confirmation_id
+
+    # COMPLETED-ACTION CONTINUITY. This is the ONE place every confirmed action lands, and
+    # it runs on the confirm endpoint — a DIFFERENT turn from the one that proposed the
+    # action, which never calls record_turn(). Without recording here, a successful write
+    # left no trace in working state: the next prompt still carried the proposal in history
+    # with nothing saying it had been carried out, and the model proposed it again
+    # (production 2026-09-01 — an already-logged food re-offered two turns later, then
+    # bundled into an unrelated request).
+    if out.get("status") == OK:
+        try:
+            from apps.ai.model_interface import conversation_state as _cs
+            from apps.ai.models import AssistantConversation
+            conv = (AssistantConversation.objects
+                    .filter(id=conversation_id, user=user).first()
+                    if conversation_id else None)
+            if conv is not None:
+                _cs.record_completed_action(
+                    conv, tool_name=action,
+                    summary=(out.get("result") or "")[:200],
+                    target=(params.get("food_name") or params.get("task_query")
+                            or params.get("title") or params.get("name")),
+                )
+                # An answered question is no longer pending.
+                _cs.clear_pending_clarification(conv)
+        except Exception:  # pragma: no cover - continuity must never break a write
+            logger.warning("action_interface: completion continuity not recorded conv=%s",
+                           conversation_id, exc_info=True)
+
     record_tool_call(
         user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
         args={k: v for k, v in params.items() if k != "confirmed"},

@@ -393,9 +393,12 @@ class ModelInterfaceService:
             if (subj.get("metric") or subj.get("label") or "").strip().lower() == "overall":
                 subj = {}
             guided = cs.get("guided_review") or {}
+            done = cs.get("completed_actions") or []
+            clarify = cs.get("pending_clarification") or {}
         except Exception:
             return ""
-        if not pend and not subj.get("ref") and not guided.get("current"):
+        if (not pend and not subj.get("ref") and not guided.get("current")
+                and not done and not clarify.get("tool")):
             return ""
         parts = ["\n\n=== ACTIVE CONVERSATION STATE (what we're doing / waiting on — check "
                  "BEFORE page context for follow-ups and short replies) ==="]
@@ -415,6 +418,31 @@ class ModelInterfaceService:
                     f"MULTIPLE CONFIRMATIONS ARE PENDING: {listed}. A bare \"yes\" is AMBIGUOUS "
                     "— ask which one the user means (or have them restate it) rather than "
                     "resolving an arbitrary action. Fail closed: never execute on ambiguity.")
+        if clarify.get("tool"):
+            # An UNRESOLVED question outranks everything else a short reply could attach to.
+            # Placed first for exactly that reason: when the user answers, the answer belongs
+            # to this action — not to whatever subject happens to still be lying around.
+            tgt = clarify.get("target")
+            about = ('"%s"' % tgt) if tgt else "a pending change"
+            question = (clarify.get("question") or "").strip()[:280]
+            parts.append(
+                "AWAITING THEIR ANSWER TO YOUR QUESTION about " + about + ': "'
+                + question + '" A SHORT REPLY IS THE ANSWER TO THIS. Re-call '
+                + str(clarify.get("tool")) + " with the SAME target and the scope they "
+                "chose. Do NOT start a different topic, do NOT return to an earlier "
+                "subject, and do NOT re-propose anything already listed as done below.")
+        if done:
+            listed = "; ".join(
+                str(d.get("summary") or d.get("tool"))
+                + (" [" + str(d.get("target")) + "]" if d.get("target") else "")
+                + " (" + str(d.get("turns_ago", 0)) + " turn(s) ago)"
+                for d in done[:5])
+            parts.append(
+                "ALREADY DONE THIS CONVERSATION — verified writes, do NOT propose these "
+                "again: " + listed + ". If the user thanks you, acknowledges, or says "
+                "something conversational, that is NOT a request to repeat one. Only "
+                "re-do one if they explicitly ask again (a person can genuinely eat or do "
+                "the same thing twice — but they must ASK).")
         if subj.get("ref"):
             kind = subj.get("kind") or "item"
             label = subj.get("label") or "the item you were discussing"

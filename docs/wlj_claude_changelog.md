@@ -2501,6 +2501,36 @@ this session spent ZERO provider calls and verified that result independently fr
 and bare `response` rows with no preceding truth call for the three earlier smokes.
 
 ---
+## 2026-09-01 — fix(cos): completed-action continuity + clarification state (production incident)
+
+**Production, 2026-09-01.** An image-assisted food log succeeded at 21:31:13. Two turns later the CoS offered to log the same food again. At 21:34:27 a single turn emitted **two `log_food` calls** — the requested new food AND the already-logged one. Danny cancelled. Then a recurring-task reschedule was reported to him as *"That couldn't be completed"*, and his clarifying reply landed back on the **old food label**.
+
+**Canonical outcome first: no duplicate was written.** Lunch holds exactly one entry for that food. The CoS *tried* to duplicate; the confirmation gate held. Reconstructed entirely from `ToolCallLog` + canonical entity reads — **zero provider calls, nothing mutated**.
+
+**Two of the incident hypotheses were wrong, and the evidence says so:**
+
+- **Not image-context replay.** Conversation history loads `role` + `content` **text only** — images are never replayed — and the contaminated turn made **zero retrieval calls**. The proposal was regenerated from text (proof: the second call carried `carbohydrates_g: 0`, absent from the first).
+- **Not a leaked pending action.** The original confirmation was consumed at 21:31:13. Both confirmations at 21:34:27 were minted **fresh in one turn**.
+- **Not a missing capability.** `Get Hair Cut` is a recurring Task (`every_2_months:1`, 2 instances) and **one-occurrence reschedule already works**. The "failure" was the handler correctly asking *"Just today — only this instance / The entire series?"*, returned as `ActionResult(success=False, error='series_scope_required')` and rendered to the user as a failed action.
+
+**Actual first failing layer — `conversation_state`.** `record_turn()` recognised exactly two events: a new *attachment* and a *retrieved subject*. It had **no concept of a completed action** — and confirmations resolve on the **confirm endpoint, a different turn that never called `record_turn` at all**. So a verified write left no trace: the next prompt carried the proposal in history with nothing saying it had happened, while the uploaded label stayed `active_subject` (superseded only by another upload or retrieval). Every later turn saw a live label and no completion. That single gap explains the re-proposal, the bundling, **and** the cross-domain regression.
+
+**Fixes (structural, general — no nouns special-cased):**
+
+1. **`record_completed_action()`** — recorded at the ONE terminal seam where every confirmed action lands, guarded on verified `OK`, wrapped so continuity can never break a write.
+2. **Consumed-attachment supersession** — an attachment stops being the live subject once a write derived from it succeeds. A *retrieved entity* subject is deliberately left alone.
+3. **`CLARIFICATION_REQUIRED`** — codes that are *questions* (`series_scope_required`) no longer collapse into `error`. Generic by code; a real failure is still an error.
+4. **`set_pending_clarification()`** — holds the unresolved action, its target and its original args, so a short reply refines **that** action.
+5. **Prompt precedence** — the open question is stated **first** (it outranks any lingering subject), followed by ALREADY DONE with a do-not-repeat rule that still allows a genuine repeat when the user actually asks.
+
+**Files:** `apps/ai/model_interface/conversation_state.py`, `apps/ai/cos_services/action_interface.py`, `apps/ai/model_interface/service.py`, new `apps/core/tests/test_cos_continuity_lifecycle.py`.
+
+**Verification: ZERO provider calls.** 20 new lifecycle tests + 128 CoS-runtime tests green, covering the full class: image write → confirm → acknowledgment → new write → domain switch → scope clarification → short reply.
+
+**PRE-EXISTING RED, not caused by this change** (verified by reverting): `test_a_confirmation_is_single_use` ("confirmation was replayable"), `test_consumed_confirmation_cannot_authorize_a_later_request`, and `test_no_undeclared_write_capability_is_registered` (`delete_record`, `log_food` undeclared in `WRITE_SURFACE`). These are Action-Safety contracts and need separate attention.
+
+---
+
 ## 2026-08-20 — fix(cos): Finance sync guidance — expose HOW money data actually arrives
 
 **Production friction.** Asked *"How do my finance accounts update through Plaid? Does it automatically do it or do I have to refresh something?"*, the CoS answered from **generic provider knowledge** and suggested a manual refresh might clear stale data. WLJ does not work that way, and telling a user to refresh implies an action that cannot have the effect described.

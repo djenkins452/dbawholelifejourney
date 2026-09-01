@@ -229,8 +229,6 @@ urlpatterns = [
     path("user-guide/<slug:section_key>/<slug:slug>/", views.UserGuideArticleView.as_view(), name="user_guide_article"),
 
     # Claude Code API - Ready Tasks (for "What's Next?" protocol)
-    # TEMPORARY — 2026-08-31 unsupported-amount forensics. Remove with its view.
-    path("api/claude/conversation-forensics/", views.ConversationForensicsAPIView.as_view(), name="api_claude_conversation_forensics"),
     path("api/claude/truth-probe/", views.TruthProbeAPIView.as_view(), name="api_claude_truth_probe"),
     path("api/claude/finance-audit/", views.FinanceAuditAPIView.as_view(), name="api_claude_finance_audit"),
     # TEMPORARY — Finance 2.0 accounting closure. Remove with the view in one commit.

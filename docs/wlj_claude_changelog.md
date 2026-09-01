@@ -61296,3 +61296,11 @@ Danny's August transactions looked like omissions) and is writing its own claim-
 prompt anchor. That work is not touched here; this is the deterministic boundary beneath
 it. Both are needed — the prompt changes whether the model retrieves, the guard catches
 it when the prompt does not.
+
+## 2026-09-01 — forensics out
+
+The conversation-forensics endpoint has done its job: it produced the verbatim turns that
+identified the $2,300 as coming from Danny's own question rather than from stale history
+or a bad calculation. Removed in one commit, with the incident preserved in
+`apps/ai/tests/test_finance_claim_guard.py` — where the production text is now a test
+fixture rather than a live endpoint.

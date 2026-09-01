@@ -159,9 +159,14 @@ class TheDashboardTellsTheTruthTests(RecurringBase):
         self.assertNotIn("Streamflix", body)
 
     def test_a_low_confidence_candidate_is_still_reviewable(self):
+        """Off the dashboard AND out of the default queue — but never unreachable."""
         self._series(confidence="low")
-        body = self.client.get(reverse("finance:series_list")).content.decode()
-        self.assertIn("Streamflix", body)
+        default = self.client.get(reverse("finance:series_list"))
+        self.assertEqual(list(default.context["series"]), [])
+        self.assertEqual(default.context["noise_count"], 1)
+
+        opened = self.client.get(reverse("finance:series_list"), {"noise": "1"})
+        self.assertEqual([s.name for s in opened.context["series"]], ["Streamflix"])
 
     def test_a_declared_template_is_not_shown_twice(self):
         template = RecurringTransaction.objects.create(
@@ -288,13 +293,12 @@ class OrdinaryUserCrudTests(RecurringBase):
         # naming the series ("Streamflix archived"), which is correct and would make a
         # naive text assertion pass or fail for the wrong reason.
         active = self.client.get(reverse("finance:series_list"))
-        self.assertNotIn('data-testid="candidate-row"',
-                         active.content.decode())
-        self.assertContains(active, 'data-testid="show-archived"')
+        self.assertEqual(list(active.context["series"]), [],
+                         "an archived series must leave the review queue")
+        self.assertContains(active, 'data-testid="tab-archived"')
 
-        archived = self.client.get(reverse("finance:series_list") + "?show=archived")
-        self.assertContains(archived, 'data-testid="group-archived"')
-        self.assertContains(archived, "Streamflix")
+        archived = self.client.get(reverse("finance:series_list"), {"tab": "archived"})
+        self.assertEqual([s.name for s in archived.context["series"]], ["Streamflix"])
 
     def test_delete_removes_the_series_but_never_the_transactions(self):
         series = self._series()
@@ -697,3 +701,260 @@ class CoSCanSeeWhatWasDetectedTests(RecurringBase):
         self.assertIn("candidate", described)
         self.assertIn("never promotes a candidate", described)
         self.assertIn("counted_in_committed_forecast", described)
+
+
+class TheReviewPageIsAWorkflowTests(RecurringBase):
+    """101 proposals in one column is not a review — it is a wall.
+
+    The first version rendered every candidate, unpaginated, in one continuous list.
+    Worse, its stylesheet was inside `{% block title %}`, which `base.html` renders
+    INSIDE `<title>` — so the CSS never reached the browser at all and 101 inline `<a>`
+    elements ran together as a single paragraph of text.
+    """
+
+    def _many(self, n, confidence="medium", kind=None, tag="a"):
+        # Distinct payees: the model holds a unique (user, payee, frequency, kind).
+        for i in range(n):
+            self._series(name=f"Payee {tag}{i:03d}", payee=f"payee {tag}{i:03d}",
+                         confidence=confidence,
+                         kind=kind or RecurringSeries.KIND_BILL,
+                         amount_expected=Decimal(str(10 + i)))
+
+    # ---- the defect that made it unreadable ---------------------------------
+
+    def test_no_template_hides_its_stylesheet_in_the_title(self):
+        """`base.html` renders `{% block title %}` inside `<title>`, so a `<style>`
+        there is page TEXT and never applies. Four Finance templates did this."""
+        import re
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parents[3] / "templates"
+        offenders = []
+        for path in root.rglob("*.html"):
+            match = re.search(r"{%\s*block title\s*%}(.*?){%\s*endblock",
+                              path.read_text(encoding="utf-8"), re.S)
+            if match and "<style" in match.group(1):
+                offenders.append(str(path.relative_to(root)))
+        self.assertEqual(offenders, [],
+                         "a <style> inside {% block title %} lands in <title> and "
+                         f"never applies: {offenders}")
+
+    def test_the_page_stylesheet_actually_reaches_the_document(self):
+        body = self.client.get(reverse("finance:series_list")).content.decode()
+        head = body.split("</head>")[0]
+        self.assertIn(".rec-card", head,
+                      "the page CSS must be in the document head, not the title")
+
+    # ---- the workflow -------------------------------------------------------
+
+    def test_it_paginates_rather_than_rendering_everything(self):
+        self._many(40)
+        response = self.client.get(reverse("finance:series_list"))
+        self.assertTrue(response.context["is_paginated"])
+        self.assertEqual(len(response.context["series"]), 20)
+
+    def test_every_series_appears_exactly_once_across_pages(self):
+        self._many(45)
+        seen, page = [], 1
+        while True:
+            response = self.client.get(
+                reverse("finance:series_list"), {"noise": "1", "page": page})
+            seen += [s.pk for s in response.context["series"]]
+            if not response.context["page_obj"].has_next():
+                break
+            page += 1
+        self.assertEqual(len(seen), len(set(seen)), "a series was rendered twice")
+        self.assertEqual(len(seen), 45)
+
+    def test_low_confidence_is_held_back_but_reachable(self):
+        self._many(5, confidence="high", tag="h")
+        self._many(30, confidence="low", tag="l")
+        default = self.client.get(reverse("finance:series_list"))
+        self.assertEqual(default.context["paginator"].count, 5)
+        self.assertEqual(default.context["noise_count"], 30)
+
+        opened = self.client.get(reverse("finance:series_list"), {"noise": "1"})
+        self.assertEqual(opened.context["paginator"].count, 35)
+
+    def test_the_default_order_is_biggest_first(self):
+        self._series(name="Small", payee="small", amount_expected=Decimal("5.00"))
+        self._series(name="Large", payee="large", amount_expected=Decimal("900.00"))
+        rows = self.client.get(reverse("finance:series_list")).context["series"]
+        self.assertEqual([s.name for s in rows][:2], ["Large", "Small"])
+
+    def test_the_monthly_impact_expression_agrees_with_the_model(self):
+        """The SQL sort and the Python property must not disagree about a series."""
+        series = self._series(frequency=RecurringSeries.FREQ_ANNUAL,
+                              amount_expected=Decimal("1200.00"))
+        row = [s for s in self.client.get(
+            reverse("finance:series_list")).context["series"] if s.pk == series.pk][0]
+        self.assertEqual(row.monthly_impact.quantize(Decimal("0.01")),
+                         series.monthly_equivalent())
+
+    def test_sorting_by_due_date(self):
+        self._series(name="Later", payee="later", next_due_date=date(2026, 12, 1))
+        self._series(name="Sooner", payee="sooner", next_due_date=date(2026, 7, 1))
+        rows = self.client.get(reverse("finance:series_list"),
+                               {"sort": "due"}).context["series"]
+        self.assertEqual([s.name for s in rows][:2], ["Sooner", "Later"])
+
+    def test_confidence_sorts_high_then_medium_then_low(self):
+        """Alphabetically that is high, low, medium — which nobody means."""
+        self._series(name="M", payee="m", confidence="medium")
+        self._series(name="L", payee="l", confidence="low")
+        self._series(name="H", payee="h", confidence="high")
+        rows = self.client.get(reverse("finance:series_list"),
+                               {"sort": "confidence", "noise": "1"}).context["series"]
+        self.assertEqual([s.name for s in rows], ["H", "M", "L"])
+
+    def test_search_matches_name_or_payee(self):
+        self._series(name="Streamflix", payee="streamflix")
+        self._series(name="Gym", payee="fitness co")
+        self.assertEqual(
+            [s.name for s in self.client.get(reverse("finance:series_list"),
+                                             {"q": "fitness"}).context["series"]],
+            ["Gym"])
+
+    def test_filtering_by_type_and_cadence(self):
+        self._series(name="Sub", payee="sub", kind=RecurringSeries.KIND_SUBSCRIPTION)
+        self._series(name="Bill", payee="bill", kind=RecurringSeries.KIND_BILL,
+                     frequency=RecurringSeries.FREQ_ANNUAL)
+        by_kind = self.client.get(reverse("finance:series_list"),
+                                  {"kind": "subscription"}).context["series"]
+        self.assertEqual([s.name for s in by_kind], ["Sub"])
+        by_cadence = self.client.get(reverse("finance:series_list"),
+                                     {"cadence": "annual"}).context["series"]
+        self.assertEqual([s.name for s in by_cadence], ["Bill"])
+
+    def test_filters_survive_paging(self):
+        self._many(30)
+        response = self.client.get(reverse("finance:series_list"),
+                                   {"q": "Payee", "sort": "name"})
+        self.assertIn("q=Payee", response.context["querystring"])
+        self.assertIn("sort=name", response.context["querystring"])
+        self.assertNotIn("page=", response.context["querystring"])
+
+    def test_the_tabs_separate_proposals_from_commitments(self):
+        self._series()
+        self._series(name="Confirmed one", payee="c",
+                     review_state=RecurringSeries.REVIEW_CONFIRMED)
+        self._series(name="Dismissed one", payee="d",
+                     review_state=RecurringSeries.REVIEW_IGNORED)
+        for tab, expected in (("review", "Streamflix"),
+                              ("confirmed", "Confirmed one"),
+                              ("dismissed", "Dismissed one")):
+            rows = self.client.get(reverse("finance:series_list"),
+                                   {"tab": tab}).context["series"]
+            self.assertEqual([s.name for s in rows], [expected], tab)
+
+    def test_an_unknown_tab_falls_back_to_the_queue(self):
+        self.assertEqual(self.client.get(reverse("finance:series_list"),
+                                         {"tab": "../etc"}).context["tab"], "review")
+
+    def test_the_totals_separate_committed_from_proposed(self):
+        self._series(amount_expected=Decimal("10.00"))
+        self._series(name="C", payee="c", amount_expected=Decimal("100.00"),
+                     review_state=RecurringSeries.REVIEW_CONFIRMED)
+        context = self.client.get(reverse("finance:series_list")).context
+        self.assertEqual(context["committed_monthly"], Decimal("100.00"))
+        self.assertEqual(context["proposed_monthly"], Decimal("10.00"))
+
+    def test_each_card_carries_what_a_decision_needs(self):
+        self._series(evidence={"median_gap_days": 30})
+        body = self.client.get(reverse("finance:series_list")).content.decode()
+        for fragment in ('data-testid="series-card"', "Streamflix", "Subscription",
+                         "Monthly", "high confidence", "Seen 6", "Next expected",
+                         "$15.99"):
+            self.assertIn(fragment, body, fragment)
+
+    def test_every_card_offers_the_four_actions(self):
+        self._series()
+        body = self.client.get(reverse("finance:series_list")).content.decode()
+        for action in ("confirm", "edit", "dismiss", "details"):
+            self.assertIn(f'data-testid="{action}"', body)
+
+    def test_no_inline_handlers(self):
+        self._many(3)
+        body = self.client.get(reverse("finance:series_list")).content.decode()
+        for handler in ("onclick=", "onchange=", "onsubmit=", "onload="):
+            self.assertNotIn(handler, body)
+
+
+class BulkActionsArePreviewedTests(RecurringBase):
+    """Confirming twenty at once moves real money into a committed total."""
+
+    def test_the_preview_reports_what_would_be_added(self):
+        a = self._series(amount_expected=Decimal("20.00"))
+        b = self._series(name="B", payee="b", amount_expected=Decimal("30.00"))
+        response = self.client.post(reverse("finance:series_bulk_preview"),
+                                    {"ids": [a.pk, b.pk]})
+        payload = response.json()
+        self.assertEqual(payload["count"], 2)
+        self.assertEqual(payload["monthly_added"], "$50.00")
+
+    def test_the_preview_writes_nothing(self):
+        series = self._series()
+        self.client.post(reverse("finance:series_bulk_preview"), {"ids": [series.pk]})
+        series.refresh_from_db()
+        self.assertEqual(series.review_state, RecurringSeries.REVIEW_CANDIDATE)
+
+    def test_it_counts_items_with_no_monthly_figure_separately(self):
+        series = self._series(frequency=RecurringSeries.FREQ_IRREGULAR)
+        payload = self.client.post(reverse("finance:series_bulk_preview"),
+                                   {"ids": [series.pk]}).json()
+        self.assertEqual(payload["without_a_monthly_figure"], 1)
+        self.assertEqual(payload["monthly_added"], "$0.00")
+
+    def test_income_is_not_counted_as_an_obligation(self):
+        series = self._series(kind=RecurringSeries.KIND_INCOME,
+                              amount_expected=Decimal("3000.00"))
+        payload = self.client.post(reverse("finance:series_bulk_preview"),
+                                   {"ids": [series.pk]}).json()
+        self.assertEqual(payload["monthly_added"], "$0.00")
+        self.assertEqual(payload["income"], 1)
+
+    def test_bulk_confirm_applies(self):
+        a = self._series()
+        b = self._series(name="B", payee="b")
+        self.client.post(reverse("finance:series_bulk_apply"),
+                         {"ids": [a.pk, b.pk], "decision": "confirmed"})
+        for series in (a, b):
+            series.refresh_from_db()
+            self.assertEqual(series.review_state, RecurringSeries.REVIEW_CONFIRMED)
+            self.assertEqual(series.source, RecurringSeries.SOURCE_USER)
+
+    def test_bulk_only_accepts_confirm_and_dismiss(self):
+        series = self._series()
+        self.client.post(reverse("finance:series_bulk_apply"),
+                         {"ids": [series.pk], "decision": "archived"})
+        series.refresh_from_db()
+        self.assertEqual(series.review_state, RecurringSeries.REVIEW_CANDIDATE)
+
+    def test_bulk_cannot_reach_another_persons_series(self):
+        from apps.finance.tests.test_p1_economic_roles import _usable
+        from django.contrib.auth import get_user_model
+
+        other = _usable(get_user_model().objects.create_user(
+            email="bulk-other@example.com", password="pw"))
+        theirs = RecurringSeries.objects.create(
+            user=other, name="Theirs", payee="theirs",
+            kind=RecurringSeries.KIND_BILL,
+            frequency=RecurringSeries.FREQ_MONTHLY,
+            amount_expected=Decimal("10.00"))
+        self.client.post(reverse("finance:series_bulk_apply"),
+                         {"ids": [theirs.pk], "decision": "confirmed"})
+        theirs.refresh_from_db()
+        self.assertEqual(theirs.review_state, RecurringSeries.REVIEW_CANDIDATE)
+
+    def test_destructive_verbs_are_not_available_in_bulk(self):
+        """Merge, split, end and delete stay one at a time, on the record."""
+        import inspect
+
+        from apps.finance import views_recurring
+
+        source = inspect.getsource(views_recurring.series_bulk_apply)
+        body = source.split('"""')[2]      # past the docstring that explains the rule
+        for verb in ("merged_into", ".delete(", "archive("):
+            self.assertNotIn(verb, body, verb)
+        self.assertIn("REVIEW_CONFIRMED", body)
+        self.assertIn("REVIEW_IGNORED", body)

@@ -19,7 +19,12 @@ from __future__ import annotations
 from django import forms
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Q
+from decimal import Decimal
+
+from django.db.models import (Case, ExpressionWrapper, Func, IntegerField, Q, Value,
+                              When)
+from django.db.models.functions import Coalesce
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
@@ -29,6 +34,8 @@ from apps.core.current_context import PageSummaryMixin
 from apps.finance.access import finance_enabled_required
 from apps.finance.models import RecurringSeries, Transaction
 from apps.finance.views import FinanceAuditMixin, FinanceUserMixin
+
+ZERO = Decimal("0.00")
 
 
 class RecurringSeriesForm(forms.ModelForm):
@@ -86,44 +93,169 @@ class RecurringSeriesForm(forms.ModelForm):
         return cleaned
 
 
+#: Confidence tiers that lead the review. Low-confidence candidates are real work but
+#: they are the long tail, and putting 77 of them in front of someone first is how a
+#: review page becomes a wall nobody reads.
+LEADING_CONFIDENCE = ("high", "medium")
+
+TABS = (
+    ("review", "Needs review", RecurringSeries.REVIEW_CANDIDATE),
+    ("confirmed", "Confirmed", RecurringSeries.REVIEW_CONFIRMED),
+    ("dismissed", "Not recurring", RecurringSeries.REVIEW_IGNORED),
+    ("archived", "Archived", None),
+)
+
+SORTS = (
+    ("impact", "Biggest first"),
+    ("due", "Due soonest"),
+    ("confidence", "Most confident"),
+    ("name", "Name"),
+)
+
+#: Occurrences per year as a DATABASE expression, so "biggest first" can sort and
+#: paginate in SQL rather than pulling every row into memory to call a property. Must
+#: agree with `RecurringSeries.PER_YEAR` — a test asserts it does.
+def _monthly_impact_expression():
+    from django.db.models import Case, DecimalField, F, Value, When
+
+    per_year = Case(
+        *[When(frequency=freq, then=Value(count))
+          for freq, count in RecurringSeries.PER_YEAR.items()],
+        default=Value(0), output_field=DecimalField(max_digits=12, decimal_places=2))
+    # The same amount the `monthly_equivalent` property uses: the expected figure, or
+    # the top of the range when it varies.
+    amount = Coalesce("amount_expected", "amount_max", Value(0),
+                      output_field=DecimalField(max_digits=12, decimal_places=2))
+    return ExpressionWrapper(Func(amount, function="ABS") * per_year / Value(12),
+                             output_field=DecimalField(max_digits=14, decimal_places=2))
+
+
 class SeriesListView(PageSummaryMixin, FinanceUserMixin, ListView):
-    """Everything recurring, grouped by what the person still has to decide."""
+    """The review workflow: a queue you can get through, not a list you scroll past.
+
+    101 proposals is a real amount of work, and the first version presented all of them
+    at once in one column. That is not a review — it is a wall. So: the decision you
+    have not made yet leads, the biggest commitments come first within it, the long tail
+    of low-confidence guesses is one click away rather than in front of you, and every
+    card carries enough to decide from without opening it.
+    """
 
     model = RecurringSeries
     template_name = "finance/series_list.html"
     context_object_name = "series"
+    paginate_by = 20
     page_summary_key = "finance.recurring"
     page_summary_title = "Recurring"
 
+    def _tab(self):
+        requested = (self.request.GET.get("tab") or "review").lower()
+        return requested if requested in {t[0] for t in TABS} else "review"
+
+    def _base(self):
+        """Every series this person has, archived included, unmerged only."""
+        return (RecurringSeries.objects.all_with_deleted()
+                .exclude(status="deleted")
+                .filter(user=self.request.user, merged_into__isnull=True))
+
     def get_queryset(self):
-        show = self.request.GET.get("show") or "active"
-        # Archived rows are invisible to the default manager, so the archived view has
-        # to ask for them explicitly.
-        qs = (RecurringSeries.objects.archived_only() if show == "archived"
-              else RecurringSeries.objects.all())
-        return (qs.filter(user=self.request.user)
-                .select_related("account", "category", "declared_template"))
+        tab = self._tab()
+        qs = self._base().select_related("account", "category", "declared_template")
+        if tab == "archived":
+            qs = qs.filter(status="archived")
+        else:
+            review_state = dict((t[0], t[2]) for t in TABS)[tab]
+            qs = qs.filter(status="active", review_state=review_state)
+            # The long tail is available, never the default. `?noise=1` opens it.
+            if tab == "review" and self.request.GET.get("noise") != "1":
+                qs = qs.filter(confidence__in=LEADING_CONFIDENCE)
+
+        search = (self.request.GET.get("q") or "").strip()
+        if search:
+            qs = qs.filter(Q(name__icontains=search) | Q(payee__icontains=search))
+        kind = (self.request.GET.get("kind") or "").strip()
+        if kind in dict(RecurringSeries.KIND_CHOICES):
+            qs = qs.filter(kind=kind)
+        cadence = (self.request.GET.get("cadence") or "").strip()
+        if cadence in dict(RecurringSeries.FREQ_CHOICES):
+            qs = qs.filter(frequency=cadence)
+
+        qs = qs.annotate(monthly_impact=_monthly_impact_expression())
+        order = {
+            "impact": ("-monthly_impact", "name"),
+            "due": ("next_due_date", "-monthly_impact"),
+            # `confidence` sorts alphabetically as high < low < medium, which is not the
+            # order anybody means, so it is mapped explicitly.
+            "confidence": ("confidence_rank", "-monthly_impact"),
+            "name": ("name",),
+        }[self._sort()]
+        if "confidence_rank" in order:
+            qs = qs.annotate(confidence_rank=Case(
+                When(confidence="high", then=Value(0)),
+                When(confidence="medium", then=Value(1)),
+                default=Value(2), output_field=IntegerField()))
+        return qs.order_by(*order)
+
+    def _sort(self):
+        requested = (self.request.GET.get("sort") or "impact").lower()
+        return requested if requested in {s[0] for s in SORTS} else "impact"
 
     def get_context_data(self, **kwargs):
+        from django.db.models import Sum
+
         context = super().get_context_data(**kwargs)
-        rows = list(context["series"])
-        context["show"] = self.request.GET.get("show") or "active"
-        context["candidates"] = [s for s in rows if s.review_state ==
-                                 RecurringSeries.REVIEW_CANDIDATE
-                                 and s.merged_into_id is None]
-        context["confirmed"] = [s for s in rows if s.review_state ==
-                                RecurringSeries.REVIEW_CONFIRMED
-                                and s.merged_into_id is None]
-        context["ignored"] = [s for s in rows if s.review_state ==
-                              RecurringSeries.REVIEW_IGNORED]
-        context["merged"] = [s for s in rows if s.merged_into_id is not None]
-        # `archived_only()`, not `filter(status="archived")` — the default manager has
-        # already excluded everything that is not active, so the naive filter always
-        # counts zero and the "Show archived" link never appears.
-        context["archived_count"] = RecurringSeries.objects.archived_only().filter(
-            user=self.request.user).count()
-        context["kind_choices"] = RecurringSeries.KIND_CHOICES
+        base = self._base()
+        active = base.filter(status="active")
+
+        counts = {
+            "review": active.filter(
+                review_state=RecurringSeries.REVIEW_CANDIDATE).count(),
+            "confirmed": active.filter(
+                review_state=RecurringSeries.REVIEW_CONFIRMED).count(),
+            "dismissed": active.filter(
+                review_state=RecurringSeries.REVIEW_IGNORED).count(),
+            "archived": base.filter(status="archived").count(),
+        }
+        leading = active.filter(review_state=RecurringSeries.REVIEW_CANDIDATE,
+                                confidence__in=LEADING_CONFIDENCE).count()
+
+        context.update({
+            "tab": self._tab(),
+            "tabs": [{"key": k, "label": label, "count": counts[k]}
+                     for k, label, _ in TABS],
+            "sorts": SORTS,
+            "sort": self._sort(),
+            "counts": counts,
+            "leading_count": leading,
+            "noise_count": max(counts["review"] - leading, 0),
+            "showing_noise": self.request.GET.get("noise") == "1",
+            "q": (self.request.GET.get("q") or "").strip(),
+            "kind": (self.request.GET.get("kind") or "").strip(),
+            "cadence": (self.request.GET.get("cadence") or "").strip(),
+            "kind_choices": RecurringSeries.KIND_CHOICES,
+            "cadence_choices": RecurringSeries.FREQ_CHOICES,
+            # What is already committed, and what the open proposals would add if every
+            # one were confirmed — the number that makes a review queue feel worth doing.
+            "committed_monthly": (active.filter(
+                review_state=RecurringSeries.REVIEW_CONFIRMED,
+                kind__in=RecurringSeries.OBLIGATION_KINDS)
+                .annotate(m=_monthly_impact_expression())
+                .aggregate(t=Sum("m"))["t"] or ZERO),
+            "proposed_monthly": (active.filter(
+                review_state=RecurringSeries.REVIEW_CANDIDATE,
+                kind__in=RecurringSeries.OBLIGATION_KINDS)
+                .annotate(m=_monthly_impact_expression())
+                .aggregate(t=Sum("m"))["t"] or ZERO),
+            # Every filter except `page`, so paging keeps the view you set up.
+            "querystring": self._querystring_without("page"),
+        })
         return context
+
+    def _querystring_without(self, *drop):
+        params = self.request.GET.copy()
+        for key in drop:
+            params.pop(key, None)
+        encoded = params.urlencode()
+        return f"&{encoded}" if encoded else ""
 
 
 class SeriesDetailView(FinanceUserMixin, DetailView):
@@ -382,3 +514,89 @@ def series_detect(request):
         messages.warning(request, "WLJ couldn't start the search just now. Nothing has "
                                   "changed; try again shortly.")
     return redirect(reverse("finance:series_list"))
+
+
+def _selected(request):
+    """The series this request is about, scoped to the person making it."""
+    ids = []
+    for raw in request.POST.getlist("ids"):
+        try:
+            ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return (RecurringSeries.objects.all_with_deleted().exclude(status="deleted")
+            .filter(user=request.user, pk__in=ids, merged_into__isnull=True))
+
+
+@require_POST
+@finance_enabled_required
+def series_bulk_preview(request):
+    """What confirming this selection would do to the committed forecast.
+
+    Confirming twenty proposals at once is the difference between a review that takes
+    ten minutes and one that never gets done — but it also moves real money into a
+    committed total, and a bulk action whose effect you only discover afterwards is not
+    a shortcut, it is a trap. So the effect is shown first, as a number, and the
+    confirm button carries the same ids it was calculated from.
+    """
+    selected = list(_selected(request).select_related("account"))
+    obligations = [s for s in selected if s.is_obligation]
+    monthly = ZERO
+    unknown = 0
+    for series in obligations:
+        equivalent = series.monthly_equivalent(
+            use="max" if series.is_variable else "expected")
+        if equivalent is None:
+            unknown += 1
+            continue
+        monthly += equivalent
+
+    from apps.finance.templatetags.finance_format import money
+
+    return JsonResponse({
+        "count": len(selected),
+        "obligations": len(obligations),
+        # Formatted by the SAME filter every other money figure on the page uses —
+        # a preview that says "11721.89" next to cards saying "$11,721.89" reads as a
+        # different number.
+        "monthly_added": str(money(monthly.quantize(Decimal("0.01")))),
+        "without_a_monthly_figure": unknown,
+        "income": len([s for s in selected
+                       if s.kind == RecurringSeries.KIND_INCOME]),
+        "names": [s.name for s in selected[:5]],
+        "more": max(len(selected) - 5, 0),
+        "ids": [s.pk for s in selected],
+    })
+
+
+@require_POST
+@finance_enabled_required
+def series_bulk_apply(request):
+    """Apply one decision to a selection. Confirm and dismiss only.
+
+    Deliberately NOT merge, split, end or delete: those change what a record MEANS or
+    remove it, and doing twenty of them from a checkbox is how someone loses work they
+    cannot get back. Those stay one at a time, on the record itself.
+    """
+    decision = (request.POST.get("decision") or "").strip()
+    if decision not in (RecurringSeries.REVIEW_CONFIRMED,
+                        RecurringSeries.REVIEW_IGNORED):
+        messages.error(request, "That is not a bulk decision WLJ recognises.")
+        return redirect(reverse("finance:series_list"))
+
+    selected = _selected(request)
+    names = list(selected.values_list("name", flat=True)[:3])
+    updated = selected.update(review_state=decision,
+                              source=RecurringSeries.SOURCE_USER)
+    if not updated:
+        messages.warning(request, "Nothing was selected, so nothing changed.")
+    elif decision == RecurringSeries.REVIEW_CONFIRMED:
+        messages.success(
+            request, f"Confirmed {updated} item{'' if updated == 1 else 's'} "
+                     f"({', '.join(names)}{'…' if updated > 3 else ''}). "
+                     f"They're in your committed forecast now.")
+    else:
+        messages.success(
+            request, f"Marked {updated} item{'' if updated == 1 else 's'} as not "
+                     f"recurring. WLJ won't propose them again.")
+    return redirect(request.POST.get("next") or reverse("finance:series_list"))

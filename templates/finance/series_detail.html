@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% load finance_format %}
 
-{% block title %}{{ series.name }} - Recurring
+{% block title %}{{ series.name }} - Recurring{% endblock %}
+
+{% block extra_css %}
 <style nonce="{{ csp_nonce }}">
 .sd-head { display: flex; justify-content: space-between; gap: 1rem;
            flex-wrap: wrap; align-items: flex-start; }

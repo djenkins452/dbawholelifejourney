@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{% block title %}{% if is_create %}Add recurring{% else %}Edit {{ form.instance.name }}{% endif %}
+{% block title %}{% if is_create %}Add recurring{% else %}Edit {{ form.instance.name }}{% endif %}{% endblock %}
+
+{% block extra_css %}
 <style nonce="{{ csp_nonce }}">
 .sf-field { margin-bottom: 1rem; }
 .sf-field label { display: block; font-weight: 600; font-size: .88rem;

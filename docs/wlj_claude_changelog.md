@@ -61607,3 +61607,48 @@ transitions that cannot raise apparent spending — and records what it did.
 role rewrites stay off, so each classifier bump needs its own alignment migration. That is
 the cost of the current stance and it is the right trade: a mass reclassification is a
 decision, not a cron job.
+
+## 2026-09-01 — the Recurring page was unstyled, not badly styled
+
+**The 101 candidates rendered as one continuous paragraph of text because the CSS never
+reached the browser.** `base.html` renders `{% block title %}` *inside* `<title>`, and
+four Finance templates put their entire `<style>` block there. The browser treated it as
+title text and dropped it; 101 inline `<a>` elements with no CSS run together as a single
+paragraph. Moved to `{% block extra_css %}` in all four, with a contract test that scans
+every template.
+
+**`templates/finance/dashboard.html` had this from before I touched it** — so the Finance
+dashboard's custom CSS has never applied in production either, including the monthly-views
+work. My earlier "verified at 375px" claim asserted against the template file's CSS text,
+which is exactly the mistake: a test that reads the template rather than the render.
+
+**Then the page was rebuilt as a review workflow**, verified against 101 seeded candidates
+in a real authenticated browser:
+
+* **Two numbers that make the queue worth doing** — committed each month, and what is
+  waiting on you (explicitly "none of it counted yet").
+* **Status tabs** with counts: Needs review · Confirmed · Not recurring · Archived. One
+  scrolling row on mobile rather than two rows that reflow as counts change.
+* **Search, type/cadence filters, four sorts, pagination** (20/page). Filters survive
+  paging; `confidence` sorts high→medium→low rather than alphabetically, which would be
+  high, low, medium — an order nobody means.
+* **Biggest-first by default**, computed as a SQL expression so it sorts and paginates in
+  the database rather than pulling every row in to call a property. A test asserts the
+  expression agrees with `RecurringSeries.monthly_equivalent`.
+* **77 low-confidence guesses held back**, counted, one link away. Available, never in
+  front of you.
+* **Each candidate a distinct card**: name, type, cadence, confidence, expected amount or
+  range, monthly equivalent, next date, and the evidence in a sentence — enough to decide
+  without opening it. Four actions on every card.
+* **Bulk confirm is two-pressed**: the first press asks the server what the selection
+  would add to the committed forecast and says so; the second applies it. Changing the
+  selection disarms it. Merge, split, end, archive and delete are deliberately NOT
+  available in bulk — those change what a record means or remove it, and twenty at once
+  from a checkbox is how someone loses work they cannot get back.
+
+Verified in a browser at 1440px and 375px: **101 series appear exactly once across all
+pages**, no tab overlap, no horizontal overflow at 375px, every control clears 44px, zero
+inline handlers, labelled checkboxes, `aria-current` on the tab, `role="search"`, and an
+`aria-live` region for the bulk preview.
+
+No detection, classification, forecasting or calculation was changed.

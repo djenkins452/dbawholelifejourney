@@ -1,38 +1,154 @@
 {% extends "base.html" %}
 {% load finance_format %}
 
-{% block title %}Recurring - Whole Life Journey
+{% block title %}Recurring - Whole Life Journey{% endblock %}
+
+{% block extra_css %}
 <style nonce="{{ csp_nonce }}">
-.series-group { margin-bottom: 2rem; }
-.series-group h2 { font-size: 1.05rem; margin: 0 0 .35rem; }
-.series-group-why { font-size: .85rem; color: var(--color-text-muted, #6b7280);
-                    margin: 0 0 .75rem; line-height: 1.45; }
-.series-row { display: flex; justify-content: space-between; gap: 1rem;
-              align-items: flex-start; flex-wrap: wrap;
-              border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px;
-              padding: .8rem .9rem; margin-bottom: .5rem;
-              text-decoration: none; color: inherit; min-height: 44px; }
-.series-row:hover, .series-row:focus-visible { border-color: var(--color-primary, #4f46e5); }
-.series-main { min-width: 0; flex: 1 1 16rem; }
-.series-name { font-weight: 600; display: block; }
-.series-meta { font-size: .8rem; color: var(--color-text-muted, #6b7280);
-               display: block; margin-top: .15rem; line-height: 1.4; }
-.series-amount { font-weight: 600; font-variant-numeric: tabular-nums;
-                 white-space: nowrap; }
-.series-flag { display: inline-block; font-size: .68rem; font-weight: 600;
-               text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem;
-               border-radius: 999px; margin-left: .4rem; vertical-align: .1em; }
-.flag-likely { background: #fef3c7; color: #92400e; }
-.flag-confirmed { background: #d1fae5; color: #065f46; }
-.flag-low { background: #f3f4f6; color: #4b5563; }
-.series-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
-.series-actions form { display: inline; }
-.series-empty { color: var(--color-text-muted, #6b7280); line-height: 1.5; }
-.series-toolbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center;
-                  margin-bottom: 1.25rem; }
+/* ---- shell ------------------------------------------------------------- */
+.rec-head { display: flex; justify-content: space-between; align-items: flex-start;
+            gap: 1rem; flex-wrap: wrap; margin-bottom: .35rem; }
+.rec-head h1 { margin: 0; }
+.rec-lede { color: var(--color-text-muted, #6b7280); font-size: .9rem;
+            line-height: 1.5; max-width: 60ch; margin: 0 0 1.25rem; }
+
+/* ---- the two numbers that make the queue worth doing -------------------- */
+.rec-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+              gap: .75rem; margin-bottom: 1.25rem; }
+.rec-total { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px;
+             padding: .8rem .9rem; }
+.rec-total-label { display: block; font-size: .72rem; text-transform: uppercase;
+                   letter-spacing: .05em; color: var(--color-text-muted, #6b7280); }
+.rec-total-value { font-size: 1.4rem; font-weight: 700;
+                   font-variant-numeric: tabular-nums; }
+.rec-total-note { display: block; font-size: .75rem; line-height: 1.4;
+                  color: var(--color-text-muted, #6b7280); margin-top: .15rem; }
+
+/* ---- tabs -------------------------------------------------------------- */
+.rec-tabs { display: flex; gap: .35rem; flex-wrap: wrap; margin-bottom: 1rem;
+            border-bottom: 1px solid var(--color-border, #e5e7eb); }
+.rec-tab { padding: .55rem .8rem; border-radius: 8px 8px 0 0; text-decoration: none;
+           color: var(--color-text-muted, #6b7280); font-size: .9rem; font-weight: 600;
+           border: 1px solid transparent; border-bottom: none; min-height: 44px;
+           display: inline-flex; align-items: center; gap: .4rem; }
+.rec-tab[aria-current="page"] { color: var(--color-text, #374151);
+           background: var(--color-background, #fff);
+           border-color: var(--color-border, #e5e7eb); margin-bottom: -1px; }
+.rec-tab-count { font-size: .75rem; font-variant-numeric: tabular-nums;
+                 background: var(--color-surface, #f3f4f6); border-radius: 999px;
+                 padding: .05rem .45rem; }
+
+/* ---- filter bar -------------------------------------------------------- */
+.rec-filters { display: flex; gap: .5rem; flex-wrap: wrap; align-items: flex-end;
+               margin-bottom: 1rem; }
+.rec-field { display: flex; flex-direction: column; gap: .2rem; }
+.rec-field label { font-size: .72rem; text-transform: uppercase; letter-spacing: .05em;
+                   color: var(--color-text-muted, #6b7280); }
+.rec-field input, .rec-field select { min-height: 44px; font-size: 16px;
+                   padding: .4rem .55rem; border-radius: 8px;
+                   border: 1px solid var(--color-border, #e5e7eb);
+                   background: var(--color-background, #fff);
+                   color: var(--color-text, #374151); }
+.rec-field input { min-width: 12rem; }
+
+/* ---- bulk bar ---------------------------------------------------------- */
+.rec-bulk { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+            padding: .6rem .8rem; border-radius: 10px; margin-bottom: .9rem;
+            background: var(--color-surface, #f9fafb);
+            border: 1px solid var(--color-border, #e5e7eb); }
+.rec-bulk[hidden] { display: none; }
+.rec-bulk-count { font-weight: 600; }
+.rec-preview { font-size: .85rem; line-height: 1.5; margin: 0;
+               color: var(--color-text-muted, #6b7280); }
+.rec-preview strong { color: var(--color-text, #374151); }
+
+/* ---- the card ---------------------------------------------------------- */
+.rec-list { display: grid; gap: .6rem; grid-template-columns: 1fr; }
+.rec-card { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px;
+            padding: .85rem .95rem; display: grid; gap: .55rem;
+            grid-template-columns: auto 1fr auto; align-items: start;
+            background: var(--color-background, #fff); }
+.rec-card:focus-within { border-color: var(--color-primary, #4f46e5); }
+/* The input itself is 22px; the label around it is the 44px target a thumb needs. */
+.rec-pick-wrap { display: inline-flex; align-items: flex-start; justify-content: center;
+                 min-width: 44px; min-height: 44px; padding: .45rem .5rem 0 0;
+                 margin: -.35rem 0 0 -.4rem; cursor: pointer; }
+.rec-pick { width: 22px; height: 22px; }
+.rec-body { min-width: 0; }
+.rec-name { font-weight: 600; font-size: 1rem; text-decoration: none;
+            color: inherit; display: inline-block; }
+.rec-name:hover, .rec-name:focus-visible { text-decoration: underline; }
+.rec-tags { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .3rem; }
+.rec-tag { font-size: .68rem; font-weight: 600; text-transform: uppercase;
+           letter-spacing: .04em; padding: .12rem .45rem; border-radius: 999px;
+           background: var(--color-surface, #f3f4f6);
+           color: var(--color-text-muted, #4b5563); white-space: nowrap; }
+.rec-tag-high { background: #d1fae5; color: #065f46; }
+.rec-tag-medium { background: #fef3c7; color: #92400e; }
+.rec-tag-low { background: #f3f4f6; color: #4b5563; }
+.rec-tag-confirmed { background: #d1fae5; color: #065f46; }
+.rec-evidence { font-size: .78rem; color: var(--color-text-muted, #6b7280);
+                line-height: 1.45; margin: .35rem 0 0; }
+.rec-money { text-align: right; }
+.rec-amount { font-weight: 700; font-variant-numeric: tabular-nums;
+              white-space: nowrap; }
+.rec-monthly { display: block; font-size: .75rem;
+               color: var(--color-text-muted, #6b7280); white-space: nowrap; }
+.rec-actions { grid-column: 1 / -1; display: flex; gap: .4rem; flex-wrap: wrap;
+               padding-top: .5rem; border-top: 1px dashed var(--color-border, #e5e7eb); }
+.rec-actions form { display: inline; }
+/* `btn-sm` is 28-29px in the design system, which is fine for a mouse and not for a
+   thumb. Every control on this page clears 44px on a touch screen. */
+.rec-actions .btn { min-height: 44px; }
+[data-testid="finance-series"] .btn,
+[data-testid="finance-series"] button { min-height: 44px; display: inline-flex;
+                 align-items: center; justify-content: center; }
+
+/* ---- pagination & empty ------------------------------------------------ */
+.rec-pager { display: flex; gap: .5rem; align-items: center; justify-content: center;
+             flex-wrap: wrap; margin-top: 1.25rem; }
+.rec-pager-status { font-size: .85rem; color: var(--color-text-muted, #6b7280); }
+.rec-empty { border: 1px dashed var(--color-border, #e5e7eb); border-radius: 12px;
+             padding: 1.5rem; text-align: center;
+             color: var(--color-text-muted, #6b7280); line-height: 1.6; }
+.rec-noise { margin-top: 1rem; font-size: .85rem;
+             color: var(--color-text-muted, #6b7280); }
+
+.rec-field select { min-width: 9.5rem; }
+
 @media (max-width: 480px) {
-    .series-row { flex-direction: column; }
-    .series-actions .btn { width: 100%; justify-content: center; }
+    /* The point of this page is the queue. Everything above it earns its height or
+       gets smaller — on a phone you were scrolling past a screen and a half of
+       preamble before reaching the first thing to decide. */
+    .rec-lede { font-size: .82rem; margin-bottom: .9rem; }
+    .rec-head .rec-filters { gap: .4rem; }
+    .rec-head .btn { flex: 0 1 auto; font-size: .8rem; }
+
+    .rec-totals { grid-template-columns: 1fr 1fr; gap: .5rem; margin-bottom: .9rem; }
+    .rec-total { padding: .55rem .6rem; }
+    .rec-total-value { font-size: 1.05rem; }
+    .rec-total-label { font-size: .62rem; }
+    .rec-total-note { font-size: .68rem; }
+
+    /* One row that scrolls, rather than two rows that reflow as counts change. */
+    .rec-tabs { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch;
+                scrollbar-width: none; }
+    .rec-tabs::-webkit-scrollbar { display: none; }
+    .rec-tab { white-space: nowrap; padding: .5rem .6rem; font-size: .85rem; }
+
+    .rec-card { grid-template-columns: auto 1fr; padding: .7rem .75rem; }
+    .rec-money { grid-column: 2 / -1; text-align: left; }
+    .rec-amount { font-size: .95rem; }
+    .rec-actions .btn { flex: 1 1 auto; justify-content: center; }
+    /* Search gets the full width; the three narrow controls pair up rather than
+       stacking, which was costing three rows of screen before the first card. */
+    form.rec-filters { display: grid; grid-template-columns: 1fr 1fr;
+                       gap: .5rem; align-items: end; }
+    form.rec-filters .rec-field:first-of-type { grid-column: 1 / -1; }
+    .rec-field input, .rec-field select { min-width: 0; width: 100%; }
+    .rec-field { flex: 1 1 auto; }
+    form.rec-filters > .btn { grid-column: 1 / -1; width: 100%;
+                              justify-content: center; }
 }
 </style>
 {% endblock %}
@@ -40,116 +156,282 @@
 {% block content %}
 <div class="container" data-testid="finance-series">
     <p><a href="{% url 'finance:dashboard' %}">&larr; Finance</a></p>
-    <h1>Recurring</h1>
-    <p class="series-group-why">
-        WLJ looks through your transaction history for things that repeat &mdash;
-        subscriptions, bills, loan payments and income. Anything it finds is a
-        <strong>proposal</strong> until you confirm it, and only confirmed items count
+
+    <div class="rec-head">
+        <h1>Recurring</h1>
+        <div class="rec-filters">
+            <a href="{% url 'finance:series_create' %}" class="btn btn-secondary btn-sm">Add one yourself</a>
+            <form method="post" action="{% url 'finance:series_detect' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="run-detection">Look for patterns now</button>
+            </form>
+        </div>
+    </div>
+    <p class="rec-lede">
+        WLJ reads your transaction history for things that repeat. Everything it finds is
+        a <strong>proposal</strong> until you confirm it &mdash; only confirmed items count
         towards your committed forecast.
     </p>
 
-    <div class="series-toolbar">
-        <a href="{% url 'finance:series_create' %}" class="btn btn-primary btn-sm">Add one yourself</a>
-        <form method="post" action="{% url 'finance:series_detect' %}">
-            {% csrf_token %}
-            <button type="submit" class="btn btn-secondary btn-sm" data-testid="run-detection">Look for patterns now</button>
-        </form>
-        {% if show == 'archived' %}
-        <a href="{% url 'finance:series_list' %}" class="btn btn-secondary btn-sm">Show active</a>
-        {% elif archived_count %}
-        <a href="?show=archived" class="btn btn-secondary btn-sm" data-testid="show-archived">Show archived ({{ archived_count }})</a>
-        {% endif %}
+    <div class="rec-totals">
+        <div class="rec-total">
+            <span class="rec-total-label">Committed each month</span>
+            <span class="rec-total-value" data-testid="committed-monthly">{{ committed_monthly|money }}</span>
+            <span class="rec-total-note">{{ counts.confirmed }} confirmed commitment{{ counts.confirmed|pluralize }}</span>
+        </div>
+        <div class="rec-total">
+            <span class="rec-total-label">Waiting on you</span>
+            <span class="rec-total-value" data-testid="proposed-monthly">{{ proposed_monthly|money }}</span>
+            <span class="rec-total-note">{{ counts.review }} proposal{{ counts.review|pluralize }} &mdash; none of it counted yet</span>
+        </div>
     </div>
 
-    {% if show != 'archived' %}
-    <section class="series-group" data-testid="group-candidates">
-        <h2>Likely &mdash; waiting for you ({{ candidates|length }})</h2>
-        <p class="series-group-why">
-            WLJ thinks these repeat. It has not counted any of them in your forecast and
-            will not until you say so.
-        </p>
-        {% for s in candidates %}
-        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row" data-testid="candidate-row">
-            <span class="series-main">
-                <span class="series-name">{{ s.name }}
-                    <span class="series-flag flag-{% if s.confidence == 'low' %}low{% else %}likely{% endif %}">{{ s.confidence }} confidence</span>
-                </span>
-                <span class="series-meta">
-                    {{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}
-                    &middot; seen {{ s.occurrence_count }}&times;
-                    {% if s.next_due_date %}&middot; next {{ s.next_due_date|date:"M j" }}{% endif %}
-                </span>
-            </span>
-            <span class="series-amount">
-                {% if s.is_variable and s.amount_min %}{{ s.amount_min|money_abs }}&ndash;{{ s.amount_max|money_abs }}{% elif s.amount_expected %}{{ s.amount_expected|money_abs }}{% else %}varies{% endif %}
-            </span>
+    <nav class="rec-tabs" aria-label="Recurring review">
+        {% for t in tabs %}
+        <a class="rec-tab" href="?tab={{ t.key }}"
+           {% if t.key == tab %}aria-current="page"{% endif %}
+           data-testid="tab-{{ t.key }}">
+            {{ t.label }} <span class="rec-tab-count">{{ t.count }}</span>
         </a>
-        {% empty %}
-        <p class="series-empty" data-testid="no-candidates">
-            Nothing waiting for review. If WLJ has never looked, use
-            &ldquo;Look for patterns now&rdquo; above &mdash; it runs on the worker and
-            takes a moment.
-        </p>
         {% endfor %}
-    </section>
+    </nav>
 
-    <section class="series-group" data-testid="group-confirmed">
-        <h2>Confirmed ({{ confirmed|length }})</h2>
-        <p class="series-group-why">Only these are counted in your committed forecast.</p>
-        {% for s in confirmed %}
-        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row" data-testid="confirmed-row">
-            <span class="series-main">
-                <span class="series-name">{{ s.name }}<span class="series-flag flag-confirmed">Confirmed</span></span>
-                <span class="series-meta">
-                    {{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}
-                    {% if s.next_due_date %}&middot; next {{ s.next_due_date|date:"M j" }}{% endif %}
-                </span>
-            </span>
-            <span class="series-amount">
-                {% if s.is_variable and s.amount_min %}{{ s.amount_min|money_abs }}&ndash;{{ s.amount_max|money_abs }}{% elif s.amount_expected %}{{ s.amount_expected|money_abs }}{% else %}varies{% endif %}
-            </span>
-        </a>
-        {% empty %}
-        <p class="series-empty">Nothing confirmed yet.</p>
-        {% endfor %}
-    </section>
+    <form method="get" class="rec-filters" role="search" data-testid="filters">
+        <input type="hidden" name="tab" value="{{ tab }}">
+        {% if showing_noise %}<input type="hidden" name="noise" value="1">{% endif %}
+        <div class="rec-field">
+            <label for="q">Search</label>
+            <input type="search" id="q" name="q" value="{{ q }}" placeholder="Name or merchant">
+        </div>
+        <div class="rec-field">
+            <label for="kind">Type</label>
+            <select id="kind" name="kind">
+                <option value="">All types</option>
+                {% for value, label in kind_choices %}
+                <option value="{{ value }}" {% if value == kind %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="rec-field">
+            <label for="cadence">How often</label>
+            <select id="cadence" name="cadence">
+                <option value="">Any cadence</option>
+                {% for value, label in cadence_choices %}
+                <option value="{{ value }}" {% if value == cadence %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="rec-field">
+            <label for="sort">Sort</label>
+            <select id="sort" name="sort">
+                {% for value, label in sorts %}
+                <option value="{{ value }}" {% if value == sort %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+        {% if q or kind or cadence %}
+        <a href="?tab={{ tab }}" class="btn btn-secondary btn-sm" data-testid="clear-filters">Clear</a>
+        {% endif %}
+    </form>
 
-    {% if ignored %}
-    <section class="series-group" data-testid="group-ignored">
-        <h2>Not recurring, or ended ({{ ignored|length }})</h2>
-        <p class="series-group-why">Kept so WLJ does not propose them again.</p>
-        {% for s in ignored %}
-        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row">
-            <span class="series-main">
-                <span class="series-name">{{ s.name }}</span>
-                <span class="series-meta">{{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}</span>
-            </span>
-        </a>
-        {% endfor %}
-    </section>
+    {% if tab == 'review' and series %}
+    <form method="post" action="{% url 'finance:series_bulk_apply' %}" id="bulk-form"
+          data-preview-url="{% url 'finance:series_bulk_preview' %}">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <div class="rec-bulk" id="bulk-bar" hidden data-testid="bulk-bar">
+            <span class="rec-bulk-count"><span id="bulk-count">0</span> selected</span>
+            <button type="button" class="btn btn-primary btn-sm" id="bulk-confirm" data-testid="bulk-confirm">Confirm selected</button>
+            <button type="submit" name="decision" value="ignored" class="btn btn-secondary btn-sm" data-testid="bulk-dismiss">Not recurring</button>
+            <button type="button" class="btn btn-secondary btn-sm" id="bulk-clear">Clear</button>
+            <p class="rec-preview" id="bulk-preview" role="status" aria-live="polite"></p>
+        </div>
     {% endif %}
 
-    {% else %}
-    <section class="series-group" data-testid="group-archived">
-        <h2>Archived ({{ series|length }})</h2>
-        <p class="series-group-why">Out of the way, not gone. Restore any of them.</p>
+    <div class="rec-list" data-testid="series-list">
         {% for s in series %}
-        <div class="series-row">
-            <span class="series-main">
-                <span class="series-name">{{ s.name }}</span>
-                <span class="series-meta">{{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}</span>
-                <span class="series-actions">
-                    <form method="post" action="{% url 'finance:series_restore' s.pk %}">
-                        {% csrf_token %}
-                        <button type="submit" class="btn btn-secondary btn-sm" data-testid="restore">Restore</button>
-                    </form>
+        <article class="rec-card" data-testid="series-card" data-series-id="{{ s.pk }}">
+            {% if tab == 'review' %}
+            <label class="rec-pick-wrap">
+                <input type="checkbox" class="rec-pick" name="ids" value="{{ s.pk }}"
+                       form="bulk-form" aria-label="Select {{ s.name }}" data-testid="pick">
+            </label>
+            {% else %}<span></span>{% endif %}
+
+            <div class="rec-body">
+                <a class="rec-name" href="{% url 'finance:series_detail' s.pk %}">{{ s.name }}</a>
+                <div class="rec-tags">
+                    <span class="rec-tag">{{ s.get_kind_display }}</span>
+                    <span class="rec-tag">{{ s.get_frequency_display }}</span>
+                    {% if s.review_state == 'candidate' %}
+                    <span class="rec-tag rec-tag-{{ s.confidence }}">{{ s.confidence }} confidence</span>
+                    {% elif s.review_state == 'confirmed' %}
+                    <span class="rec-tag rec-tag-confirmed">Confirmed</span>
+                    {% endif %}
+                    {% if s.status == 'archived' %}<span class="rec-tag">Archived</span>{% endif %}
+                </div>
+                <p class="rec-evidence">
+                    Seen {{ s.occurrence_count }}&times;{% if s.first_seen_date %} since {{ s.first_seen_date|date:"M Y" }}{% endif %}{% if s.evidence.median_gap_days %}, about every {{ s.evidence.median_gap_days }} days{% endif %}.
+                    {% if s.next_due_date %}Next expected {{ s.next_due_date|date:"M j" }}.{% else %}No expected date.{% endif %}
+                    {% if s.account %} On {{ s.account.name }}.{% endif %}
+                </p>
+            </div>
+
+            <div class="rec-money">
+                <span class="rec-amount">
+                    {% if s.is_variable and s.amount_min %}{{ s.amount_min|money_abs }}&ndash;{{ s.amount_max|money_abs }}{% elif s.amount_expected %}{{ s.amount_expected|money_abs }}{% else %}varies{% endif %}
                 </span>
-            </span>
-        </div>
+                {% if s.monthly_impact %}
+                <span class="rec-monthly">{{ s.monthly_impact|money }}/mo</span>
+                {% endif %}
+            </div>
+
+            <div class="rec-actions">
+                {% if s.review_state != 'confirmed' and s.status == 'active' %}
+                <form method="post" action="{% url 'finance:money_series_decide' s.pk %}">
+                    {% csrf_token %}
+                    <input type="hidden" name="kind" value="{{ s.kind }}">
+                    <button type="submit" name="decision" value="confirmed" class="btn btn-primary btn-sm" data-testid="confirm">Confirm</button>
+                </form>
+                {% endif %}
+                <a href="{% url 'finance:series_update' s.pk %}" class="btn btn-secondary btn-sm" data-testid="edit">Edit</a>
+                {% if s.review_state != 'ignored' and s.status == 'active' %}
+                <form method="post" action="{% url 'finance:money_series_decide' s.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" name="decision" value="ignored" class="btn btn-secondary btn-sm" data-testid="dismiss">Not recurring</button>
+                </form>
+                {% endif %}
+                {% if s.status == 'archived' %}
+                <form method="post" action="{% url 'finance:series_restore' s.pk %}">
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-secondary btn-sm" data-testid="restore">Restore</button>
+                </form>
+                {% endif %}
+                <a href="{% url 'finance:series_detail' s.pk %}" class="btn btn-secondary btn-sm" data-testid="details">View details</a>
+            </div>
+        </article>
         {% empty %}
-        <p class="series-empty">Nothing archived.</p>
+        <p class="rec-empty" data-testid="empty">
+            {% if q or kind or cadence %}
+                Nothing matches those filters. <a href="?tab={{ tab }}">Clear them</a> to see everything in this tab.
+            {% elif tab == 'review' %}
+                Nothing waiting for review.
+                {% if noise_count %}There {% if noise_count == 1 %}is 1 lower-confidence guess{% else %}are {{ noise_count }} lower-confidence guesses{% endif %} <a href="?tab=review&amp;noise=1">you can look through</a>.{% else %}If WLJ has never looked, use &ldquo;Look for patterns now&rdquo; above.{% endif %}
+            {% elif tab == 'confirmed' %}
+                Nothing confirmed yet. Confirmed items are the only ones in your committed forecast.
+            {% elif tab == 'dismissed' %}
+                Nothing dismissed. Things you mark &ldquo;not recurring&rdquo; live here so WLJ stops proposing them.
+            {% else %}
+                Nothing archived.
+            {% endif %}
+        </p>
         {% endfor %}
-    </section>
+    </div>
+
+    {% if tab == 'review' and series %}</form>{% endif %}
+
+    {% if tab == 'review' and not showing_noise and noise_count %}
+    <p class="rec-noise" data-testid="noise-toggle">
+        {{ noise_count }} lower-confidence guess{{ noise_count|pluralize:"es" }} {% if noise_count == 1 %}is{% else %}are{% endif %} hidden by default &mdash;
+        <a href="?tab=review&amp;noise=1{% if q %}&amp;q={{ q }}{% endif %}">show them too</a>.
+    </p>
+    {% elif tab == 'review' and showing_noise %}
+    <p class="rec-noise" data-testid="noise-toggle">
+        Showing every confidence level. <a href="?tab=review{% if q %}&amp;q={{ q }}{% endif %}">Just the confident ones</a>.
+    </p>
+    {% endif %}
+
+    {% if is_paginated %}
+    <nav class="rec-pager" aria-label="Pagination" data-testid="pager">
+        {% if page_obj.has_previous %}
+        <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.previous_page_number }}{{ querystring }}" rel="prev">Previous</a>
+        {% endif %}
+        <span class="rec-pager-status">
+            {{ page_obj.start_index }}&ndash;{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+        </span>
+        {% if page_obj.has_next %}
+        <a class="btn btn-secondary btn-sm" href="?page={{ page_obj.next_page_number }}{{ querystring }}" rel="next">Next</a>
+        {% endif %}
+    </nav>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script nonce="{{ csp_nonce }}">
+// CSP: no inline handlers anywhere. Selection state and the bulk preview only.
+(function () {
+    var form = document.getElementById('bulk-form');
+    if (!form) { return; }
+    var bar = document.getElementById('bulk-bar');
+    var countEl = document.getElementById('bulk-count');
+    var preview = document.getElementById('bulk-preview');
+    var confirmBtn = document.getElementById('bulk-confirm');
+    var clearBtn = document.getElementById('bulk-clear');
+    var armed = false;
+
+    function picked() {
+        return Array.prototype.slice.call(
+            document.querySelectorAll('input.rec-pick:checked'));
+    }
+
+    function refresh() {
+        var chosen = picked();
+        countEl.textContent = chosen.length;
+        bar.hidden = chosen.length === 0;
+        // Any change to the selection invalidates a preview the person already saw.
+        armed = false;
+        confirmBtn.textContent = 'Confirm selected';
+        preview.textContent = '';
+    }
+
+    document.addEventListener('change', function (event) {
+        if (event.target.classList.contains('rec-pick')) { refresh(); }
+    });
+
+    clearBtn.addEventListener('click', function () {
+        picked().forEach(function (box) { box.checked = false; });
+        refresh();
+    });
+
+    // Two steps on purpose: confirming in bulk moves real money into a committed
+    // total, so the effect is shown BEFORE it happens, not discovered afterwards.
+    confirmBtn.addEventListener('click', function () {
+        if (armed) {
+            var decision = document.createElement('input');
+            decision.type = 'hidden';
+            decision.name = 'decision';
+            decision.value = 'confirmed';
+            form.appendChild(decision);
+            form.submit();
+            return;
+        }
+        var data = new FormData(form);
+        preview.textContent = 'Checking what this would do…';
+        fetch(form.dataset.previewUrl, {
+            method: 'POST', body: data, credentials: 'same-origin'
+        }).then(function (r) { return r.json(); }).then(function (result) {
+            var parts = ['Confirming ' + result.count + ' item' +
+                         (result.count === 1 ? '' : 's') + ' adds ' +
+                         '<strong>' + result.monthly_added + ' a month</strong>' +
+                         ' to your committed forecast'];
+            if (result.without_a_monthly_figure) {
+                parts.push(result.without_a_monthly_figure +
+                           ' of them have no monthly figure and are not in that total');
+            }
+            if (result.income) {
+                parts.push(result.income + ' of them are income, not a cost');
+            }
+            preview.innerHTML = parts.join('. ') + '. Press again to go ahead.';
+            armed = true;
+            confirmBtn.textContent = 'Yes — confirm ' + result.count;
+        }).catch(function () {
+            preview.textContent =
+                'WLJ could not work out the effect just now, so nothing has been ' +
+                'confirmed. Try again in a moment.';
+        });
+    });
+})();
+</script>
 {% endblock %}

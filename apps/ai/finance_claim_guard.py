@@ -199,6 +199,253 @@ def validate_currency_claims(response, evidence_payloads):
     return violations
 
 
+# ─────────────────────────────────────────────────────────────────────────────────
+# MATERIAL CLAIM COHERENCE (Gate 1B)
+#
+# Grounding the AMOUNT alone is not enough. Every field in
+#     "Your $688.95 Target purchase on July 22 was your largest Dining expense"
+# except the amount can be false while the amount is perfectly real — merchant, date,
+# category and rank freely recombined across different rows. A guard that only asks
+# "did WLJ produce this number" certifies that sentence.
+#
+# So the boundary also asks: the fields stated ALONGSIDE a grounded amount — do they
+# belong to the SAME canonical row that amount came from?
+#
+# It uses ONLY the structured evidence this turn returned. It never queries the
+# database from prose, never re-derives Finance truth, and never becomes a second
+# store. And it fails OPEN by construction: a violation is raised only when a stated
+# value provably belongs to a DIFFERENT evidence row, never merely because the guard
+# could not find it. Silence is not proof of fabrication; contradiction is.
+# ─────────────────────────────────────────────────────────────────────────────────
+
+#: Where a row's fields live across the shapes Finance evidence actually arrives in —
+#: a ranked result (`results[]` with `meta`), an entity (`definition`), a bare row.
+_FIELD_KEYS = {
+    "merchant": ("payee", "merchant", "name", "identity", "description", "food_name"),
+    "category": ("category",),
+    "account": ("account",),
+    "date": ("date", "occurred_on", "logged_date", "recorded_at"),
+}
+
+_DATE_RE = re.compile(
+    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})\b"
+    r"|\b(\d{4})-(\d{2})-(\d{2})\b",
+    re.I,
+)
+_MONTHS = {m: i for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1)}
+
+
+def _norm(value):
+    return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().lower()).strip()
+
+
+def evidence_rows(payloads, _depth=0):
+    """Canonical rows this turn returned, normalised across evidence shapes.
+
+    A "row" is any dict carrying a number AND at least one identifying field. Ranked
+    results, entity records and plain rows all reduce to the same shape, so coherence
+    is checked once rather than per-surface.
+    """
+    rows = []
+    if _depth > 12:
+        return rows
+    if isinstance(payloads, dict):
+        amounts = set()
+        for key in ("value", "amount", "spend_amount", "total_calories"):
+            v = payloads.get(key)
+            if isinstance(v, (int, float, Decimal)) and not isinstance(v, bool):
+                try:
+                    amounts.add(Decimal(str(v)))
+                except InvalidOperation:
+                    pass
+        fields = {}
+        merged = dict(payloads)
+        for nested in ("meta", "definition", "plan"):
+            if isinstance(payloads.get(nested), dict):
+                merged.update(payloads[nested])
+        for field, keys in _FIELD_KEYS.items():
+            for k in keys:
+                if merged.get(k) not in (None, "", [], {}):
+                    fields[field] = str(merged[k])
+                    break
+        if amounts and fields:
+            for amount in amounts:
+                rows.append({"amount": amount, **fields})
+        for value in payloads.values():
+            rows.extend(evidence_rows(value, _depth + 1))
+    elif isinstance(payloads, (list, tuple)):
+        for value in payloads:
+            rows.extend(evidence_rows(value, _depth + 1))
+    return rows
+
+
+def _dates_in(text):
+    """Specific DAYS stated in a window. A bare month ('in July') is a period, not a
+    transaction date, and is deliberately not treated as a claim about one."""
+    out = set()
+    for m in _DATE_RE.finditer(text or ""):
+        if m.group(1):
+            out.add((_MONTHS[m.group(1)[:3].lower()], int(m.group(2))))
+        elif m.group(3):
+            out.add((int(m.group(4)), int(m.group(5))))
+    return out
+
+
+def _row_date(row):
+    d = _dates_in(str(row.get("date") or ""))
+    if d:
+        return d
+    m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(row.get("date") or ""))
+    return {(int(m.group(2)), int(m.group(3)))} if m else set()
+
+
+def validate_claim_coherence(response, evidence_payloads):
+    """Fields stated next to a grounded amount that belong to a DIFFERENT canonical row.
+
+    Returns `[{amount, field, stated, window, ...}]`; empty when coherent. Only
+    contradictions are reported — a value the guard cannot locate at all is left alone.
+    """
+    text = response or ""
+    rows = evidence_rows(evidence_payloads)
+    if not text.strip() or not rows:
+        return []
+
+    # Every distinct value Finance returned for each field this turn. A stated value is
+    # only judged when WLJ itself produced it somewhere — otherwise the guard would be
+    # inventing a vocabulary and policing prose.
+    vocab = {}
+    for field in ("merchant", "category", "account"):
+        seen = {}
+        for row in rows:
+            value = row.get(field)
+            if value:
+                seen[_norm(value)] = value
+        vocab[field] = seen
+
+    violations = []
+    for match in MONEY.finditer(text):
+        raw = match.group(1) or match.group(2) or ""
+        try:
+            amount = Decimal(raw.replace(",", "")).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            continue
+        window = text[max(0, match.start() - WINDOW):
+                      min(len(text), match.end() + WINDOW)]
+        if _exempt(window):
+            continue
+        owners = []
+        for row in rows:
+            try:
+                if abs(row["amount"]).quantize(Decimal("0.01")) == amount:
+                    owners.append(row)
+            except InvalidOperation:
+                continue
+        if not owners:
+            continue        # an ungrounded amount is the other check's business
+        win = _norm(window)
+
+        for field in ("merchant", "category", "account"):
+            allowed = set()
+            for row in owners:
+                if row.get(field):
+                    allowed.add(_norm(row[field]))
+            for norm_value, original in vocab[field].items():
+                if not norm_value or norm_value in allowed:
+                    continue
+                if norm_value in win:
+                    violations.append({
+                        "amount": str(amount), "field": field,
+                        "stated": original, "window": window,
+                        "belongs_to": sorted(allowed) or ["(none)"],
+                    })
+
+        stated_days = _dates_in(window)
+        if stated_days:
+            allowed_days = set()
+            for row in owners:
+                allowed_days |= _row_date(row)
+            if allowed_days and not (stated_days & allowed_days):
+                violations.append({
+                    "amount": str(amount), "field": "date",
+                    "stated": [f"{m:02d}-{d:02d}" for m, d in sorted(stated_days)],
+                    "window": window,
+                    "belongs_to": [f"{m:02d}-{d:02d}" for m, d in sorted(allowed_days)],
+                })
+    return violations
+
+
+def validate_ranking_order(response, evidence_payloads):
+    """A stated ranked list must follow the canonical ranked order.
+
+    Only engages when this turn actually produced a ranking and the answer states two
+    or more of its amounts — otherwise order is not being claimed.
+    """
+    text = response or ""
+    ranked = _ranked_values(evidence_payloads)
+    if len(ranked) < 2 or not text.strip():
+        return []
+    positions = {}
+    for match in MONEY.finditer(text):
+        raw = match.group(1) or match.group(2) or ""
+        try:
+            amount = Decimal(raw.replace(",", "")).quantize(Decimal("0.01"))
+        except InvalidOperation:
+            continue
+        if amount in ranked and amount not in positions:
+            if not _exempt(text[max(0, match.start() - WINDOW):
+                                min(len(text), match.end() + WINDOW)]):
+                positions[amount] = match.start()
+    if len(positions) < 2:
+        return []
+    stated = [a for a, _ in sorted(positions.items(), key=lambda kv: kv[1])]
+    canonical = [a for a in ranked if a in positions]
+    if stated != canonical:
+        return [{"field": "ranking", "stated": [str(a) for a in stated],
+                 "belongs_to": [str(a) for a in canonical],
+                 "amount": str(stated[0]), "window": "(ranked list)"}]
+    return []
+
+
+def _ranked_values(payloads, _depth=0):
+    """The canonical ORDER of a ranking this turn produced, as quantised amounts."""
+    if _depth > 12:
+        return []
+    if isinstance(payloads, dict):
+        results = payloads.get("results")
+        if isinstance(results, list) and len(results) >= 2:
+            out = []
+            for r in results:
+                if not isinstance(r, dict):
+                    continue
+                v = r.get("value")
+                if isinstance(v, (int, float, Decimal)) and not isinstance(v, bool):
+                    try:
+                        out.append(abs(Decimal(str(v))).quantize(Decimal("0.01")))
+                    except InvalidOperation:
+                        pass
+            if len(out) >= 2:
+                return out
+        for value in payloads.values():
+            found = _ranked_values(value, _depth + 1)
+            if found:
+                return found
+    elif isinstance(payloads, (list, tuple)):
+        for value in payloads:
+            found = _ranked_values(value, _depth + 1)
+            if found:
+                return found
+    return []
+
+
+def validate_finance_claims(response, evidence_payloads):
+    """THE boundary. One authority, one call: amounts must be retrieved, and the fields
+    stated beside them must belong to the same canonical row, in the canonical order."""
+    return (validate_currency_claims(response, evidence_payloads)
+            + validate_claim_coherence(response, evidence_payloads)
+            + validate_ranking_order(response, evidence_payloads))
+
+
 def strict_regeneration_note(violations):
     """What to tell the model when its draft stated a figure nothing produced."""
     amounts = ", ".join(sorted({v["stated_as"] for v in violations}))

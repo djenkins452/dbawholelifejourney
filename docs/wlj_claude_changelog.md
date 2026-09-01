@@ -5,6 +5,46 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-01 — fix(cos): Gate 1B — a grounded AMOUNT does not license the fields stated beside it
+
+Amount-only grounding certifies this sentence:
+
+> *"Your $688.95 Target purchase on July 22 was your largest Dining expense."*
+
+The amount is perfectly real. **Merchant, date, category and rank are all fabricated or cross-wired from other
+rows.** Extended the SAME `finance_claim_guard` authority — no second subsystem, no database lookups from prose, no
+second truth store.
+
+**`validate_finance_claims()` is now THE single boundary**, composing three checks over this turn's structured
+evidence: amounts must have been retrieved · fields stated beside a grounded amount must belong to that amount's
+canonical row · a stated ranked order must match the canonical ranking. One call site in the certified runtime.
+
+**Fails OPEN by construction.** A violation is raised only when a stated value **provably belongs to a different
+evidence row** — the vocabulary is drawn from what WLJ itself returned this turn, so a merchant WLJ never produced
+is not policed. *Silence is not proof of fabrication; contradiction is.* A bare month ("in July") is treated as a
+period, never as a transaction date. Denials and explicit uncertainty may still name unsupported values, because
+*"I can't verify a $2,300 July mortgage payment"* is the correct answer to the question that caused all this.
+
+`evidence_rows()` normalises ranked results (`results[]` + `meta`), entity records (`definition`) and plain rows to
+one shape, so coherence is checked once rather than per-surface.
+
+**Bug I introduced and caught before shipping:** my heredoc turned `\b` into a literal **backspace byte (0x08)** in
+two regexes, so the date pattern silently matched nothing and every date claim passed. Found by tracing why one case
+stayed CLEAN when its parts worked standalone; all four bytes repaired and the file verified byte-clean. A test that
+had "passed" for the wrong reason is worse than one that fails.
+
+**Coverage — 12 new tests** (all ten required cases): correct tuple allowed · wrong merchant / date / category /
+account rejected · fields cross-wired from two real rows rejected · ranked order enforced, correct order allowed ·
+explicit denial may name the amount · explicit uncertainty may name a merchant/date · conversation history cannot
+authorize a detail · and **absence is not treated as contradiction**.
+
+**122 green** across the guard, claim-integrity, spend-ranking and model-interface runtime suites. Fixtures only;
+**zero provider calls**.
+
+**Gate status:** 1A amount grounding CLOSED · **1B material claim grounding CLOSED** · Gate 2 (unpaired
+card-payment role) OPEN with the Finance owner · Gate 3 (analytical routing) OPEN.
+
+---
 ## 2026-09-01 — fix(cos): the money-evidence boundary was installed on the runtime Danny is NOT using
 
 Reconciliation of the two claim-integrity mechanisms, per the Finance trust incident.

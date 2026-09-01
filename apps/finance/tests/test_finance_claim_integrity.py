@@ -214,7 +214,7 @@ class MoneyGuardIsWiredIntoTheCertifiedRuntimeTests(SimpleTestCase):
         from apps.ai.model_interface import service
         src = inspect.getsource(service.ModelInterfaceService._generate_turn)
         self.assertIn("finance_claim_guard", src)
-        self.assertIn("validate_currency_claims", src)
+        self.assertIn("validate_finance_claims", src)
 
     def test_it_runs_after_synthesis(self):
         """Phase 2 rewrites the answer, so a check placed before it could be bypassed
@@ -222,7 +222,7 @@ class MoneyGuardIsWiredIntoTheCertifiedRuntimeTests(SimpleTestCase):
         from apps.ai.model_interface import service
         src = inspect.getsource(service.ModelInterfaceService._generate_turn)
         self.assertLess(src.index("run_executive_synthesis"),
-                        src.index("validate_currency_claims"))
+                        src.index("validate_finance_claims"))
 
     def test_an_unsupported_amount_does_not_survive(self):
         from apps.ai import finance_claim_guard as guard
@@ -249,4 +249,4 @@ class MoneyGuardIsWiredIntoTheCertifiedRuntimeTests(SimpleTestCase):
         constitution's rule is guidance, the guard is enforcement."""
         import apps.ai.model_interface.service as svc
         src = inspect.getsource(svc)
-        self.assertEqual(src.count("validate_currency_claims"), 1)
+        self.assertEqual(src.count("validate_finance_claims"), 1)

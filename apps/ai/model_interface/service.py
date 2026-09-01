@@ -1552,7 +1552,7 @@ class ModelInterfaceService:
         try:
             from apps.ai import finance_claim_guard as _guard
             _ev = [e.get("result") for e in (turn_capture.get("evidence") or [])]
-            _violations = _guard.validate_currency_claims(answer, _ev)
+            _violations = _guard.validate_finance_claims(answer, _ev)
             if _violations:
                 _guard.log_violations(self.user, _violations,
                                       tools_called=tools_called, stage="model_interface")

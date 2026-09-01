@@ -266,3 +266,93 @@ class ThreeMoneyQuestionsStayDistinctTests(TestCase):
         self.assertIn("paying a credit card or a loan is NOT", described)
         self.assertIn("monthly_views", described,
                       "the model needs somewhere to send the other question")
+
+
+class MaterialClaimCoherenceTests(TestCase):
+    """Gate 1B — a grounded AMOUNT does not license the fields stated beside it.
+
+    "Your $688.95 Target purchase on July 22 was your largest Dining expense" has a
+    perfectly real amount and a fabricated merchant, date and category. Amount-only
+    grounding certifies that sentence; this closes it — using ONLY the structured
+    evidence the turn returned, and reporting a violation only on a provable
+    contradiction, never on absence.
+    """
+
+    # Two REAL rows, as a ranked Finance result actually arrives.
+    EVIDENCE = [{"value": {"results": [
+        {"rank": 1, "name": "Myspacover", "value": 688.95, "occurred_on": "2026-07-13",
+         "meta": {"payee": "Myspacover", "category": "Health",
+                  "account": "Checking (...9775)"}},
+        {"rank": 2, "name": "American Leak Detection", "value": 600.00,
+         "occurred_on": "2026-07-22",
+         "meta": {"payee": "American Leak Detection", "category": "Home",
+                  "account": "Rewards Card"}},
+    ]}}]
+
+    def _v(self, text, evidence=None):
+        from apps.ai import finance_claim_guard as guard
+        return guard.validate_finance_claims(
+            text, self.EVIDENCE if evidence is None else evidence)
+
+    # 6 — the truthful sentence must pass
+    def test_the_correct_tuple_is_allowed(self):
+        self.assertEqual(
+            self._v("Your largest spend was $688.95 at Myspacover on July 13 (Health)."),
+            [])
+
+    # 1 — grounded amount, wrong merchant
+    def test_wrong_merchant_is_rejected(self):
+        v = self._v("Your largest spend was $688.95 at American Leak Detection.")
+        self.assertTrue(any(x["field"] == "merchant" for x in v), v)
+
+    # 2 — grounded amount, wrong date
+    def test_wrong_date_is_rejected(self):
+        v = self._v("Your $688.95 purchase on July 22 was the largest.")
+        self.assertTrue(any(x["field"] == "date" for x in v), v)
+
+    # 3 — grounded amount, wrong category
+    def test_wrong_category_is_rejected(self):
+        v = self._v("Your largest spend was $688.95, a Home expense.")
+        self.assertTrue(any(x["field"] == "category" for x in v), v)
+
+    # 4 — grounded amount, wrong account
+    def test_wrong_account_is_rejected(self):
+        v = self._v("Your $688.95 spend was on the Rewards Card.")
+        self.assertTrue(any(x["field"] == "account" for x in v), v)
+
+    # 5 — fields from two real rows welded into one invented transaction
+    def test_cross_wired_fields_are_rejected(self):
+        v = self._v("Your largest spend was $688.95 at American Leak Detection "
+                    "on July 22, a Home expense.")
+        self.assertGreaterEqual(len({x["field"] for x in v}), 2, v)
+
+    # 7 — a ranked list stated out of canonical order
+    def test_ranked_order_must_match_the_canonical_ranking(self):
+        v = self._v("Your top expenses were $600.00, then $688.95.")
+        self.assertTrue(any(x["field"] == "ranking" for x in v), v)
+
+    def test_correct_ranked_order_is_allowed(self):
+        self.assertEqual(self._v("Your top expenses were $688.95, then $600.00."), [])
+
+    # 8, 9 — explicit denial / uncertainty may name unsupported values
+    def test_an_explicit_denial_may_name_the_amount(self):
+        self.assertEqual(self._v("I can't verify a $2,300 July mortgage payment."), [])
+
+    def test_explicit_uncertainty_may_name_a_merchant_or_date(self):
+        self.assertEqual(
+            self._v("I don't see a $2,300 Target charge on July 22 in your records."),
+            [])
+
+    # 10 — prior conversation cannot authorize anything
+    def test_conversation_history_is_not_evidence(self):
+        """The guard is given ONLY this turn's tool results; prose from earlier turns
+        never reaches it, so a false detail repeated from history stays unsupported."""
+        v = self._v("As I mentioned, your July house payment was $2,300.00.")
+        self.assertTrue(v, "a figure carried over from conversation was certified")
+
+    def test_absence_is_not_treated_as_contradiction(self):
+        """Fails OPEN: a merchant WLJ never returned is not policed, because the guard
+        would otherwise be inventing a vocabulary and judging prose against it."""
+        self.assertEqual(
+            self._v("Your largest spend was $688.95 at Myspacover, likely a clinic."),
+            [])

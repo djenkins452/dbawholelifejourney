@@ -75,7 +75,7 @@ class FinanceDomainTruth(DomainTruth):
         if et == "account":
             return self._describe_accounts()
         if et == "recurring":
-            return self._describe_recurring()
+            return self._describe_recurring(filters)
         if et == "budget":
             return self._describe_budgets(filters)
         if et == "goal":
@@ -226,13 +226,89 @@ class FinanceDomainTruth(DomainTruth):
         return qs.prefetch_related(
             Prefetch("attributions", queryset=active, to_attr="_active_attribution"))
 
-    def _describe_recurring(self):
-        """Recurring commitments (subscriptions, bills, transfers) — the canonical rows."""
-        from apps.finance.models import RecurringTransaction
-        rows = (RecurringTransaction.objects.filter(user=self.user)
-                .select_related("account", "category")
-                .order_by("next_due_date", "name"))
-        return [self._recurring_entity(r) for r in rows[:self._MAX_ROWS]]
+    def _describe_recurring(self, filters=None):
+        """Recurring commitments — what WLJ DETECTED as well as what was declared.
+
+        This read only `RecurringTransaction`, the table a person fills in by hand, so
+        the model could not see a single one of the commitments the detector had found.
+        It is the same defect the dashboard had, one layer down: WLJ held the truth and
+        nothing asked it for it.
+
+        CONFIRMED and CANDIDATE both come back, each carrying its review state and
+        confidence, so the model can say "these bills are confirmed" and "WLJ found
+        these likely subscriptions — your forecast excludes them until you confirm" and
+        never confuse the two. Filter with `review_state=confirmed|candidate|ignored`.
+        """
+        from apps.finance.models import RecurringSeries, RecurringTransaction
+
+        f = filters or {}
+        series = (RecurringSeries.objects.filter(user=self.user,
+                                                 merged_into__isnull=True)
+                  .select_related("account", "category", "declared_template"))
+        wanted = (f.get("review_state") or "").strip().lower()
+        if wanted in dict(RecurringSeries.REVIEW_CHOICES):
+            series = series.filter(review_state=wanted)
+        series = list(series.order_by("next_due_date", "name")[:self._MAX_ROWS])
+
+        entities = [self._series_entity(s) for s in series]
+
+        # Declared templates that no detected series is already standing for, so a
+        # person who typed in their own Netflix does not see it twice.
+        declared = {s.declared_template_id for s in series if s.declared_template_id}
+        remaining = max(self._MAX_ROWS - len(entities), 0)
+        if remaining and not wanted:
+            rows = (RecurringTransaction.objects.filter(user=self.user)
+                    .exclude(pk__in=declared)
+                    .select_related("account", "category")
+                    .order_by("next_due_date", "name"))
+            entities += [self._recurring_entity(r) for r in rows[:remaining]]
+        return entities
+
+    def _series_entity(self, s):
+        """A detected or corrected commitment. Facts and provenance; never a verdict."""
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        from apps.finance.models import RecurringSeries
+
+        monthly = s.monthly_equivalent(use="max" if s.is_variable else "expected")
+        return CompleteEntity(
+            kind="recurring",
+            identity=(s.name or s.payee or "recurring commitment").strip(),
+            definition={
+                "kind": s.kind,
+                "kind_label": s.get_kind_display(),
+                "frequency": s.frequency,
+                "direction": ("income" if s.kind == RecurringSeries.KIND_INCOME
+                              else "expense"),
+                "amount_expected": (float(s.amount_expected)
+                                    if s.amount_expected is not None else None),
+                "amount_min": float(s.amount_min) if s.amount_min is not None else None,
+                "amount_max": float(s.amount_max) if s.amount_max is not None else None,
+                "amount_varies": s.is_variable,
+                "monthly_equivalent": float(monthly) if monthly is not None else None,
+                "category": s.category.name if s.category_id else None,
+                "account": s.account.name if s.account_id else None,
+                "payee": (s.payee or "").strip() or None,
+            },
+            # The whole point: a candidate must never read as a decision.
+            status=s.review_state,
+            plan={"next_due_date": (s.next_due_date.isoformat()
+                                    if s.next_due_date else None),
+                  "counted_in_committed_forecast": s.is_counted,
+                  "awaiting_your_decision":
+                      s.review_state == RecurringSeries.REVIEW_CANDIDATE},
+            performance={"occurrences_observed": s.occurrence_count,
+                         "first_seen": (s.first_seen_date.isoformat()
+                                        if s.first_seen_date else None),
+                         "last_seen": (s.last_seen_date.isoformat()
+                                       if s.last_seen_date else None)},
+            # Provenance, so the model can say HOW sure WLJ is and why.
+            standing={"confidence": s.confidence,
+                      "source": s.source,
+                      "detector_version": s.detector_version,
+                      "evidence": s.evidence or {}},
+            freshness=F.CURRENT,
+        )
 
     def _describe_budgets(self, filters=None):
         """Budgets. Defaults to the CURRENT month — the question is almost always

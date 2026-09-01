@@ -61441,3 +61441,17 @@ people learn to re-run rather than believe.
 `page_summaries_money.py`, `services/finance_audit.py`, `services/sync_service.py`,
 `views.py`, `urls.py`, `migrations/0047`, three new templates, navigation, help, release
 notes, teaching destinations.
+
+## 2026-09-01 — the model could not see them either
+
+Production detection found 101 commitments. The Chief of Staff could see none of them:
+`FinanceDomainTruth._describe_recurring` read `RecurringTransaction` — the hand-typed
+table — exactly as the dashboard had. The same defect, one layer down.
+
+`recurring` now returns detected series as well as declared templates, each carrying its
+review state, whether it is counted in the committed forecast, its confidence, and the
+evidence behind it. Filterable by `review_state`. A merged duplicate is not offered, and
+a declared template already represented by a detected series is not returned twice.
+
+The capability description tells the model plainly: a candidate is a proposal, say so,
+and **WLJ never promotes a candidate on its own and neither may you**.

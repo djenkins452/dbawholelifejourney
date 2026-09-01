@@ -621,3 +621,79 @@ class DetectionRunsWithoutBeingAskedTests(RecurringBase):
         for entry in settings.CELERY_BEAT_SCHEDULE.values():
             if entry["task"].endswith("sweep_recurring_detection"):
                 self.assertIsInstance(entry["schedule"], crontab)
+
+
+class CoSCanSeeWhatWasDetectedTests(RecurringBase):
+    """The model could not see one of the 101 commitments WLJ had found."""
+
+    def _describe(self, **filters):
+        from apps.finance.services.finance_domain_truth import FinanceDomainTruth
+        return FinanceDomainTruth(self.user).describe(
+            entity_type="recurring", filters=filters or None)
+
+    def test_a_detected_candidate_is_visible(self):
+        self._series()
+        names = [e.identity for e in self._describe()]
+        self.assertIn("Streamflix", names)
+
+    def test_a_candidate_is_marked_as_awaiting_a_decision(self):
+        self._series()
+        entity = self._describe()[0]
+        self.assertEqual(entity.status, RecurringSeries.REVIEW_CANDIDATE)
+        self.assertTrue(entity.plan["awaiting_your_decision"])
+        self.assertFalse(entity.plan["counted_in_committed_forecast"])
+
+    def test_a_confirmed_one_says_it_is_counted(self):
+        self._series(review_state=RecurringSeries.REVIEW_CONFIRMED)
+        entity = self._describe()[0]
+        self.assertEqual(entity.status, RecurringSeries.REVIEW_CONFIRMED)
+        self.assertTrue(entity.plan["counted_in_committed_forecast"])
+
+    def test_it_carries_confidence_and_evidence(self):
+        self._series(evidence={"occurrences": 6, "median_gap_days": 30})
+        standing = self._describe()[0].standing
+        self.assertEqual(standing["confidence"], "high")
+        self.assertEqual(standing["evidence"]["occurrences"], 6)
+        self.assertEqual(standing["source"], RecurringSeries.SOURCE_DETECTED)
+
+    def test_it_can_be_filtered_to_confirmed_only(self):
+        self._series()
+        self._series(name="Gym", payee="gym",
+                     review_state=RecurringSeries.REVIEW_CONFIRMED)
+        names = [e.identity for e in self._describe(review_state="confirmed")]
+        self.assertEqual(names, ["Gym"])
+
+    def test_an_amount_range_survives_for_a_variable_bill(self):
+        self._series(name="Power", payee="power", is_variable=True,
+                     amount_expected=None, amount_min=Decimal("80.00"),
+                     amount_max=Decimal("210.00"))
+        definition = self._describe()[0].definition
+        self.assertTrue(definition["amount_varies"])
+        self.assertEqual(definition["amount_min"], 80.0)
+        self.assertEqual(definition["amount_max"], 210.0)
+
+    def test_a_merged_duplicate_is_not_offered_to_the_model(self):
+        keep = self._series(name="Streamflix", payee="streamflix")
+        dupe = self._series(name="Streamflix Inc", payee="streamflix inc")
+        dupe.merged_into = keep
+        dupe.save(update_fields=["merged_into"])
+        names = [e.identity for e in self._describe()]
+        self.assertEqual(names, ["Streamflix"])
+
+    def test_a_declared_template_is_not_duplicated(self):
+        template = RecurringTransaction.objects.create(
+            user=self.user, name="Streamflix", amount=Decimal("15.99"),
+            account=self.checking, frequency="monthly",
+            start_date=date(2026, 1, 5), next_due_date=date(2026, 7, 5),
+            transaction_type="expense")
+        self._series(declared_template=template)
+        names = [e.identity for e in self._describe()]
+        self.assertEqual(names.count("Streamflix"), 1)
+
+    def test_the_capability_tells_the_model_not_to_promote_a_candidate(self):
+        from apps.core.truth.semantics import DOMAIN_SEMANTICS
+
+        described = DOMAIN_SEMANTICS["finance"]["entities"]["recurring"]
+        self.assertIn("candidate", described)
+        self.assertIn("never promotes a candidate", described)
+        self.assertIn("counted_in_committed_forecast", described)

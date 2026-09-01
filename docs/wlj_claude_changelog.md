@@ -5,6 +5,70 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-01 — fix(finance/cos): period vocabulary frozen + user-supplied numbers are hypotheses, not truth
+
+Bounded response to the 2026-08-31 Finance trust incident. **Decision 1 (spend semantics) was already shipped by the
+Finance owner** in `56c0821c` — this change covers Decisions 2 and 3 and does not touch their module.
+
+### Decision 2 — period vocabulary, frozen in the shared authority
+On Aug 31 *"this past month"* resolved to `last_month` = **all of July**, so an August question was answered with
+July data and every August transaction the user then named looked like an omission. Frozen in
+`apps/core/truth/periods.py` so no domain can drift:
+
+| phrase | resolves to (on 2026-08-31) |
+|---|---|
+| `this month` | 2026-08-01 … 08-31 (current calendar month) |
+| `last month` | 2026-07-01 … 07-31 (previous calendar month) |
+| **`past month` / `this past month`** | **2026-08-02 … 08-31 (trailing 30 days)** |
+| `past 30 days` / `last 30 days` | 2026-08-02 … 08-31 |
+
+`last_30_days` is now a first-class named period. The ranked tool additionally tells the model to pass the user's
+**words**, not a translation: *"'past month' is the trailing 30 days and 'last month' is the previous CALENDAR
+month, so substituting one for the other answers a different question than the one asked."*
+
+### Decision 3 — a number the user says is not a fact WLJ holds
+Production: *"didn't July have a $2,300 house payment?"* — **no such transaction exists** — and the assistant
+asserted `$2,300.00` in a turn that called **no tool at all**. A `CONFLICT` clause already existed mid-prompt and
+did not fire, which is the same positional failure recorded in `03 §10b`. The rule is therefore placed at the
+**anchor** — inside the opening internal question, before the model decides it needs no tool:
+
+> *A number the user says is not a fact WLJ holds … that is a HYPOTHESIS TO CHECK, never truth to adopt … a precise
+> number is not evidence, and agreeing is not verifying … do NOT open with "you're right" … Repeating a value they
+> gave you, back to them, as though WLJ had confirmed it is a fabrication even though they said it first … a
+> challenge is a reason to look again, never a reason to switch to their number.*
+
+### Verified against live production data (read-only, zero provider calls)
+Role coverage is sufficient — **94 of 96** July outflows carry a spend magnitude, and `spend_magnitude` classifies
+**live** rather than depending on a backfill. The corrected ranking now excludes the $849.84 ALLY row (**Loan
+Payments**) and returns **$688.95 Myspacover (Health)** as July's largest consumption spend.
+
+### Dashboard / CoS alignment (verified)
+Both derive from the same authority: the dashboard's monthly figure is `measures.net_spending` via `monthly_views`;
+the CoS ranking is `measures.spend_magnitude` per row. One vocabulary, two questions (a period total vs a per-row
+magnitude) — **not two definitions of "spend"**. Dense dashboard copy is flagged for later bounded UX cleanup, not
+touched here.
+
+### ⚠️ GAP REPORTED TO THE FINANCE OWNER — deliberately NOT patched
+A credit-card payment made **from a cash account**, carrying the provider's own
+`LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` detail but **not transfer-paired**, classifies as `purchase` and returns a spend
+magnitude — so it would rank as spending and double-count purchases already counted on the card. Production is
+currently protected only because Danny's card payments **are** transfer-paired (the $5,000 CRDEPAY was excluded by
+`financial_activity` as a transfer, before roles were consulted). The gap lives in `finance_calc/roles.py`, which
+another session owns, and the incident's sequencing rule forbids editing their module to unblock myself. Captured as
+an `@expectedFailure` test so it is visible in CI and **flips to a hard failure the moment the owner closes it**.
+
+### Regression — 42 tests, fixtures only, ZERO provider calls
+Period vocabulary (6, incl. `past month` ≠ `last month`) · anchor placement and wording (7, incl. *inside* the
+opening block and *before* the mid-prompt conflict clause, and no incident-specific rule) · spend semantics are
+delegated to the authority (6: the surface asks `spend_magnitude`, the bound uses `could_be_consumption_q`, loan
+payment → None, income → None, purchase → magnitude, transfer never reaches the population) · plus the existing
+ranking suite (23) now run over a **trailing** window after a real calendar-boundary flake surfaced on Sep 1.
+
+**Pre-existing failures, NOT mine** (identical with this work stashed): `test_f4_population_convergence` ×2 and
+`test_p1_economic_roles.ShadowIsolationTests` — concurrent Finance work; plus the known 21 missing Finance entity
+descriptions, explicitly out of scope for this incident.
+
+---
 ## 2026-08-30 — feat(finance): transaction spend RANKING — "what is my largest spend this past month?"
 
 **Production friction.** *"What is my largest spend this past month?"* → *"It seems I can't directly retrieve your

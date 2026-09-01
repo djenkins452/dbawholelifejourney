@@ -211,8 +211,12 @@ def get_domain_ranked_entity(user, subject, *, period="this_month",
         _emit(uid, subject_norm, "unsupported", period=period)
         return _envelope(subject_norm, "unsupported",
                          reason=(f"Unresolvable period '{period}'. Pass the natural "
-                                 f"expression the user said — 'this month', 'last 30 days' "
-                                 f"— or a named period."))
+                                 f"expression the user said — 'this month', 'past month', "
+                                 f"'last 30 days' — or a named period. Pass their WORDS; "
+                                 f"do not translate them: 'past month' is the trailing 30 "
+                                 f"days and 'last month' is the previous CALENDAR month, "
+                                 f"so substituting one for the other answers a different "
+                                 f"question than the one asked."))
 
     try:
         from apps.core.truth.domain import get_domain_truth, registered_domains

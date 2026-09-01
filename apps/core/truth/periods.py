@@ -12,7 +12,7 @@ from datetime import date, datetime, timedelta
 
 # Named periods this resolver understands (custom range via start/end kwargs).
 NAMED_PERIODS = (
-    "today", "yesterday", "last_7_days", "this_week", "last_week",
+    "today", "yesterday", "last_7_days", "last_30_days", "this_week", "last_week",
     "this_month", "last_month", "this_quarter", "last_quarter",
     "this_year", "last_year",
 )
@@ -24,6 +24,15 @@ _PERIOD_ALIASES = {
     "past 7 days": "last_7_days", "past week": "last_7_days",
     "this week": "this_week", "last week": "last_week",
     "this month": "this_month", "last month": "last_month",
+    # "PAST month" IS NOT "LAST month" (frozen 2026-08-31). Production: on Aug 31 a
+    # user asked for their largest spend "this past month" and the model resolved it to
+    # `last_month` = the whole of JULY, so an August question was answered with July
+    # data and every August transaction the user then named looked like an omission.
+    # "Last month" names a CALENDAR month; "past month" means the last ~30 days of
+    # activity. They are different questions and now resolve differently.
+    "past month": "last_30_days", "this past month": "last_30_days",
+    "past 30 days": "last_30_days", "last 30 days": "last_30_days",
+    "past thirty days": "last_30_days", "last thirty days": "last_30_days",
     "this quarter": "this_quarter", "last quarter": "last_quarter",
     "this year": "this_year", "last year": "last_year",
 }
@@ -89,6 +98,9 @@ def resolve_period(name, today, *, start=None, end=None):
         return Period(name, y, y, "yesterday")
     if name == "last_7_days":
         return Period(name, today - timedelta(days=6), today, "the last 7 days")
+    if name == "last_30_days":
+        # Trailing 30 days INCLUSIVE of today — the same shape as last_7_days.
+        return Period(name, today - timedelta(days=29), today, "the last 30 days")
     if name == "this_week":
         s = today - timedelta(days=today.weekday())          # Monday
         return Period(name, s, today, "this week")

@@ -50,7 +50,11 @@ class _Base(TestCase):
             date=timezone.localdate() - timedelta(days=days_ago),
             description=description or payee, payee=payee, **kw)
 
-    def _rank(self, period="this_month", limit=10, user=None):
+    # A TRAILING window, not a calendar month: seeding "3 days ago" and asking for
+    # "this month" is empty on the 1st of a month — the same boundary confusion that
+    # produced the incident (a question about recent activity answered with a calendar
+    # month). Calendar boundaries are covered explicitly in DateSemanticsTests.
+    def _rank(self, period="past 30 days", limit=10, user=None):
         return get_domain_ranked_entity(user or self.user, SUBJECT,
                                         period=period, limit=limit)
 
@@ -178,6 +182,18 @@ class TransferAndPaymentSemanticsTests(_Base):
 
 
 class DateSemanticsTests(_Base):
+    def test_calendar_month_and_trailing_window_are_different_questions(self):
+        """Frozen vocabulary: 'past month' is trailing 30 days, 'last month' is the
+        previous calendar month. Conflating them is what answered an August question
+        with July data."""
+        from datetime import date
+        from apps.core.truth.periods import resolve_date_expression
+        t = date(2026, 8, 31)
+        past = resolve_date_expression("past month", t)
+        last = resolve_date_expression("last month", t)
+        self.assertEqual((past.start, past.end), (date(2026, 8, 2), date(2026, 8, 31)))
+        self.assertEqual((last.start, last.end), (date(2026, 7, 1), date(2026, 7, 31)))
+
     def test_period_is_resolved_deterministically(self):
         self._tx(-100.00, days_ago=2, payee="In Window")
         env = self._rank(period="last_30_days")

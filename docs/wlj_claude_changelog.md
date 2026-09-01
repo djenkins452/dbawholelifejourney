@@ -61554,3 +61554,15 @@ to rewrite it overnight. The gate above arguably answers the concern behind that
 `test_drift_is_reported_and_never_silently_rewritten` protects it as an explicit decision,
 and overturning one of those belongs to whoever made it. Recorded in
 `DriftIsNotSelfHealedTests` so the reasoning is visible rather than lost.
+
+## 2026-09-01 — the gated reclassification, applied
+
+Migration `0048` runs the rehearsal-then-apply pass against the deployed classifier
+(1.3.0, which now recognises an unpaired card payment the provider itself named). It was
+held back deliberately until 1.3.0 was live: a one-shot alignment run against the older
+classifier would have spent its one shot realigning to semantics that were about to
+change, and the nightly sweep does not heal drift.
+
+Applies only transitions that cannot raise apparent spending; everything else is
+reported and left alone. The report is published to the cache and readable through
+`finance-audit → roles.last_reclassification`.

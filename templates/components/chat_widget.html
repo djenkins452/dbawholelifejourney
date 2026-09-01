@@ -652,9 +652,32 @@
     }
 }
 
+/* ---------------------------------------------------------------------------
+   NO FLOATING BUTTON ON MOBILE OR TABLET.
+   ---------------------------------------------------------------------------
+   A fixed circle in the bottom-right corner covers a 48px patch of whatever is
+   scrolling underneath it — on a 375px screen the action row of a card is full
+   width, so the button sits on top of its last button and there is no scroll
+   position that frees it. Reserving page padding does not help: padding only
+   clears the END of a page, and a fixed element covers its band the whole way
+   down.
+
+   `assistant_panel.html` already knew this and hid the button at <=1024px — but
+   that rule sits inside the panel's own "personal assistant enabled" guard, and
+   the preference DEFAULTS TO FALSE. So the button was hidden for people who had
+   the assistant switched on, and left floating over the content of everyone who
+   had not. The rule belongs with the button it governs, ungated, which is here.
+
+   Access is preserved by moving into the bottom chrome, which is reserved space
+   the page already pads for: the full-width pull-up for people with the panel,
+   and a Chief-of-Staff item in the bottom tab bar for everyone else.
+   --------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+    .assistant-toggle-btn { display: none !important; }
+}
+
 /* Mobile adjustments */
 @media (max-width: 768px) {
-    /* Move chat button above the bottom tab bar */
     .assistant-toggle-btn {
         bottom: calc(70px + env(safe-area-inset-bottom, 0px) + 16px);
         right: 16px;
@@ -1073,6 +1096,10 @@
 <script nonce="{{ csp_nonce }}">
 (function() {
     const toggleBtn = document.getElementById('assistant-toggle-btn');
+    // Docked entry points (the bottom tab bar on mobile) open the SAME drawer. They
+    // are bound alongside the floating button rather than instead of it, so the
+    // behaviour is identical wherever CoS is reached from.
+    const dockedOpeners = document.querySelectorAll('[data-assistant-open]');
     const overlay = document.getElementById('assistant-overlay');
     const drawer = document.getElementById('assistant-drawer');
     const messagesContainer = document.getElementById('assistant-messages');
@@ -3675,6 +3702,12 @@
 
     // Event listeners
     toggleBtn.addEventListener('click', openDrawer);
+    dockedOpeners.forEach(function (opener) {
+        opener.addEventListener('click', function (event) {
+            event.preventDefault();
+            openDrawer();
+        });
+    });
     overlay.addEventListener('click', closeDrawer);
     closeBtn.addEventListener('click', closeDrawer);
 

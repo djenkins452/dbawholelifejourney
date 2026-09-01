@@ -45,6 +45,24 @@
     {% endif %}
     {% endfor %}
 
+    {% comment %}
+      Chief of Staff, docked.
+
+      Only when the pull-up panel is NOT present. Someone with the assistant enabled
+      already has a full-width pull-up handle in the bottom chrome and does not need a
+      second way in; someone without it used to get a floating circle that sat on top
+      of the page. This is the same drawer, in reserved space, covering nothing.
+    {% endcomment %}
+    {% if not personal_assistant_enabled %}
+    <button type="button" class="bottom-tab bottom-tab-cos" data-assistant-open
+            aria-label="Open {{ cos_display_name|default:'Chief of Staff' }}">
+        <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span class="bottom-tab-label">Assistant</span>
+    </button>
+    {% endif %}
+
     <!-- More - Always last -->
     <a href="{% url 'core:more' %}" class="bottom-tab bottom-tab-more {% if request.resolver_match.url_name == 'more' %}active{% endif %}">
         <svg class="bottom-tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

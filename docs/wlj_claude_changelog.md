@@ -61652,3 +61652,40 @@ inline handlers, labelled checkboxes, `aria-current` on the tab, `role="search"`
 `aria-live` region for the bulk preview.
 
 No detection, classification, forecasting or calculation was changed.
+
+## 2026-09-01 — the Chief-of-Staff button was floating over everyone who hadn't switched it on
+
+**The bug was an asymmetry, not a position.** `assistant_panel.html` already hid the
+floating button at ≤1024px — but that rule sits inside the panel's own
+`personal_assistant_enabled` guard, and **the preference defaults to False**. So the
+button was hidden for people who had the assistant switched ON, and left floating over
+the content of everyone who had not — which is every new account.
+
+That is why it looked fine on Danny's account and covered "View details" on mine. A check
+written against an enabled account would have passed.
+
+**A fixed circle cannot be made not to overlap.** Padding clears the END of a page; a
+fixed element covers its band the whole way down, so on a 375px screen — where a card's
+action row is full width — it sits on the last button at every scroll position. The fix is
+to stop it floating, not to move it:
+
+* the ≤1024px hide rule now lives in `chat_widget.html`, **with the button it governs**,
+  ungated, so no unrelated preference can switch it off;
+* access moves into the bottom chrome, which the page already reserves 120px for — the
+  full-width pull-up for people with the panel, and a **Chief-of-Staff tab in the bottom
+  tab bar** for everyone else. Both open the same drawer;
+* the docked tab appears only when the pull-up does not, so nobody gets two ways in.
+
+**Audited in a real browser at 375px**, both preference states, scrolling the full height
+of each page in half-viewport steps: Recurring (4,227px), Dashboard, Add-recurring form,
+and Spending & Cash Flow (6,759px). **Zero unexpected fixed bands, zero overlapping
+controls, no horizontal scroll on any of them.** Content passing under the bottom nav
+while scrolling is left alone — that is how every mobile app works, and the page pads so
+nothing is trapped at rest.
+
+The regression test covers **both** preference states, because only one of them was ever
+broken. Verified by reverting the fix: it fails on the old code and passes on the new.
+A second test refuses any new `position: fixed` element in the global stylesheet that
+isn't known chrome.
+
+No Finance behaviour changed.

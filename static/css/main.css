@@ -1726,6 +1726,15 @@ a:hover {
     }
 }
 
+/* The docked Chief-of-Staff tab is a <button>, so it needs the browser's default
+   button chrome removed to sit level with the <a> tabs beside it. */
+.bottom-tab-cos {
+    background: none;
+    border: none;
+    font: inherit;
+    cursor: pointer;
+}
+
 .bottom-tab {
     display: flex;
     flex-direction: column;

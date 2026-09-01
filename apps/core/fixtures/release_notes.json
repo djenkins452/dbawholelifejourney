@@ -5046,5 +5046,21 @@
       "created_at": "2026-08-31T23:00:00Z",
       "updated_at": "2026-08-31T23:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 318,
+    "fields": {
+      "title": "WLJ finds your subscriptions and bills for you",
+      "description": "Your dashboard used to say “No upcoming recurring” and ask you to type in your own subscriptions and bills — while WLJ already held two years of transactions showing them. It now reads your history and proposes what it finds: subscriptions, bills, loan payments and income, with the cadence, the expected amount or range, and the actual transactions behind each one. Everything arrives as “Likely — waiting for you” and stays out of your committed forecast until you confirm it. You can confirm, correct anything WLJ got wrong, merge duplicates, split a group that was really two things, mark one as ended, archive or delete — and your decisions survive every later run.",
+      "entry_type": "feature",
+      "version": "",
+      "release_date": "2026-09-01",
+      "is_published": true,
+      "is_major": true,
+      "learn_more_url": "",
+      "created_at": "2026-09-01T13:00:00Z",
+      "updated_at": "2026-09-01T13:00:00Z"
+    }
   }
 ]

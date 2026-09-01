@@ -64,9 +64,14 @@ class PopulationAgreementTests(TestCase):
         self.paired_out = out_leg
 
     def _txn(self, amount, **kw):
+        # Inside the month AND not in the future. `month_start + 1 day` is TOMORROW on
+        # the 1st, and both `FinanceHistory` and `create_snapshot` cap at today — so
+        # this suite failed on exactly one day in thirty and passed the other twenty-
+        # nine, which is the kind of test people learn to re-run rather than believe.
+        when = min(self.month_start + timedelta(days=1), self.today)
         return Transaction.objects.create(
             user=self.user, account=self.account,
-            date=self.month_start + timedelta(days=1), amount=amount,
+            date=when, amount=amount,
             description="row", **kw,
         )
 

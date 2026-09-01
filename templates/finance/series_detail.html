@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}{{ series.name }} - Recurring
+<style nonce="{{ csp_nonce }}">
+.sd-head { display: flex; justify-content: space-between; gap: 1rem;
+           flex-wrap: wrap; align-items: flex-start; }
+.sd-flag { display: inline-block; font-size: .7rem; font-weight: 600;
+           text-transform: uppercase; letter-spacing: .04em; padding: .15rem .5rem;
+           border-radius: 999px; }
+.flag-likely { background: #fef3c7; color: #92400e; }
+.flag-confirmed { background: #d1fae5; color: #065f46; }
+.flag-ignored { background: #f3f4f6; color: #4b5563; }
+.sd-card { border: 1px solid var(--color-border, #e5e7eb); border-radius: 12px;
+           padding: 1rem 1.1rem; margin-bottom: 1.25rem; }
+.sd-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+            gap: .8rem; }
+.sd-fact-label { font-size: .75rem; color: var(--color-text-muted, #6b7280);
+                 text-transform: uppercase; letter-spacing: .04em; display: block; }
+.sd-fact-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sd-why { font-size: .85rem; color: var(--color-text-muted, #6b7280); line-height: 1.5; }
+.sd-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+.sd-actions form { display: inline; }
+.sd-danger { border-color: #fca5a5; }
+.sd-obs { width: 100%; border-collapse: collapse; }
+.sd-obs th, .sd-obs td { text-align: left; padding: .4rem 0; font-size: .85rem;
+                         border-bottom: 1px solid var(--color-border, #e5e7eb); }
+.sd-obs td:last-child, .sd-obs th:last-child { text-align: right;
+                         font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sd-form-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+.sd-form-row select { min-height: 44px; font-size: 16px; }
+@media (max-width: 480px) {
+    .sd-actions .btn, .sd-form-row select, .sd-form-row .btn { width: 100%; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="series-detail">
+    <p><a href="{% url 'finance:series_list' %}">&larr; Recurring</a></p>
+
+    <div class="sd-head">
+        <div>
+            <h1>{{ series.name }}</h1>
+            <p class="sd-why">
+                {{ series.get_kind_display }} &middot; {{ series.get_frequency_display }}
+                {% if series.source == 'user' %}&middot; your decision{% else %}&middot; detected by WLJ{% endif %}
+            </p>
+        </div>
+        <span class="sd-flag flag-{% if series.review_state == 'confirmed' %}confirmed{% elif series.review_state == 'candidate' %}likely{% else %}ignored{% endif %}" data-testid="review-state">
+            {{ series.get_review_state_display }}
+        </span>
+    </div>
+
+    {% if series.merged_into %}
+    <p class="sd-why" data-testid="merged-note">
+        Merged into <a href="{% url 'finance:series_detail' series.merged_into.pk %}">{{ series.merged_into.name }}</a>.
+    </p>
+    {% endif %}
+
+    <div class="sd-card">
+        <div class="sd-facts">
+            <div>
+                <span class="sd-fact-label">Expected amount</span>
+                <span class="sd-fact-value" data-testid="expected-amount">
+                    {% if series.is_variable and series.amount_min %}{{ series.amount_min|money_abs }}&ndash;{{ series.amount_max|money_abs }}{% elif series.amount_expected %}{{ series.amount_expected|money_abs }}{% else %}varies{% endif %}
+                </span>
+            </div>
+            <div>
+                <span class="sd-fact-label">Next expected</span>
+                <span class="sd-fact-value">{% if series.next_due_date %}{{ series.next_due_date|date:"M j, Y" }}{% else %}unknown{% endif %}</span>
+            </div>
+            <div>
+                <span class="sd-fact-label">Per month</span>
+                <span class="sd-fact-value">{% if monthly_equivalent %}{{ monthly_equivalent|money_abs }}{% else %}not on a schedule{% endif %}</span>
+            </div>
+            <div>
+                <span class="sd-fact-label">Confidence</span>
+                <span class="sd-fact-value">{{ series.confidence|default:"—" }}</span>
+            </div>
+            <div>
+                <span class="sd-fact-label">Seen</span>
+                <span class="sd-fact-value">{{ series.occurrence_count }} time{{ series.occurrence_count|pluralize }}</span>
+            </div>
+            <div>
+                <span class="sd-fact-label">Between</span>
+                <span class="sd-fact-value">{{ series.first_seen_date|date:"M Y" }} &ndash; {{ series.last_seen_date|date:"M Y" }}</span>
+            </div>
+        </div>
+        {% if series.review_state != 'confirmed' %}
+        <p class="sd-why" style="margin-top:.75rem" data-testid="not-counted">
+            This is a proposal. It is <strong>not</strong> in your committed forecast and
+            will not be until you confirm it.
+        </p>
+        {% endif %}
+    </div>
+
+    <div class="sd-card">
+        <h2>What to do with it</h2>
+        <form method="post" action="{% url 'finance:money_series_decide' series.pk %}" class="sd-form-row">
+            {% csrf_token %}
+            <select name="kind" aria-label="What kind of commitment">
+                {% for value, label in kind_choices %}
+                <option value="{{ value }}" {% if value == series.kind %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" name="decision" value="confirmed" class="btn btn-primary" data-testid="confirm">Confirm</button>
+            <button type="submit" name="decision" value="ignored" class="btn btn-secondary" data-testid="reject">Not recurring</button>
+        </form>
+
+        <div class="sd-actions">
+            <a href="{% url 'finance:series_update' series.pk %}" class="btn btn-secondary btn-sm" data-testid="edit">Edit details</a>
+            <form method="post" action="{% url 'finance:series_end' series.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="end">It has ended</button>
+            </form>
+            <form method="post" action="{% url 'finance:series_split' series.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="split">This is more than one thing</button>
+            </form>
+            {% if series.status == 'active' %}
+            <form method="post" action="{% url 'finance:series_archive' series.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="archive">Archive</button>
+            </form>
+            {% else %}
+            <form method="post" action="{% url 'finance:series_restore' series.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-secondary btn-sm" data-testid="restore">Restore</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if merge_targets %}
+    <div class="sd-card">
+        <h2>Same thing as another one?</h2>
+        <p class="sd-why">
+            A merchant that renames itself mid-year shows up twice. Merging keeps one and
+            moves every observed transaction onto it.
+        </p>
+        <form method="post" action="{% url 'finance:series_merge' series.pk %}" class="sd-form-row">
+            {% csrf_token %}
+            <select name="into" aria-label="Merge into">
+                {% for target in merge_targets %}
+                <option value="{{ target.pk }}">{{ target.name }} ({{ target.get_frequency_display|lower }})</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-secondary" data-testid="merge">Merge into it</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="sd-card">
+        <h2>Why WLJ believes this</h2>
+        {% if series.evidence %}
+        <p class="sd-why">
+            {{ series.evidence.occurrences }} occurrence{{ series.evidence.occurrences|pluralize }}
+            between {{ series.evidence.first }} and {{ series.evidence.last }},
+            about {{ series.evidence.median_gap_days }} days apart
+            (variation {{ series.evidence.gap_standard_deviation_days }} days),
+            {{ series.evidence.amount_min }}&ndash;{{ series.evidence.amount_max }}.
+            Detector {{ series.evidence.detector_version }}.
+        </p>
+        {% endif %}
+        {% if observations %}
+        <table class="sd-obs" data-testid="observations">
+            <thead><tr><th>Date</th><th>Account</th><th>Amount</th></tr></thead>
+            <tbody>
+            {% for txn in observations %}
+            <tr>
+                <td>{{ txn.date|date:"M j, Y" }}</td>
+                <td>{{ txn.account.name|default:"—" }}</td>
+                <td>{{ txn.amount|money_signed }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p class="sd-why">No transactions are currently linked to this series.</p>
+        {% endif %}
+    </div>
+
+    <div class="sd-card sd-danger">
+        <h2>Delete</h2>
+        <p class="sd-why">
+            Permanent, and only WLJ's reading of the pattern &mdash; your transactions
+            are untouched. Archiving is the reversible option.
+        </p>
+        <form method="post" action="{% url 'finance:series_delete' series.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-danger btn-sm" data-testid="delete">Delete this series</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

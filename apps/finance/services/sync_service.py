@@ -299,7 +299,35 @@ class TransactionSyncService:
                 result['error'] = 'sync_incomplete'
             result['error_code'] = error_code or 'UNKNOWN'
 
+        self._look_for_recurring_patterns(result)
         return result
+
+    def _look_for_recurring_patterns(self, result):
+        """New transactions arrived — ask the worker to look for schedules in them.
+
+        Fire-and-forget onto the worker, never inline: detection classifies the whole
+        population, which is background work by any measure and would tie up a Gunicorn
+        worker that should be serving pages.
+
+        Only when rows actually moved. A sync that changed nothing has nothing new to
+        find, and re-running detection on every empty poll would be a scheduled job
+        pretending to be an event.
+        """
+        if result.get('error') or result.get('skipped'):
+            return
+        if not (result.get('added') or result.get('modified')):
+            return
+        try:
+            from apps.core.celery_utils import safe_enqueue
+            from apps.finance.tasks import detect_recurring_and_opportunities
+
+            safe_enqueue(detect_recurring_and_opportunities,
+                         self.bank_connection.user_id)
+        except Exception:
+            # Detection is an enhancement to a sync that already succeeded. It must
+            # never be able to turn a good sync into a failed one.
+            logger.warning("Could not enqueue recurring detection after sync for "
+                           "connection %s", self.bank_connection.pk, exc_info=True)
 
     @staticmethod
     def _is_mutation_during_pagination(exc) -> bool:

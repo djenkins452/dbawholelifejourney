@@ -11,6 +11,7 @@ from django.urls import path
 from . import views
 from . import views_money
 from apps.finance import views_assets, views_attribution, views_categories
+from apps.finance import views_recurring
 
 app_name = 'finance'
 
@@ -79,6 +80,18 @@ urlpatterns = [
     path('budgets/<int:pk>/delete/', views.BudgetDeleteView.as_view(), name='budget_delete'),
 
     # Recurring Transactions
+    # Detected + declared recurring commitments — the review and CRUD surface.
+    path('series/', views_recurring.SeriesListView.as_view(), name='series_list'),
+    path('series/new/', views_recurring.SeriesCreateView.as_view(), name='series_create'),
+    path('series/detect/', views_recurring.series_detect, name='series_detect'),
+    path('series/<int:pk>/', views_recurring.SeriesDetailView.as_view(), name='series_detail'),
+    path('series/<int:pk>/edit/', views_recurring.SeriesUpdateView.as_view(), name='series_update'),
+    path('series/<int:pk>/archive/', views_recurring.series_archive, name='series_archive'),
+    path('series/<int:pk>/restore/', views_recurring.series_restore, name='series_restore'),
+    path('series/<int:pk>/delete/', views_recurring.series_delete, name='series_delete'),
+    path('series/<int:pk>/end/', views_recurring.series_end, name='series_end'),
+    path('series/<int:pk>/merge/', views_recurring.series_merge, name='series_merge'),
+    path('series/<int:pk>/split/', views_recurring.series_split, name='series_split'),
     path('recurring/', views.RecurringTransactionListView.as_view(), name='recurring_list'),
     path('recurring/new/', views.RecurringTransactionCreateView.as_view(), name='recurring_create'),
     path('recurring/<int:pk>/', views.RecurringTransactionDetailView.as_view(), name='recurring_detail'),

@@ -372,25 +372,46 @@
                 <a href="{% url 'finance:recurring_create' %}" class="btn btn-primary btn-sm">Add</a>
             </div>
 
-            {% if upcoming_recurring %}
-            <div class="recurring-list">
-                {% for recurring in upcoming_recurring %}
-                <a href="{% url 'finance:recurring_detail' recurring.pk %}" class="recurring-item">
+            {% if upcoming.items %}
+            <div class="recurring-list" data-testid="upcoming-recurring">
+                {% for item in upcoming.items %}
+                <a href="{% if item.source == 'series' %}{% url 'finance:series_detail' item.id %}{% else %}{% url 'finance:recurring_detail' item.id %}{% endif %}" class="recurring-item" data-state="{{ item.state }}">
                     <div class="recurring-info">
-                        <span class="recurring-name">{{ recurring.name }}</span>
-                        <span class="recurring-meta">{{ recurring.next_due_date|date:"M j" }} &middot; {{ recurring.account.name }}</span>
+                        <span class="recurring-name">
+                            {{ item.name }}
+                            {% if item.state == 'likely' %}<span class="recurring-flag recurring-flag-likely" data-testid="likely-flag">Likely &mdash; review</span>{% else %}<span class="recurring-flag recurring-flag-confirmed">Confirmed</span>{% endif %}
+                        </span>
+                        <span class="recurring-meta">
+                            {% if item.due %}{{ item.due|date:"M j" }}{% else %}date unknown{% endif %}
+                            &middot; {{ item.kind_label }}{% if item.account %} &middot; {{ item.account }}{% endif %}
+                        </span>
                     </div>
-                    <span class="recurring-amount {% if recurring.is_expense %}negative{% else %}positive{% endif %}">
-                        {% if recurring.is_expense %}-{% else %}+{% endif %}{{ recurring.amount|money_abs }}
+                    <span class="recurring-amount {% if item.is_income %}positive{% else %}negative{% endif %}">
+                        {% if item.is_variable and item.amount_min %}{{ item.amount_min|money_abs }}&ndash;{{ item.amount_max|money_abs }}{% elif item.amount %}{% if item.is_income %}+{% else %}-{% endif %}{{ item.amount|money_abs }}{% else %}amount varies{% endif %}
                     </span>
                 </a>
                 {% endfor %}
             </div>
+            {% if upcoming.awaiting_review %}
+            <p class="recurring-review-note" data-testid="awaiting-review">
+                WLJ found {{ upcoming.awaiting_review }} likely recurring item{{ upcoming.awaiting_review|pluralize }} for review.
+                <a href="{% url 'finance:series_list' %}">Review {{ upcoming.awaiting_review|pluralize:"it,them" }}</a>
+            </p>
+            {% endif %}
+            {% elif upcoming.empty_reason == 'nothing_detected_yet' %}
+            <p class="text-muted" data-testid="empty-not-detected">
+                WLJ hasn't found any recurring patterns in your history yet &mdash; it looks
+                overnight. You can also <a href="{% url 'finance:series_list' %}">run the search now</a>
+                or <a href="{% url 'finance:recurring_create' %}">add one yourself</a>.
+            </p>
             {% else %}
-            <p class="text-muted">No upcoming recurring. <a href="{% url 'finance:recurring_create' %}">Add subscriptions or bills</a>.</p>
+            <p class="text-muted" data-testid="empty-none-due">
+                Nothing due in the next {{ upcoming.horizon_days }} days.
+                <a href="{% url 'finance:series_list' %}">See all recurring</a>.
+            </p>
             {% endif %}
 
-            <a href="{% url 'finance:recurring_list' %}" class="section-link">Manage recurring</a>
+            <a href="{% url 'finance:series_list' %}" class="section-link" data-testid="manage-recurring">Manage recurring</a>
         </div>
     </div>
 

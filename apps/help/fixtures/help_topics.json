@@ -2697,5 +2697,19 @@
       "order": 171,
       "is_active": true
     }
+  },
+  {
+    "model": "help.helptopic",
+    "pk": 172,
+    "fields": {
+      "context_id": "FINANCE_RECURRING",
+      "help_id": "finance-recurring",
+      "title": "Recurring",
+      "description": "Subscriptions, bills, loan payments and income WLJ found for you — and how to correct them.",
+      "content": "## Recurring\n\nWLJ reads your transaction history looking for things that repeat: subscriptions, bills, loan payments, transfers and income. You do not have to type them in.\n\n### Likely, then confirmed\n\nAnything WLJ finds arrives as **Likely — waiting for you**. That is a proposal, not a decision:\n\n- it is **not** counted in your committed forecast;\n- it says how confident WLJ is, and why;\n- it shows you the actual transactions behind it, so you can check rather than trust.\n\nOnce you confirm it, it becomes part of your committed forecast straight away.\n\n### Correcting it\n\nWLJ guesses the name, the cadence, the amount and the kind. Any of those can be wrong, and you can change all of them — a candidate that is right about the commitment and wrong about the amount should be corrected, not thrown away.\n\nYour corrections win. Later detection runs update what has been *observed* — how many times it has happened, when it last did — and never overwrite what you decided.\n\n### The other verbs\n\n- **Not recurring** — WLJ was wrong; it will not propose it again.\n- **It has ended** — it was real and has stopped. Different from \"not recurring\", and your forecast treats them differently.\n- **This is more than one thing** — WLJ grouped two commitments under one name. Splitting releases the transactions so it can look again.\n- **Merge** — for when a merchant renames itself and shows up twice.\n- **Archive** — out of the way, reversible. **Delete** is permanent, but only removes WLJ's reading of the pattern; your transactions are never touched.\n\n### Why kinds matter\n\nA subscription, a bill, a loan payment and a transfer are different things. Moving money between your own accounts is not a cost; paying down a loan is not consumption. Getting the kind right is what keeps your spending figures honest, which is why WLJ asks rather than assuming.\n",
+      "app_name": "finance",
+      "order": 172,
+      "is_active": true
+    }
   }
 ]

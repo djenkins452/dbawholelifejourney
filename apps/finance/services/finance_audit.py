@@ -19,6 +19,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import logging
+from collections import Counter
+
 from django.contrib.auth import get_user_model
 from django.db.models import Count, F, Max, Min, Q, Sum
 from django.utils import timezone
@@ -34,6 +37,8 @@ from apps.finance.models import (
     TransactionAttribution,
 )
 from apps.finance.services.transfer_detection import paired_q
+
+logger = logging.getLogger(__name__)
 
 #: Below this, a "pattern" is one or two rows and a finding cannot be trusted.
 MIN_TRANSACTIONS_FOR_TRUST = 50
@@ -57,7 +62,6 @@ def _counts_by(queryset, field):
 def audit():
     """One aggregate snapshot of Finance truth in this environment."""
     User = get_user_model()
-
     finance_user_ids = set()
     for model in (FinancialAccount, Transaction, BankConnection):
         finance_user_ids.update(model.objects.values_list("user_id", flat=True).distinct())
@@ -227,6 +231,7 @@ def audit():
         },
         "dependencies": _installed_distributions(),
         "integrity": integrity,
+        "recurring": _recurring_state(finance_user_ids),
         "readiness": _readiness(eligible, months, len(finance_user_ids), integrity),
     }
 
@@ -330,6 +335,41 @@ def _installed_distributions():
         if name:
             resolved[name] = dist.version
     return dict(sorted(resolved.items(), key=lambda kv: kv[0].lower()))
+
+
+def _recurring_state(finance_user_ids):
+    """What recurring detection has actually STORED. Cheap, indexed counts only.
+
+    An empty recurring list has two completely different meanings: "this person has no
+    recurring commitments" (false for almost everybody) and "detection has never
+    produced a result". The dashboard could not tell them apart and told Danny the
+    first when the truth was the second. So the audit reports what is stored, by state
+    and by kind, and whether anything has EVER been stored.
+
+    It deliberately does NOT rehearse detection here. Rehearsing means classifying every
+    transaction for every user, which is background work — running it inside an HTTP
+    endpoint is the request-path violation this codebase has been bitten by before.
+    `recurring.rehearse(user)` is the per-user, worker-side version.
+
+    Aggregates only: counts and distributions, never a payee or an amount.
+    """
+    from apps.finance.models import RecurringSeries
+    from apps.finance.services.finance_calc import recurring as REC
+
+    stored = RecurringSeries.objects.all()
+    total = stored.count()
+    return {
+        "stored_total": total,
+        "stored_by_review_state": _counts_by(stored, "review_state"),
+        "stored_by_kind": _counts_by(stored, "kind"),
+        "stored_by_confidence": _counts_by(stored, "confidence"),
+        "users_with_series": stored.values("user_id").distinct().count(),
+        "finance_users": len(finance_user_ids),
+        "detector_version": REC.DETECTOR_VERSION,
+        "note": ("Nothing stored means detection has not produced a result — which is "
+                 "NOT the same as the person having no recurring commitments, and must "
+                 "never be shown to them as if it were."),
+    }
 
 
 def _readiness(eligible, months, users, integrity):

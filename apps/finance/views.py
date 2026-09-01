@@ -361,16 +361,18 @@ class FinanceDashboardView(PageSummaryMixin, LoginRequiredMixin, TemplateView):
         # Quick add form
         context['quick_form'] = QuickTransactionForm(user)
 
-        # Upcoming recurring transactions
-        from datetime import timedelta
-        upcoming_end = today + timedelta(days=14)
-        upcoming_recurring = RecurringTransaction.objects.filter(
-            user=user,
-            status='active',
-            is_active=True,
-            next_due_date__lte=upcoming_end,
-        ).select_related('account', 'category').order_by('next_due_date')[:5]
-        context['upcoming_recurring'] = upcoming_recurring
+        # Upcoming bills and income — DETECTED as well as declared.
+        #
+        # This used to read only `RecurringTransaction`, the table a person fills in by
+        # hand, and so told someone with a mortgage and two years of history that they
+        # had no recurring activity. That was never a fact about their money; it was a
+        # fact about an empty table. Confirmed items and likely candidates now come from
+        # one source and are labelled differently, so a guess never looks like a
+        # decision.
+        from apps.finance.services.finance_calc.recurring import upcoming as _upcoming
+
+        context['upcoming'] = _upcoming(user)
+        context['upcoming_recurring'] = context['upcoming']['items']
 
         return context
 

@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}{% if is_create %}Add recurring{% else %}Edit {{ form.instance.name }}{% endif %}
+<style nonce="{{ csp_nonce }}">
+.sf-field { margin-bottom: 1rem; }
+.sf-field label { display: block; font-weight: 600; font-size: .88rem;
+                  margin-bottom: .25rem; }
+.sf-field .form-input, .sf-field select, .sf-field textarea {
+                  width: 100%; max-width: 100%; font-size: 16px; min-height: 44px;
+                  padding: .5rem .6rem;
+                  border: 1px solid var(--color-border, #e5e7eb); border-radius: 8px; }
+.sf-field textarea { min-height: 5rem; }
+.sf-help { font-size: .78rem; color: var(--color-text-muted, #6b7280);
+           margin-top: .2rem; line-height: 1.4; }
+.sf-error { color: var(--color-danger, #b91c1c); font-size: .8rem; margin-top: .2rem; }
+.sf-actions { display: flex; gap: .6rem; flex-wrap: wrap; margin-top: 1.25rem; }
+@media (max-width: 480px) { .sf-actions .btn { width: 100%; justify-content: center; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="series-form">
+    <p><a href="{% url 'finance:series_list' %}">&larr; Recurring</a></p>
+    <h1>{% if is_create %}Add a recurring item{% else %}Edit {{ form.instance.name }}{% endif %}</h1>
+    <p class="sf-help">
+        {% if is_create %}
+        Something you know repeats but WLJ hasn't seen yet. It counts as confirmed
+        straight away, because you're the one telling it.
+        {% else %}
+        Change anything WLJ got wrong. Your version wins &mdash; later detection runs
+        update what has been observed, never your corrections.
+        {% endif %}
+    </p>
+
+    <form method="post" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <p class="sf-error">{{ form.non_field_errors }}</p>
+        {% endif %}
+        {% for field in form %}
+        <div class="sf-field">
+            <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.help_text %}<p class="sf-help">{{ field.help_text }}</p>{% endif %}
+            {% for error in field.errors %}<p class="sf-error">{{ error }}</p>{% endfor %}
+        </div>
+        {% endfor %}
+        <div class="sf-actions">
+            <button type="submit" class="btn btn-primary" data-testid="save">Save</button>
+            <a href="{% url 'finance:series_list' %}" class="btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

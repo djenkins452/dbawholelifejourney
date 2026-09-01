@@ -23,7 +23,7 @@ would put a number nobody will ever be charged into the plan they budget from.
 from __future__ import annotations
 
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import timedelta
 from decimal import Decimal
 
@@ -82,7 +82,33 @@ def _frequency_for(median_gap):
     return best
 
 
-def _kind_for(role, amount, account):
+#: Provider categories that are a HOUSEHOLD BILL whatever their amount does. Rent and
+#: utilities are obligations; nobody calls their water a subscription.
+BILL_PRIMARIES = frozenset({
+    "RENT_AND_UTILITIES", "LOAN_PAYMENTS", "INSURANCE", "GOVERNMENT_AND_NON_PROFIT",
+    "MEDICAL",
+})
+
+#: Where a FIXED, regularly repeating charge is more honestly a subscription than a
+#: bill. Still not sufficient on its own — see `_kind_for`.
+SUBSCRIPTION_PRIMARIES = frozenset({
+    "ENTERTAINMENT", "GENERAL_SERVICES", "PERSONAL_CARE",
+})
+
+
+def _kind_for(role, items=(), *, is_variable=False, frequency=None):
+    """Which kind of commitment this is — the most defensible one, not the catchiest.
+
+    The role decides everything it can: income, debt service, savings and transfers are
+    settled by the economic-role authority and are not re-litigated here.
+
+    What is left is a recurring OUTFLOW, and the honest default is **bill**. A
+    subscription is a narrower claim — a fixed price, on a schedule, to a merchant
+    selling access — and it needs evidence: the provider saying so, or a steady amount
+    in a category where subscriptions actually live. "Do not call every repeated charge
+    a subscription" is the rule; a variable power bill and a monthly gym membership are
+    genuinely different things and a person can feel the difference immediately.
+    """
     from apps.finance.models import RecurringSeries as RS
     from apps.finance.models import Transaction as T
 
@@ -94,6 +120,22 @@ def _kind_for(role, amount, account):
         return RS.KIND_SAVINGS
     if role in (T.ROLE_INTERNAL_TRANSFER, T.ROLE_CARD_PAYMENT):
         return RS.KIND_TRANSFER
+
+    primaries = {(t.provider_category_primary or "").upper() for t in items}
+    detaileds = " ".join((t.provider_category_detailed or "").upper() for t in items)
+
+    # The provider naming it outright is the strongest evidence there is.
+    if "SUBSCRIPTION" in detaileds:
+        return RS.KIND_SUBSCRIPTION
+    # A household obligation stays a bill however steady it is.
+    if primaries & BILL_PRIMARIES:
+        return RS.KIND_BILL
+    # Otherwise: a steady price, on a real schedule, in a category where subscriptions
+    # live. Any one of those missing and it stays a bill.
+    if (not is_variable and frequency in (RS.FREQ_MONTHLY, RS.FREQ_ANNUAL,
+                                          RS.FREQ_QUARTERLY, RS.FREQ_SEMIANNUAL)
+            and primaries & SUBSCRIPTION_PRIMARIES):
+        return RS.KIND_SUBSCRIPTION
     return RS.KIND_BILL
 
 
@@ -111,35 +153,97 @@ def _confidence(occurrences, gaps, gap_spread, amount_spread):
     return "low"
 
 
-def detect(user, *, since=None, min_occurrences=MIN_OCCURRENCES):
-    """Propose recurring series from history. Returns proposals; writes nothing."""
+def detect(user, *, since=None, min_occurrences=MIN_OCCURRENCES, diagnostics=None):
+    """Propose recurring series from history. Returns proposals; writes nothing.
+
+    Pass a dict as `diagnostics` to find out WHY a population produced nothing. A
+    detector that returns an empty list is indistinguishable from one that never ran,
+    and "no recurring activity" is a claim WLJ should be able to substantiate before it
+    puts it in front of someone.
+    """
     from apps.finance.models import Transaction as T
     from apps.finance.services.finance_calc import measures as M
     from apps.finance.services.finance_calc import roles as R
+
+    diag = diagnostics if diagnostics is not None else {}
+    diag.update({"transactions": 0, "skipped_role": 0, "skipped_zero": 0,
+                 "groups": 0, "too_few_occurrences": 0, "no_payee": 0,
+                 "rejected_amount_ratio": 0, "proposed": 0})
 
     population = M._population(user, start=since)
     rows = R.classify_many(population)
 
     groups = defaultdict(list)
     for txn, assignment in rows:
+        diag["transactions"] += 1
         if assignment.role in (T.ROLE_UNCERTAIN, T.ROLE_OPENING_BALANCE,
                                T.ROLE_REFUND, T.ROLE_REVERSAL, T.ROLE_LOAN_PROCEEDS):
+            diag["skipped_role"] += 1
             continue
         amount = txn.amount or ZERO
         if amount == ZERO:
+            diag["skipped_zero"] += 1
             continue
         key = (normalise_payee(txn), "in" if amount > 0 else "out", assignment.role)
         groups[key].append(txn)
 
+    diag["groups"] = len(groups)
     proposals = []
     for (payee, direction, role), items in groups.items():
-        if len(items) < min_occurrences or not payee:
+        if not payee:
+            diag["no_payee"] += 1
+            continue
+        if len(items) < min_occurrences:
+            diag["too_few_occurrences"] += 1
             continue
         proposal = _propose(payee, direction, role, items, min_occurrences)
         if proposal:
             proposals.append(proposal)
+        else:
+            diag["rejected_amount_ratio"] += 1
     proposals.sort(key=lambda p: p["monthly_equivalent"] or ZERO, reverse=True)
+    diag["proposed"] = len(proposals)
     return proposals
+
+
+def rehearse(user, *, since=None):
+    """What detection WOULD propose, as aggregates. Writes nothing, names nothing.
+
+    Exists because "we found no recurring activity" and "detection has never
+    successfully run" look identical from outside, and only one of them is a fact about
+    the person's money. Counts and distributions only — never a payee, never an amount
+    that could identify a merchant.
+    """
+    from apps.finance.models import RecurringSeries as RS
+
+    diagnostics = {}
+    proposals = detect(user, since=since, diagnostics=diagnostics)
+
+    by_kind, by_confidence, by_frequency = Counter(), Counter(), Counter()
+    for proposal in proposals:
+        series = proposal["series"]
+        by_kind[series.kind] += 1
+        by_confidence[series.confidence] += 1
+        by_frequency[series.frequency] += 1
+
+    existing = RS.objects.filter(user=user, status="active")
+    return {
+        "diagnostics": diagnostics,
+        "would_propose": len(proposals),
+        "by_kind": dict(by_kind),
+        "by_confidence": dict(by_confidence),
+        "by_frequency": dict(by_frequency),
+        "already_stored": {
+            "total": existing.count(),
+            "candidate": existing.filter(
+                review_state=RS.REVIEW_CANDIDATE).count(),
+            "confirmed": existing.filter(
+                review_state=RS.REVIEW_CONFIRMED).count(),
+            "ignored": existing.filter(review_state=RS.REVIEW_IGNORED).count(),
+        },
+        "detector_version": DETECTOR_VERSION,
+        "read_only": True,
+    }
 
 
 def _propose(payee, direction, role, items, min_occurrences):
@@ -174,7 +278,8 @@ def _propose(payee, direction, role, items, min_occurrences):
 
     series = RS(
         name=payee.title()[:200], payee=payee,
-        kind=_kind_for(role, direction, None), frequency=frequency,
+        kind=_kind_for(role, items, is_variable=is_variable, frequency=frequency),
+        frequency=frequency,
         amount_expected=None if is_variable else median_amount,
         amount_min=lo, amount_max=hi, is_variable=is_variable,
         first_seen_date=dates[0], last_seen_date=dates[-1],
@@ -288,3 +393,109 @@ def monthly_obligation_total(user):
             continue
         total += monthly
     return total, unknown
+
+
+#: A candidate confident enough to be worth putting in front of someone. A low one is
+#: still visible on the review page — it is just not something to lead a dashboard with.
+DASHBOARD_CONFIDENCE = frozenset({"high", "medium"})
+
+
+def upcoming(user, *, limit=5, horizon_days=45):
+    """What is expected next — confirmed items and likely ones, never mixed up.
+
+    THE DEFECT THIS REPLACES. The dashboard read only `RecurringTransaction`, the model
+    a person fills in BY HAND, and said "No upcoming recurring. Add subscriptions or
+    bills." to someone with two years of transactions and a mortgage. That sentence is
+    not a fact about his money; it is a fact about a table nobody had typed into. WLJ
+    knew about the payments all along and simply never looked.
+
+    Confirmed and likely are returned in ONE list because a person wants one answer to
+    "what is coming up", and separately labelled because a guess must never wear the
+    same clothes as a decision.
+    """
+    from datetime import timedelta
+
+    from apps.core.utils import get_user_today
+    from apps.finance.models import RecurringSeries as RS
+    from apps.finance.models import RecurringTransaction
+
+    today = get_user_today(user)
+    horizon = today + timedelta(days=horizon_days)
+
+    series = list(RS.objects.filter(user=user, status="active",
+                                    merged_into__isnull=True)
+                  .select_related("account", "category", "declared_template"))
+    confirmed_count = sum(1 for s in series if s.review_state == RS.REVIEW_CONFIRMED)
+    candidate_count = sum(1 for s in series if s.review_state == RS.REVIEW_CANDIDATE)
+
+    items = []
+    declared_seen = set()
+    for entry in series:
+        if entry.review_state == RS.REVIEW_IGNORED:
+            continue
+        provisional = entry.review_state != RS.REVIEW_CONFIRMED
+        if provisional and entry.confidence not in DASHBOARD_CONFIDENCE:
+            continue
+        if entry.next_due_date and entry.next_due_date > horizon:
+            continue
+        if entry.declared_template_id:
+            declared_seen.add(entry.declared_template_id)
+        items.append({
+            "id": entry.pk,
+            "source": "series",
+            "name": entry.name,
+            "kind": entry.kind,
+            "kind_label": entry.get_kind_display(),
+            "state": "likely" if provisional else "confirmed",
+            "confidence": entry.confidence if provisional else "",
+            "due": entry.next_due_date,
+            "is_variable": entry.is_variable,
+            "amount": entry.amount_expected,
+            "amount_min": entry.amount_min,
+            "amount_max": entry.amount_max,
+            "is_income": entry.kind == RS.KIND_INCOME,
+            "account": entry.account.name if entry.account_id else "",
+        })
+
+    # A template the person wrote themselves is a decision, not a guess — but only
+    # once, so a declared Netflix and its detected series are not two Netflixes.
+    for template in (RecurringTransaction.objects
+                     .filter(user=user, status="active", is_active=True,
+                             next_due_date__lte=horizon)
+                     .select_related("account")):
+        if template.pk in declared_seen:
+            continue
+        items.append({
+            "id": template.pk,
+            "source": "template",
+            "name": template.name,
+            "kind": RS.KIND_INCOME if not template.is_expense else RS.KIND_BILL,
+            "kind_label": "Recurring income" if not template.is_expense else "Bill",
+            "state": "confirmed",
+            "confidence": "",
+            "due": template.next_due_date,
+            "is_variable": False,
+            "amount": template.amount,
+            "amount_min": None, "amount_max": None,
+            "is_income": not template.is_expense,
+            "account": template.account.name if template.account_id else "",
+        })
+
+    # Soonest first; anything with no expected date sorts last rather than vanishing.
+    items.sort(key=lambda i: (i["due"] is None, i["due"] or today,
+                              i["state"] != "confirmed"))
+
+    return {
+        "items": items[:limit],
+        "shown": min(len(items), limit),
+        "total_upcoming": len(items),
+        "confirmed_count": confirmed_count,
+        "candidate_count": candidate_count,
+        "awaiting_review": candidate_count,
+        "has_any_series": bool(series),
+        "horizon_days": horizon_days,
+        # The distinction the old empty state could not make.
+        "empty_reason": (
+            None if items else
+            ("nothing_detected_yet" if not series else "nothing_due_in_horizon")),
+    }

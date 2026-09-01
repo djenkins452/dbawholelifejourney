@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% load finance_format %}
+
+{% block title %}Recurring - Whole Life Journey
+<style nonce="{{ csp_nonce }}">
+.series-group { margin-bottom: 2rem; }
+.series-group h2 { font-size: 1.05rem; margin: 0 0 .35rem; }
+.series-group-why { font-size: .85rem; color: var(--color-text-muted, #6b7280);
+                    margin: 0 0 .75rem; line-height: 1.45; }
+.series-row { display: flex; justify-content: space-between; gap: 1rem;
+              align-items: flex-start; flex-wrap: wrap;
+              border: 1px solid var(--color-border, #e5e7eb); border-radius: 10px;
+              padding: .8rem .9rem; margin-bottom: .5rem;
+              text-decoration: none; color: inherit; min-height: 44px; }
+.series-row:hover, .series-row:focus-visible { border-color: var(--color-primary, #4f46e5); }
+.series-main { min-width: 0; flex: 1 1 16rem; }
+.series-name { font-weight: 600; display: block; }
+.series-meta { font-size: .8rem; color: var(--color-text-muted, #6b7280);
+               display: block; margin-top: .15rem; line-height: 1.4; }
+.series-amount { font-weight: 600; font-variant-numeric: tabular-nums;
+                 white-space: nowrap; }
+.series-flag { display: inline-block; font-size: .68rem; font-weight: 600;
+               text-transform: uppercase; letter-spacing: .04em; padding: .1rem .4rem;
+               border-radius: 999px; margin-left: .4rem; vertical-align: .1em; }
+.flag-likely { background: #fef3c7; color: #92400e; }
+.flag-confirmed { background: #d1fae5; color: #065f46; }
+.flag-low { background: #f3f4f6; color: #4b5563; }
+.series-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .5rem; }
+.series-actions form { display: inline; }
+.series-empty { color: var(--color-text-muted, #6b7280); line-height: 1.5; }
+.series-toolbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center;
+                  margin-bottom: 1.25rem; }
+@media (max-width: 480px) {
+    .series-row { flex-direction: column; }
+    .series-actions .btn { width: 100%; justify-content: center; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container" data-testid="finance-series">
+    <p><a href="{% url 'finance:dashboard' %}">&larr; Finance</a></p>
+    <h1>Recurring</h1>
+    <p class="series-group-why">
+        WLJ looks through your transaction history for things that repeat &mdash;
+        subscriptions, bills, loan payments and income. Anything it finds is a
+        <strong>proposal</strong> until you confirm it, and only confirmed items count
+        towards your committed forecast.
+    </p>
+
+    <div class="series-toolbar">
+        <a href="{% url 'finance:series_create' %}" class="btn btn-primary btn-sm">Add one yourself</a>
+        <form method="post" action="{% url 'finance:series_detect' %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-secondary btn-sm" data-testid="run-detection">Look for patterns now</button>
+        </form>
+        {% if show == 'archived' %}
+        <a href="{% url 'finance:series_list' %}" class="btn btn-secondary btn-sm">Show active</a>
+        {% elif archived_count %}
+        <a href="?show=archived" class="btn btn-secondary btn-sm" data-testid="show-archived">Show archived ({{ archived_count }})</a>
+        {% endif %}
+    </div>
+
+    {% if show != 'archived' %}
+    <section class="series-group" data-testid="group-candidates">
+        <h2>Likely &mdash; waiting for you ({{ candidates|length }})</h2>
+        <p class="series-group-why">
+            WLJ thinks these repeat. It has not counted any of them in your forecast and
+            will not until you say so.
+        </p>
+        {% for s in candidates %}
+        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row" data-testid="candidate-row">
+            <span class="series-main">
+                <span class="series-name">{{ s.name }}
+                    <span class="series-flag flag-{% if s.confidence == 'low' %}low{% else %}likely{% endif %}">{{ s.confidence }} confidence</span>
+                </span>
+                <span class="series-meta">
+                    {{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}
+                    &middot; seen {{ s.occurrence_count }}&times;
+                    {% if s.next_due_date %}&middot; next {{ s.next_due_date|date:"M j" }}{% endif %}
+                </span>
+            </span>
+            <span class="series-amount">
+                {% if s.is_variable and s.amount_min %}{{ s.amount_min|money_abs }}&ndash;{{ s.amount_max|money_abs }}{% elif s.amount_expected %}{{ s.amount_expected|money_abs }}{% else %}varies{% endif %}
+            </span>
+        </a>
+        {% empty %}
+        <p class="series-empty" data-testid="no-candidates">
+            Nothing waiting for review. If WLJ has never looked, use
+            &ldquo;Look for patterns now&rdquo; above &mdash; it runs on the worker and
+            takes a moment.
+        </p>
+        {% endfor %}
+    </section>
+
+    <section class="series-group" data-testid="group-confirmed">
+        <h2>Confirmed ({{ confirmed|length }})</h2>
+        <p class="series-group-why">Only these are counted in your committed forecast.</p>
+        {% for s in confirmed %}
+        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row" data-testid="confirmed-row">
+            <span class="series-main">
+                <span class="series-name">{{ s.name }}<span class="series-flag flag-confirmed">Confirmed</span></span>
+                <span class="series-meta">
+                    {{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}
+                    {% if s.next_due_date %}&middot; next {{ s.next_due_date|date:"M j" }}{% endif %}
+                </span>
+            </span>
+            <span class="series-amount">
+                {% if s.is_variable and s.amount_min %}{{ s.amount_min|money_abs }}&ndash;{{ s.amount_max|money_abs }}{% elif s.amount_expected %}{{ s.amount_expected|money_abs }}{% else %}varies{% endif %}
+            </span>
+        </a>
+        {% empty %}
+        <p class="series-empty">Nothing confirmed yet.</p>
+        {% endfor %}
+    </section>
+
+    {% if ignored %}
+    <section class="series-group" data-testid="group-ignored">
+        <h2>Not recurring, or ended ({{ ignored|length }})</h2>
+        <p class="series-group-why">Kept so WLJ does not propose them again.</p>
+        {% for s in ignored %}
+        <a href="{% url 'finance:series_detail' s.pk %}" class="series-row">
+            <span class="series-main">
+                <span class="series-name">{{ s.name }}</span>
+                <span class="series-meta">{{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}</span>
+            </span>
+        </a>
+        {% endfor %}
+    </section>
+    {% endif %}
+
+    {% else %}
+    <section class="series-group" data-testid="group-archived">
+        <h2>Archived ({{ series|length }})</h2>
+        <p class="series-group-why">Out of the way, not gone. Restore any of them.</p>
+        {% for s in series %}
+        <div class="series-row">
+            <span class="series-main">
+                <span class="series-name">{{ s.name }}</span>
+                <span class="series-meta">{{ s.get_kind_display }} &middot; {{ s.get_frequency_display }}</span>
+                <span class="series-actions">
+                    <form method="post" action="{% url 'finance:series_restore' s.pk %}">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-secondary btn-sm" data-testid="restore">Restore</button>
+                    </form>
+                </span>
+            </span>
+        </div>
+        {% empty %}
+        <p class="series-empty">Nothing archived.</p>
+        {% endfor %}
+    </section>
+    {% endif %}
+</div>
+{% endblock %}

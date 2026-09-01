@@ -61381,3 +61381,63 @@ identified the $2,300 as coming from Danny's own question rather than from stale
 or a bad calculation. Removed in one commit, with the incident preserved in
 `apps/ai/tests/test_finance_claim_guard.py` — where the production text is now a test
 fixture rather than a live endpoint.
+
+## 2026-09-01 — WLJ knew about the mortgage all along
+
+The Finance dashboard told a man with two years of transactions and a mortgage:
+*"No upcoming recurring. Add subscriptions or bills."*
+
+It was reading `RecurringTransaction` — the table a person fills in **by hand**. The
+detector, the `RecurringSeries` model, the persist path, the forecast separation and the
+nightly sweep all already existed and worked (30 passing tests). Nothing on the dashboard
+ever looked at what they produced. That sentence was never a fact about his money; it was
+a fact about an empty table.
+
+**Detection now runs without being asked.** Migration `0047` runs it once over existing
+history for every user (candidates only — `persist` refuses to overwrite a decision, so
+it is safe to run twice), and a successful sync that actually added or modified rows
+enqueues it on the worker. The nightly crontab sweep was already there.
+
+**Detection can now explain itself.** `rehearse()` reports what it would propose plus
+WHY it proposed nothing — transactions seen, groups formed, too-few-occurrences,
+rejected-on-amount-ratio. "No recurring activity" and "detection has never produced a
+result" look identical from outside and only one is a fact about a person.
+
+**Kinds are the most defensible one, not the catchiest.** A subscription now needs
+evidence — the provider naming it, or a steady amount on a real schedule in a category
+where subscriptions live. Rent, utilities, insurance and loan payments stay bills however
+regular they are.
+
+**Complete CRUD**, at `/finance/series/`: confirm, reject, create, view with the actual
+transactions behind the guess, edit every field the detector fills, merge duplicates,
+split a group that was really two commitments, mark ended (distinct from "never
+recurring"), archive, restore, delete. Every correction sets `source=user`, which is what
+stops the next run arguing with it. Deleting a series unlinks the transactions and never
+touches the money.
+
+Confirmed items only in the committed forecast; candidates shown separately and labelled
+**Likely — review**. Low-confidence candidates stay off the dashboard but remain on the
+review page.
+
+### Three defects found on the way
+
+**Every Finance page-summary provider had been failing silently.** `_resolve_page_summary`
+calls `provider(user, params)` inside a try/except; all seven Finance providers were
+written one-argument, so every one raised TypeError, was swallowed, and left the page with
+**no Current Context** — the assistant did not know what the person was looking at, on any
+Finance overview page. Fixed, with a contract test.
+
+**`SoftDeleteManager` made archiving one-way.** `RecurringSeries.objects` returns only
+`status='active'`, so an archived series was a 404 and could never be restored, and
+`filter(status="archived")` counted zero so the "Show archived" link never appeared. Three
+instances, all mine, all now using `archived_only()` / `all_with_deleted()`.
+
+**A test that failed one day in thirty.** `test_f4_population_convergence` dated its
+fixtures `month_start + 1 day` — tomorrow, on the 1st — while the surfaces under test cap
+at today. It failed today and passes the other twenty-nine days, which is the kind of test
+people learn to re-run rather than believe.
+
+54 new tests. Files: `services/finance_calc/recurring.py`, `views_recurring.py` (new),
+`page_summaries_money.py`, `services/finance_audit.py`, `services/sync_service.py`,
+`views.py`, `urls.py`, `migrations/0047`, three new templates, navigation, help, release
+notes, teaching destinations.

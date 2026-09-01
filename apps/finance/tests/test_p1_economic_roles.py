@@ -449,6 +449,10 @@ class ShadowIsolationTests(RoleBase):
             # views separate them. The service itself never touches the field — it
             # composes measures, which is the point.
             "apps/finance/tests/test_monthly_views.py",
+            "apps/finance/tests/test_finance_claim_integrity.py",
+            # The recurring workflow tests build rows with a known role to prove the
+            # detector maps them to the right KIND of commitment.
+            "apps/finance/tests/test_recurring_workflow.py",
             # The review queue template renders the CURRENT role in its select so the
             # person can see what WLJ decided before overriding it. It reads the field;
             # it does not decide one.

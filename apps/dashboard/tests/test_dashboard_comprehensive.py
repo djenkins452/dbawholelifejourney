@@ -54,10 +54,39 @@ class DashboardTestMixin:
         user.preferences.has_completed_onboarding = True
         user.preferences.save()
 
+    def set_module_enabled(self, user, module, enabled):
+        """Enable/disable a module through the CANONICAL enablement path.
+
+        The legacy ``preferences.<module>_enabled`` booleans are no longer the
+        truth: the dashboard reads module flags from the context processor,
+        which resolves them from the ModuleDefinition catalog +
+        UserModulePreference (``get_user_module_enablement_map``). v2's home
+        view used to override those with the legacy prefs field; v3 does not,
+        so a test that only flips the prefs boolean changes nothing the page
+        can see. Write the catalog row the app actually reads.
+        """
+        from apps.core.module_catalog import invalidate_catalog_cache
+        from apps.users.models import ModuleDefinition, UserModulePreference
+
+        module_def, _ = ModuleDefinition.objects.get_or_create(
+            slug=module,
+            defaults={
+                'name': module.title(),
+                'icon_svg': '',
+                'route_name': f'{module}:home',
+            },
+        )
+        UserModulePreference.objects.update_or_create(
+            user=user, module=module_def, defaults={'is_enabled': enabled},
+        )
+        invalidate_catalog_cache()
+        # Keep the legacy prefs field in step for any code still reading it.
+        setattr(user.preferences, f'{module}_enabled', enabled)
+        user.preferences.save()
+
     def enable_module(self, user, module):
         """Enable a module for a user (faith, health, journal, life, purpose)."""
-        setattr(user.preferences, f'{module}_enabled', True)
-        user.preferences.save()
+        self.set_module_enabled(user, module, True)
 
     def login_user(self, email='test@example.com', password='testpass123'):
         """Login and return True if successful."""
@@ -239,10 +268,19 @@ class DashboardViewBasicTest(DashboardTestMixin, TestCase):
     # --- Template Used ---
 
     def test_dashboard_uses_correct_template(self):
-        """Dashboard uses the correct template."""
+        """Dashboard renders the v3 shell and its section includes.
+
+        /dashboard/ was promoted to dashboard_v3 (2026-05-28); the v2 shell is
+        preserved at /dashboard/classic/. The page is composed from section
+        partials, so assert the shell AND a section include -- a bare shell
+        assertion would still pass if the composition collapsed.
+        """
         self.login_user()
         response = self.client.get(reverse('dashboard_v2:home'))
-        self.assertTemplateUsed(response, 'dashboard_v2/home.html')
+        self.assertTemplateUsed(response, 'dashboard_v3/home.html')
+        self.assertTemplateUsed(response, 'dashboard_v3/sections/_live.html')
+        self.assertTemplateUsed(response, 'dashboard_v3/sections/rhythm.html')
+        self.assertTemplateNotUsed(response, 'dashboard_v2/home.html')
 
 
 # =============================================================================
@@ -262,35 +300,56 @@ class DashboardContextTest(DashboardTestMixin, TestCase):
         response = self.client.get(reverse('dashboard_v2:home'))
         self.assertIn('greeting', response.context)
 
-    def test_context_contains_current_date(self):
-        """Context includes current_date."""
+    def test_context_contains_viewed_date(self):
+        """Context declares the day being rendered.
+
+        v3 replaced v2's ``current_date`` with the date seam: ``view_date``
+        (the day rendered), ``user_today`` (the user's real today) and
+        ``is_today``. A plain GET renders today.
+        """
+        from apps.core.utils import get_user_today
+
         response = self.client.get(reverse('dashboard_v2:home'))
-        self.assertIn('current_date', response.context)
+        self.assertEqual(response.context['view_date'], get_user_today(self.user))
+        self.assertEqual(response.context['user_today'], get_user_today(self.user))
+        self.assertTrue(response.context['is_today'])
 
     def test_context_contains_module_flags(self):
         """Context includes module enabled flags."""
         response = self.client.get(reverse('dashboard_v2:home'))
         self.assertIn('faith_enabled', response.context)
 
-    def test_context_contains_daily_progress(self):
-        """Context includes daily_progress from V2 dashboard."""
-        response = self.client.get(reverse('dashboard_v2:home'))
-        self.assertIn('daily_progress', response.context)
+    def test_context_contains_day_summary(self):
+        """Context includes the deterministic day summary.
 
-    def test_faith_stats_included_when_enabled(self):
-        """Faith stats included when faith module enabled."""
-        self.enable_module(self.user, 'faith')
+        v2's ``daily_progress`` (DailyProgressService) is gone. v3 exposes
+        ``day_summary`` from build_dashboard_day_summary -- the ONE source that
+        feeds both this render and the ``dashboard.day`` Current Context
+        provider, so the page and the assistant can never disagree.
+        """
         response = self.client.get(reverse('dashboard_v2:home'))
-        # Faith-specific context should be present
-        self.assertIn('faith_enabled', response.context)
+        day_summary = response.context['day_summary']
+        self.assertIn(day_summary['status'], ('ready', 'pending'))
+        for key in ('total', 'completed', 'remaining', 'overdue', 'upcoming'):
+            self.assertIsInstance(day_summary[key], int)
+
+    def test_faith_flag_true_when_module_enabled(self):
+        """faith_enabled is True when the faith module is enabled.
+
+        v3's home view no longer republishes module flags from the legacy
+        preferences booleans -- they come from the context processor, resolved
+        from the ModuleDefinition catalog. set_module_enabled writes that
+        canonical path.
+        """
+        self.set_module_enabled(self.user, 'faith', True)
+        response = self.client.get(reverse('dashboard_v2:home'))
         self.assertTrue(response.context['faith_enabled'])
 
-    def test_faith_stats_excluded_when_disabled(self):
-        """Faith stats not included when faith module disabled."""
-        self.user.preferences.faith_enabled = False
-        self.user.preferences.save()
+    def test_faith_flag_false_when_module_disabled(self):
+        """faith_enabled is False when the faith module is disabled."""
+        self.set_module_enabled(self.user, 'faith', False)
         response = self.client.get(reverse('dashboard_v2:home'))
-        self.assertFalse(response.context.get('faith_enabled', False))
+        self.assertFalse(response.context['faith_enabled'])
 
 
 # =============================================================================
@@ -422,8 +481,8 @@ class JournalStreakTest(DashboardTestMixin, TestCase):
 
         response = self.client.get(reverse('dashboard_v2:home'))
         self.assertEqual(response.status_code, 200)
-        # V2 dashboard provides daily_progress instead of journal-specific streak
-        self.assertIn('daily_progress', response.context)
+        # v3 provides day_summary instead of a journal-specific streak
+        self.assertIn('day_summary', response.context)
 
 
 # =============================================================================
@@ -455,8 +514,8 @@ class DashboardIntegrationTest(DashboardTestMixin, TestCase):
 
         response = self.client.get(reverse('dashboard_v2:home'))
         self.assertEqual(response.status_code, 200)
-        # V2 dashboard provides daily_progress instead of per-module counts
-        self.assertIn('daily_progress', response.context)
+        # v3 provides day_summary instead of per-module counts
+        self.assertIn('day_summary', response.context)
 
     def test_task_count_on_dashboard(self):
         """Dashboard shows correct task counts."""
@@ -642,10 +701,9 @@ class DashboardConfigurationTest(DashboardTestMixin, TestCase):
             self.skipTest("configure URL not defined")
 
     def test_default_config_exists(self):
-        """V2 dashboard provides daily_progress context by default."""
+        """The dashboard provides day_summary context by default."""
         response = self.client.get(reverse('dashboard_v2:home'))
-        daily_progress = response.context.get('daily_progress')
-        self.assertIsNotNone(daily_progress)
+        self.assertIsNotNone(response.context.get('day_summary'))
 
 
 # =============================================================================

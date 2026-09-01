@@ -5,6 +5,58 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-01 — test(dashboard/admin_console): retire v2 assertions the v3 dashboard falsified; bound the metrics walk
+
+**Why:** Nine `apps/dashboard` tests still asserted the retired `dashboard_v2/home.html`
+contract after /dashboard/ was promoted to dashboard_v3 (2026-05-28). And
+`CodebaseMetricsServiceTest` walked the whole working tree on every call, which made the
+`apps.admin_console` suite unrunnable. Application code was NOT changed — each stale test
+was re-pointed at the v3 truth, or removed where v3 genuinely has no such behaviour.
+
+**Dashboard — what v3 renamed (intent preserved):**
+- `current_date` → the date seam `view_date` / `user_today` / `is_today` (ONE Dashboard,
+  parameterized by a date). Two tests now assert a plain GET renders the user's today.
+- `daily_progress` (v2's `DailyProgressService`) → `day_summary` from
+  `build_dashboard_day_summary` — the ONE source feeding both the render and the
+  `dashboard.day` Current Context provider. Four tests re-pointed; the context test now
+  asserts the documented shape (`status` + integer counters) rather than mere presence.
+- Template assertion → `dashboard_v3/home.html` **plus** two section includes, so a
+  collapsed composition can't pass on the shell alone.
+
+**Dashboard — a test that was measuring the wrong thing:**
+- `enable_module()` only flipped `preferences.<module>_enabled`. That stopped being the
+  truth: module flags come from the context processor via the ModuleDefinition catalog +
+  UserModulePreference. v2's home view republished the legacy prefs field, which masked
+  it; v3 does not. New `set_module_enabled()` writes the canonical path, so
+  `faith_enabled` true/false is now actually exercised.
+
+**Dashboard — one test deleted:**
+- `test_panel_hidden_when_ai_disabled` claimed guidance is hidden when `ai_enabled` is
+  False. It only ever passed because the v2 shell inlined no guidance at all (it was
+  HTMX-lazy in the insights section). **No `ai_enabled` gate exists on any guidance
+  surface** — not the v2 insights section, not the v3 composer, not GuidanceItem
+  creation — so the assertion never tested its own name. v3's accountability cards inline
+  guidance, which exposed it. Reinstating it would mean building a gate that has never
+  existed: a product decision, not a test fix. **Flagged for Danny.**
+
+**admin_console — bounded:** `MetricsService` shells out to `find` / `grep -r` / `du`
+rooted at `settings.BASE_DIR`, excluding `.venv` but **not** `venv` (~105k .py files) and
+not the git worktrees under `.claude/`. `unique_imports` uses `-exec grep {} \;` — one
+process per file. Measured: **129s for a single `get_code_metrics()`**, called ~12 times
+across the service and view test classes. New `BoundedMetricsProjectMixin` roots the
+service at a small fixture project (patching `_find_project_root`), including a real empty
+git repo so `get_git_metrics()` can't fall back to the GitHub API. Every assertion there
+is about metric SHAPE, never real repo counts, so nothing is lost. **20 tests: ~26 min →
+7.6s.**
+
+**Files:** `apps/dashboard/tests/test_dashboard.py`,
+`apps/dashboard/tests/test_dashboard_comprehensive.py`,
+`apps/dashboard/tests/test_guidance_panel.py`,
+`apps/admin_console/tests/test_admin_console.py`
+
+**Verification:** `apps.dashboard` 110 tests OK (was 111 with 9 failures);
+`apps.admin_console` metrics classes 20 tests OK in 7.6s.
+
 ## 2026-09-01 — fix(finance/cos): period vocabulary frozen + user-supplied numbers are hypotheses, not truth
 
 Bounded response to the 2026-08-31 Finance trust incident. **Decision 1 (spend semantics) was already shipped by the

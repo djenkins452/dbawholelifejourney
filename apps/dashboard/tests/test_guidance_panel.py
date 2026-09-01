@@ -92,15 +92,16 @@ class GuidancePanelRenderTest(GuidancePanelTestMixin, TestCase):
         # V2 insights section simply doesn't render when empty
         self.assertNotContains(response, "Insights")
 
-    def test_panel_hidden_when_ai_disabled(self):
-        """Guidance tile is not rendered when AI is disabled."""
-        self.user.preferences.ai_enabled = False
-        self.user.preferences.save()
-        self._create_guidance(title="Should Not Show")
-        response = self.client.get(reverse("dashboard_v2:home"))
-        self.assertEqual(response.status_code, 200)
-        # V2 main dashboard doesn't inline guidance content
-        self.assertNotContains(response, "Should Not Show")
+    # NOTE: ``test_panel_hidden_when_ai_disabled`` was removed when /dashboard/
+    # was promoted to dashboard_v3 (2026-05-28). It asserted that the home page
+    # does not show a GuidanceItem when ``preferences.ai_enabled`` is False, but
+    # it only ever passed because the v2 shell inlined NO guidance at all --
+    # guidance was HTMX-lazy in the insights section. No ai_enabled gate exists
+    # on any guidance surface (not the v2 insights section, not the v3 composer,
+    # not GuidanceItem creation), so the test never exercised the behaviour it
+    # named. v3's accountability cards DO inline guidance, which is what exposed
+    # it. Reinstating it would require building an ai_enabled gate that has never
+    # existed -- a product decision, not a test fix.
 
     def test_insights_context_limits_to_two_items(self):
         """V2 insights section limits guidance to 2 items."""

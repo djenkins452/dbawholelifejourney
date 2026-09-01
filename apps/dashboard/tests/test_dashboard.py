@@ -191,10 +191,20 @@ class DashboardContextTest(TestCase):
         response = self.client.get(reverse('dashboard_v2:home'))
         self.assertIn('greeting', response.context)
 
-    def test_dashboard_has_current_date_context(self):
-        """Dashboard V2 context includes current date."""
+    def test_dashboard_has_viewed_date_context(self):
+        """Dashboard context declares the day it is rendering.
+
+        v3 replaced v2's single ``current_date`` with the date seam (ONE
+        Dashboard, parameterized by a date): ``view_date`` is the day being
+        rendered, ``user_today`` is the user's real today, and ``is_today``
+        says whether they are the same. A plain GET renders today.
+        """
+        from apps.core.utils import get_user_today
+
         response = self.client.get(reverse('dashboard_v2:home'))
-        self.assertIn('current_date', response.context)
+        self.assertIn('view_date', response.context)
+        self.assertEqual(response.context['view_date'], get_user_today(self.user))
+        self.assertTrue(response.context['is_today'])
 
     def test_dashboard_has_module_enabled_flags(self):
         """Dashboard V2 context includes module enabled flags."""

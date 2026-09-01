@@ -16,6 +16,11 @@ Location: apps/admin_console/tests.py
 import base64
 import json
 import secrets
+import shutil
+import subprocess
+import tempfile
+from pathlib import Path
+from unittest import mock
 
 from django.test import TestCase, Client, override_settings
 from django.urls import reverse
@@ -4124,7 +4129,98 @@ class DataLoadConfigViewTests(TestCase, AdminTestMixin):
 # CODEBASE METRICS TESTS
 # =============================================================================
 
-class CodebaseMetricsServiceTest(TestCase):
+# A minimal but realistic project tree. MetricsService answers every question
+# these tests ask by shelling out to find/grep/du rooted at the project root, so
+# a fixture project of this shape exercises the SAME code paths as the real repo
+# -- python/html/js/css/markdown files, a views.py, a urls.py, a models.py, a
+# migration, a test module, requirements.txt, and an apps/ directory.
+_FIXTURE_PROJECT_FILES = {
+    "manage.py": "import sys\n\n\ndef main():\n    pass\n",
+    "requirements.txt": "# runtime deps\nDjango==5.0.6\nrequests==2.31.0\n",
+    "README.md": "# Fixture project\n",
+    "static/app.js": "function init() { return 1; }\n",
+    "static/app.css": ".widget { color: red; }\n",
+    "templates/home.html": "<html><body>Home</body></html>\n",
+    "apps/admin_console/__init__.py": "",
+    "apps/admin_console/models.py": (
+        "from django.db import models\n\n\n"
+        "class Widget(models.Model):\n    name = models.CharField(max_length=10)\n"
+    ),
+    "apps/admin_console/views.py": (
+        "def index(request):\n    return None\n\n\n"
+        "def detail(request):\n    return None\n"
+    ),
+    "apps/admin_console/urls.py": (
+        "from django.urls import path\n\n"
+        "urlpatterns = [path('', None, name='index')]\n"
+    ),
+    "apps/admin_console/migrations/__init__.py": "",
+    "apps/admin_console/migrations/0001_initial.py": "# TODO: squash\n",
+    "apps/admin_console/tests/__init__.py": "",
+    "apps/admin_console/tests/test_widgets.py": (
+        "def test_widget_name():\n    assert True\n"
+    ),
+    "apps/dashboard/__init__.py": "",
+    "apps/dashboard/models.py": "from django.db import models\n",
+    "apps/dashboard/views.py": "def home(request):\n    return None\n",
+    "apps/dashboard/urls.py": "urlpatterns = []\n",
+}
+
+
+class BoundedMetricsProjectMixin:
+    """Root MetricsService at a fixture project instead of the real repository.
+
+    MetricsService shells out to ``find`` / ``grep -r`` / ``du`` rooted at
+    ``settings.BASE_DIR``. In a real working tree that root also contains
+    ``venv/`` (~105k .py files) and every git worktree under ``.claude/``, and
+    the commands only exclude ``.venv`` -- not ``venv``. ``unique_imports``
+    additionally uses ``-exec grep {} \\;``, spawning one process per file. ONE
+    ``get_code_metrics()`` call measured 129s here, and this class plus
+    CodebaseMetricsViewTest call it a dozen times, which is what made the
+    admin_console suite unrunnable.
+
+    Every assertion below is about the SHAPE of the metrics -- which dataclass
+    fields exist, what types come back, that a project containing apps is
+    detected -- never about real repository counts. A fixture project answers
+    exactly those questions in milliseconds.
+
+    The fixture also gets a real (empty) git repo so ``has_local_git`` stays
+    True: without it ``get_git_metrics()`` falls back to the GitHub API and the
+    tests would make network calls.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        from apps.admin_console.metrics_service import MetricsService
+
+        cls.fixture_root = Path(tempfile.mkdtemp(prefix="wlj-metrics-fixture-"))
+        for rel_path, content in _FIXTURE_PROJECT_FILES.items():
+            target = cls.fixture_root / rel_path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(content)
+        # A real empty repo -> get_git_metrics() takes the local branch (zeros)
+        # instead of falling back to the network.
+        subprocess.run(
+            ["git", "init", "-q", str(cls.fixture_root)],
+            capture_output=True, check=False,
+        )
+        (cls.fixture_root / ".git").mkdir(exist_ok=True)
+
+        cls._root_patcher = mock.patch.object(
+            MetricsService, "_find_project_root",
+            lambda self: cls.fixture_root,
+        )
+        cls._root_patcher.start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._root_patcher.stop()
+        shutil.rmtree(cls.fixture_root, ignore_errors=True)
+        super().tearDownClass()
+
+
+class CodebaseMetricsServiceTest(BoundedMetricsProjectMixin, TestCase):
     """Tests for the MetricsService class."""
 
     def test_metrics_service_initialization(self):
@@ -4247,21 +4343,25 @@ class CodebaseMetricsServiceTest(TestCase):
         from apps.admin_console.metrics_service import MetricsService
         service = MetricsService()
         metrics = service.get_file_metrics()
-        # This project should have Python files
+        # The fixture project has Python files
         self.assertGreater(metrics.python_files, 0)
 
     def test_django_apps_detected(self):
-        """Test that Django apps are detected."""
+        """Test that Django apps under apps/ are detected and named."""
         from apps.admin_console.metrics_service import MetricsService
         service = MetricsService()
         metrics = service.get_code_metrics()
-        # This project should have Django apps
-        self.assertGreater(metrics.django_apps, 0)
-        self.assertIn('admin_console', metrics.app_names)
+        self.assertEqual(metrics.django_apps, 2)
+        self.assertEqual(metrics.app_names, ['admin_console', 'dashboard'])
 
 
-class CodebaseMetricsViewTest(AdminTestMixin, TestCase):
-    """Tests for the CodebaseMetricsView."""
+class CodebaseMetricsViewTest(BoundedMetricsProjectMixin, AdminTestMixin, TestCase):
+    """Tests for the CodebaseMetricsView.
+
+    The view calls get_project_metrics() on every request, so it walks the
+    project root exactly like the service tests -- BoundedMetricsProjectMixin
+    keeps these six requests off the real repository too.
+    """
 
     def setUp(self):
         self.client = Client()

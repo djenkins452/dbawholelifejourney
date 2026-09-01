@@ -231,6 +231,7 @@ def audit():
         },
         "dependencies": _installed_distributions(),
         "integrity": integrity,
+        "roles": _role_state(),
         "recurring": _recurring_state(finance_user_ids),
         "readiness": _readiness(eligible, months, len(finance_user_ids), integrity),
     }
@@ -335,6 +336,32 @@ def _installed_distributions():
         if name:
             resolved[name] = dist.version
     return dict(sorted(resolved.items(), key=lambda kv: kv[0].lower()))
+
+
+def _role_state():
+    """The PERSISTED economic-role distribution. Indexed counts, nothing computed.
+
+    This is what makes a classifier change measurable: take it before, change the
+    authority, take it again, and the difference is the impact — rather than a claim
+    that nothing moved. `economic_role` is indexed, so this stays cheap enough for the
+    audit endpoint.
+    """
+    from apps.finance.models import Transaction
+    from apps.finance.services.finance_calc import roles as R
+
+    rows = Transaction.objects.all()
+    return {
+        "classifier_version": R.CLASSIFIER_VERSION,
+        "by_role": _counts_by(rows, "economic_role"),
+        "by_source": _counts_by(rows, "role_source"),
+        "by_confidence": _counts_by(rows, "role_confidence"),
+        "unclassified": rows.filter(economic_role__isnull=True).count(),
+        # Rows whose persisted role was written by an OLDER classifier. They are not
+        # wrong by definition — they are simply not known to agree.
+        "stale_against_current_classifier": rows.exclude(
+            role_classifier_version=R.CLASSIFIER_VERSION).exclude(
+            role_classifier_version="").count(),
+    }
 
 
 def _recurring_state(finance_user_ids):

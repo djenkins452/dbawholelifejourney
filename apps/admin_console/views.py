@@ -3650,6 +3650,96 @@ class FinanceAuditAPIView(APIRateLimitMixin, View):
         return JsonResponse(audit(), json_dumps_params={'indent': 2})
 
 
+class ConversationForensicsAPIView(APIRateLimitMixin, View):
+    """TEMPORARY. Read-only forensics for the 2026-08-31 unsupported-amount incident.
+
+    GET /admin-console/api/claude/conversation-forensics/?email=&since=&limit=
+    Auth: X-Claude-API-Key.
+
+    ToolCallLog says what was RETRIEVED on each turn. It cannot say what the assistant
+    then SAID. To tell an invented number from one repeated out of conversation history,
+    the message text is the only evidence there is.
+
+    Bounded and redacted: turns in a window, each reduced to role, timestamp, length,
+    the currency amounts it names, and a short window of text AROUND each amount —
+    never the whole assistant message. Never writes, never calls a provider.
+    """
+
+    rate_limit_requests_per_minute = 10
+    rate_limit_requests_per_hour = 60
+    rate_limit_key_prefix = 'admin_api_conversation_forensics'
+
+    def get(self, request):
+        import re
+        from datetime import datetime, timedelta
+
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+
+        from apps.core.rate_limiting import secure_compare_api_key
+
+        api_key = request.headers.get('X-Claude-API-Key', '')
+        if not settings.CLAUDE_API_KEY:
+            return JsonResponse({'error': 'CLAUDE_API_KEY not configured on server'},
+                                status=500)
+        if not secure_compare_api_key(api_key, settings.CLAUDE_API_KEY):
+            return JsonResponse(
+                {'error': 'Invalid or missing API key. Include X-Claude-API-Key header.'},
+                status=401)
+
+        try:
+            user = get_user_model().objects.get(
+                email__iexact=(request.GET.get('email') or '').strip())
+        except get_user_model().DoesNotExist:
+            return JsonResponse({'error': 'user not found'}, status=404)
+
+        try:
+            since = datetime.fromisoformat((request.GET.get('since') or '').strip())
+            if timezone.is_naive(since):
+                since = timezone.make_aware(since, datetime.now().astimezone().tzinfo)
+        except ValueError:
+            since = timezone.now() - timedelta(days=2)
+
+        try:
+            limit = max(1, min(int(request.GET.get('limit') or 40), 120))
+        except (TypeError, ValueError):
+            limit = 40
+
+        #: $1,234.56 / $2,300 / 2,300 dollars — the shapes a money claim takes.
+        money = re.compile(
+            r'\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?dollars\b',
+            re.I)
+
+        from apps.ai.models import AssistantMessage
+
+        rows = (AssistantMessage.objects
+                .filter(conversation__user=user, created_at__gte=since)
+                .order_by('created_at')[:limit])
+
+        out = []
+        for msg in rows:
+            content = msg.content or ''
+            windows = []
+            for match in money.finditer(content):
+                start = max(0, match.start() - 90)
+                end = min(len(content), match.end() + 90)
+                windows.append(content[start:end].replace('\n', ' '))
+            out.append({
+                'at': msg.created_at.isoformat(),
+                'role': msg.role,
+                'chars': len(content),
+                'amounts': money.findall(content),
+                # The user's own words ARE the question under investigation, so they come
+                # back in full; assistant prose only in a window around each amount.
+                'text': content if msg.role == 'user' else None,
+                'windows': [] if msg.role == 'user' else windows,
+            })
+
+        return JsonResponse({'count': len(out), 'messages': out},
+                            json_dumps_params={'indent': 2})
+
+
 class TruthProbeAPIView(APIRateLimitMixin, View):
     """Operator TRUTH PROBE (read-only, API-key-guarded) — the sanctioned way to verify, from
     the LIVE deployed build, exactly what deterministic truth the CoS composes for a user,

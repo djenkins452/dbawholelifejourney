@@ -5,6 +5,70 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-01 — Gates 2 & 3: card-payment semantics closed; the Finance analytical vocabulary wired
+
+### Gate 2 — the canonical role gap, fixed at the authority (`roles.py`)
+`roles.py:362` read `primary == LOAN_PAYMENTS and detailed != CARD_PAYMENT_DETAILED`. A credit-card payment leaving
+a **chequing** account was excluded from that branch **by design** (a card payment is settlement, not servicing),
+failed the next branch (it needs a *liability* account), and fell through to the **purchase** default. Every path
+that recognised a card payment required a CONFIRMED transfer, so when pairing failed a $5,000 settlement became the
+month's largest "spend" — and double-counted, because the purchases it settles were already spending when made.
+
+**The rule now stated in the classifier:** *failing to find the other side of a transfer must not convert a KNOWN
+debt/payment transaction into consumption. Pairing is corroboration, never the thing that makes a card payment a
+card payment — the provider already said so.* Confidence is MEDIUM precisely because the pair is missing.
+`CLASSIFIER_VERSION` → **1.3.0** (a rules change is a new opinion).
+
+Verified across the whole role vocabulary — unpaired card payment → `card_payment`/spend `None` **and** paired card
+payment, mortgage, auto loan, card *purchase* (still consumption), refund, income, transfer, fee/interest and
+ordinary purchase **all unchanged**. The `@expectedFailure` is removed and replaced by a real assertion.
+
+### Gate 3 — three money questions, three named measures
+Published beside `spend_magnitude()` in the SAME authority — no alternate definitions:
+`payment_roles()` · `payment_magnitude()` · `outflow_roles()` · `outflow_magnitude()` ·
+`could_be_payment_q()` · `could_be_outflow_q()` · **`spend_by_category()`**.
+
+`outflow_roles()` deliberately **excludes internal transfers** — moving your own money between your own accounts is
+not money leaving, and totalling it is how a transfer becomes a phantom expense.
+
+| question | subject | population |
+|---|---|---|
+| largest spend / purchase / top purchases | `transaction_by_spend` | consumption only |
+| largest payment / top payments | `transaction_by_payment` | debt service + card settlement |
+| largest cash outflow | `transaction_by_cash_outflow` | consumption + payments + cash out, **never transfers** |
+| top spending categories / spending by category | `category_by_spend` | consumption aggregated **by Finance** |
+| where did my money go | `money_bridge` (already existed) | the canonical gross→net walk |
+
+**Finance does the arithmetic.** `spend_by_category` reuses the per-row `spend_magnitude` verdict, so a category
+total and the ranked purchases inside it cannot disagree. The model is never handed hundreds of rows to add up.
+Each ranking declares `producer_filters` so the capped producer orders by ITS measure — the same trap that once hid
+the largest purchase.
+
+### Discovery
+The finance `purpose` now states the boundary the incident blurred: *"THREE DIFFERENT MONEY QUESTIONS, never one …
+a mortgage, car loan or credit-card payment is NOT spending … counting a card payment as spending double-counts the
+purchases it settles."* Cues added for all twelve required phrasings; descriptions added for the four entities this
+family needs (`category_spend`, `money_bridge`, `monthly_views`, `measures`) — **and only those**.
+
+### Certification — 33-test integrated lifecycle, fixtures only, ZERO provider calls
+One seeded household with every role, two accounts, and **>100 transactions where the largest purchase is also the
+oldest**. Proves: largest spend is the largest PURCHASE · no debt/settlement/transfer/refund/income wins a spending
+question · a card PURCHASE remains spending · top-5 in canonical order · the row cap cannot hide the largest ·
+largest payment is the settlement · payments include mortgage and auto loan and exclude purchases · cash outflow
+spans purchases and payments but **excludes internal transfers** · **the three questions give three different
+answers** · categories aggregate deterministically and exclude debt · the bridge is reachable and discoverable ·
+the four period phrases are pinned · cross-user isolation · and the adversarial set: the canonical answer is
+certified, **a fabricated $2,300 is not**, the honest refusal is allowed, a real omitted value verifies on the
+payment surface, conversation history supplies nothing, cross-wired fields are rejected, and a ranked list out of
+order is rejected. Plus dashboard/CoS vocabulary alignment.
+
+**1593 tests run across the Finance, guard, runtime and truth suites — 2 failures, both pre-existing and out of
+scope**: `test_p1_economic_roles.ShadowIsolationTests` (names `finance_audit.py`, the Finance owner's file) and the
+entity-description gap, now **21 → 17** because this work described the four the vocabulary required. Several
+Finance tests also proved order-dependent (different failures across identical runs, all passing in isolation) —
+noted, not chased.
+
+---
 ## 2026-09-01 — fix(cos): Gate 1B — a grounded AMOUNT does not license the fields stated beside it
 
 Amount-only grounding certifies this sentence:

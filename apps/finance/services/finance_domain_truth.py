@@ -40,7 +40,8 @@ class FinanceDomainTruth(DomainTruth):
     # over with its calculation version, assumptions, exclusions and missing inputs.
     # The model explains them; it never recomputes them. Redaction is enforced by
     # `apps/finance/tests/test_cos_evidence.py`, which walks every packet.
-    entity_types = ("transaction", "account", "recurring", "budget", "goal", "entity",
+    entity_types = ("transaction", "category_spend",
+                    "account", "recurring", "budget", "goal", "entity",
                     "connection", "measures", "debt", "payoff", "payoff_comparison",
                     "obligations", "controllable_costs", "savings_opportunities",
                     "financial_snapshot", "data_health", "forecast", "affordability",
@@ -84,6 +85,8 @@ class FinanceDomainTruth(DomainTruth):
             return self._describe_entities()
         if et == "connection":
             return self._describe_connections()
+        if et == "category_spend":
+            return self._describe_category_spend(filters or {})
         packet = self._describe_packet(et, filters or {})
         if packet is not None:
             return packet
@@ -126,7 +129,15 @@ class FinanceDomainTruth(DomainTruth):
         # largest spend could fall outside them — a silently wrong "largest". A ranked
         # caller declares `order_by="spend_desc"`, so the cap keeps the top spends
         # instead of the newest rows. Outflows only (`amount < 0`); most negative first.
-        if f.get("order_by") == "spend_desc":
+        if f.get("order_by") in ("payment_desc", "outflow_desc"):
+            # Debt service / card settlement, or the broad money-out view. Same shape as
+            # the spend bound: it NARROWS at the database so the cap keeps the top rows,
+            # and the per-row magnitude from the measure authority still decides.
+            from apps.finance.services.finance_calc import measures as _M
+            bound = (_M.could_be_payment_q() if f["order_by"] == "payment_desc"
+                     else _M.could_be_outflow_q())
+            qs = qs.filter(amount__lt=0).filter(bound).order_by("amount", "-date", "-id")
+        elif f.get("order_by") == "spend_desc":
             # CONSUMPTION, not every outflow. Ranking on the sign alone made an
             # auto-loan payment the largest "spend" of the month — true of the bank
             # statement, false of the question. The bound comes from the measure
@@ -140,6 +151,34 @@ class FinanceDomainTruth(DomainTruth):
             qs = qs.order_by("-date", "-id")
         qs = self._with_attribution(qs)
         return [self._transaction_entity(t) for t in qs[:self._MAX_TX]]
+
+    def _describe_category_spend(self, filters):
+        """CONSUMPTION spending aggregated by category — computed by the measure
+        authority, never by the model. A category total and the ranked purchases inside
+        it use the SAME `spend_magnitude` verdict, so they cannot disagree."""
+        from apps.core.truth import freshness as F
+        from apps.core.truth.entity import CompleteEntity
+        from apps.core.truth.periods import resolve_period
+        from apps.core.utils import get_user_today
+        from apps.finance.services.finance_calc import measures as _M
+
+        start, end = filters.get("start"), filters.get("end")
+        if not (start or end) and filters.get("period"):
+            p = resolve_period(filters["period"], get_user_today(self.user))
+            start, end = p.start, p.end
+        buckets = _M.spend_by_category(self.user, start, end)
+        return [CompleteEntity(
+            kind="category_spend",
+            identity=b["category"],
+            definition={"category": b["category"],
+                        "spend_amount": float(b["total"]),
+                        "transaction_count": b["count"],
+                        "largest_purchase": float(b["largest"]),
+                        "date": (start.isoformat() if hasattr(start, "isoformat")
+                                 else (str(start) if start else None))},
+            status="aggregated",
+            freshness=F.CURRENT,
+        ) for b in buckets[:self._MAX_ROWS]]
 
     def _describe_packet(self, entity_type, filters):
         """The Finance 2.0 evidence packets. Returns None for anything else.
@@ -471,8 +510,17 @@ class FinanceDomainTruth(DomainTruth):
         # in a month came back as an auto-loan payment.
         from apps.finance.services.finance_calc import measures as _M
         spend = _M.spend_magnitude(t)
+        # Three DIFFERENT questions, three named measures — never one number reused.
+        # `spend_amount` = consumption. `payment_amount` = debt service / card
+        # settlement. `outflow_amount` = money that actually left (consumption +
+        # payments + cash out, never internal transfers). Each is None rather than
+        # zero when the row is not that kind, so the ranked capability excludes it.
+        payment = _M.payment_magnitude(t)
+        outflow = _M.outflow_magnitude(t)
         definition = {"amount": float(t.amount),
                       "spend_amount": (float(spend) if spend is not None else None),
+                      "payment_amount": (float(payment) if payment is not None else None),
+                      "outflow_amount": (float(outflow) if outflow is not None else None),
                       # Also in `definition` so a ranked result carries WHEN it happened
                       # (the ranked path reads occurrence from `definition`).
                       "date": t.date.isoformat(),

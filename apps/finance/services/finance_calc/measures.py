@@ -313,6 +313,103 @@ def spend_magnitude(txn, *, assignment=None):
     return _abs(amount)
 
 
+def payment_roles():
+    """The roles that are DEBT/PAYMENT activity — servicing or settling borrowing.
+
+    Published beside `consumption_roles()` so a surface asks the authority "is this a
+    payment?" instead of answering it for itself. These are real, important outflows —
+    a mortgage, a car loan, a credit-card settlement — and they are NOT consumption:
+    counting a card payment as spending double-counts the purchases it settles, which
+    were already spending when they were made.
+    """
+    from apps.finance.models import Transaction as T
+    return frozenset({T.ROLE_DEBT_SERVICE, T.ROLE_CARD_PAYMENT})
+
+
+def outflow_roles():
+    """Every role that represents money genuinely LEAVING the household.
+
+    Broader than consumption and broader than payments: purchases, fees, cash out,
+    debt service and card settlement all move money out. Deliberately EXCLUDES
+    `internal_transfer` — moving your own money between your own accounts is not money
+    leaving, and totalling it as "out" is how a transfer becomes a phantom expense.
+    Savings and investment contributions are excluded for the same reason: the money is
+    still the household's.
+    """
+    from apps.finance.models import Transaction as T
+    return consumption_roles() | payment_roles() | frozenset({T.ROLE_CASH_WITHDRAWAL})
+
+
+def _magnitude_for(txn, roles, assignment=None):
+    """Shared shape for the published per-row magnitudes: a positive number when the
+    row belongs to `roles`, else `None` — never zero, so the ranked-entity capability
+    EXCLUDES it rather than coercing it into the ranking."""
+    amount = txn.amount or ZERO
+    if amount >= ZERO:
+        return None
+    assignment = assignment if assignment is not None else role_authority.classify(txn)
+    if assignment.role not in roles:
+        return None
+    return _abs(amount)
+
+
+def payment_magnitude(txn, *, assignment=None):
+    """What this debt/payment movement cost, or `None` if it is not one."""
+    return _magnitude_for(txn, payment_roles(), assignment)
+
+
+def outflow_magnitude(txn, *, assignment=None):
+    """What left the household on this row, or `None` if nothing did."""
+    return _magnitude_for(txn, outflow_roles(), assignment)
+
+
+def could_be_payment_q(prefix=""):
+    """Queryset bound for a ranked PAYMENT read — narrows only; fails open on an
+    unpersisted role exactly like `could_be_consumption_q`."""
+    role = f"{prefix}economic_role"
+    return (Q(**{f"{role}__in": sorted(payment_roles())})
+            | Q(**{f"{role}__isnull": True})
+            | Q(**{role: ""}))
+
+
+def could_be_outflow_q(prefix=""):
+    """Queryset bound for a ranked CASH-OUTFLOW read. Narrows only; fails open."""
+    role = f"{prefix}economic_role"
+    return (Q(**{f"{role}__in": sorted(outflow_roles())})
+            | Q(**{f"{role}__isnull": True})
+            | Q(**{role: ""}))
+
+
+def spend_by_category(user, start=None, end=None, rows=None, limit=None):
+    """CONSUMPTION spending aggregated by category — Finance does the arithmetic.
+
+    The model must never be handed hundreds of transactions and asked to total them:
+    that is a calculation, and calculations are WLJ's (Article I.3). Uses the same
+    `spend_magnitude` verdict as every other spending surface, so a category total and
+    the ranked purchases inside it can never disagree about what counts.
+
+    Returns `[{category, total, count, largest}]`, largest total first.
+    """
+    # `_rows` yields `[(txn, RoleAssignment)]` — classified once, in memory. Reusing
+    # the assignment keeps this aggregation on exactly the same verdict every other
+    # spending surface uses, instead of re-classifying and risking a second opinion.
+    rows = rows if rows is not None else _rows(user, start, end)
+    buckets = {}
+    for txn, assignment in rows:
+        magnitude = spend_magnitude(txn, assignment=assignment)
+        if magnitude is None:
+            continue
+        name = (getattr(getattr(txn, "category", None), "name", None) or "Uncategorised")
+        bucket = buckets.setdefault(name, {"category": name, "total": ZERO,
+                                           "count": 0, "largest": ZERO})
+        bucket["total"] += magnitude
+        bucket["count"] += 1
+        if magnitude > bucket["largest"]:
+            bucket["largest"] = magnitude
+    ordered = sorted(buckets.values(), key=lambda b: (-b["total"], b["category"]))
+    return ordered[:limit] if limit else ordered
+
+
 def gross_purchases(user, start=None, end=None, rows=None):
     """Purchases of goods and services, before any offset."""
     from apps.finance.models import Transaction as T

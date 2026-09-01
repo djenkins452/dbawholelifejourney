@@ -33,7 +33,7 @@ from typing import Optional
 
 #: Bump when the RULES change. A different version is a new opinion, which is what makes
 #: reclassification explicable rather than mysterious.
-CLASSIFIER_VERSION = "1.2.2"
+CLASSIFIER_VERSION = "1.3.0"
 
 ZERO = Decimal("0.00")
 
@@ -357,8 +357,30 @@ def classify(txn) -> RoleAssignment:
         return RoleAssignment(T.ROLE_UNCERTAIN, T.ROLE_CONFIDENCE_LOW,
                               T.ROLE_SOURCE_DERIVED, "unmatched_transfer_candidate")
 
-    # --------------------------------------------------------- 6. debt servicing
+    # ------------------------------------------- 5b. an UNPAIRED card payment
+    # A credit-card payment the provider itself names, which pairing never matched.
+    #
+    # Everything above this point that recognises a card payment requires a CONFIRMED
+    # transfer — a matched pair, a provider transfer flag, or the user saying so. When
+    # none of those fire, a payment leaving a chequing account carried
+    # `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` and still fell through every branch below:
+    # the debt-servicing rule deliberately skips card payments (they are settlement,
+    # not servicing), the liability rule needs a liability account, and a payment from
+    # chequing is neither — so it landed on the purchase default and was counted as
+    # consumption. A $5,000 card payment then outranked every real purchase, and it
+    # double-counts, because the purchases it settles were already spending when they
+    # were made.
+    #
+    # THE RULE: failing to find the other side of a transfer must not convert a KNOWN
+    # debt/payment transaction into consumption. Pairing is corroboration, never the
+    # thing that makes a card payment a card payment — the provider already said so.
+    # Confidence is MEDIUM rather than HIGH precisely because the pair is missing.
     detailed, primary = _detailed(txn), _primary(txn)
+    if amount < 0 and detailed == CARD_PAYMENT_DETAILED:
+        return RoleAssignment(T.ROLE_CARD_PAYMENT, T.ROLE_CONFIDENCE_MEDIUM,
+                              T.ROLE_SOURCE_PROVIDER, "provider_card_payment_unpaired")
+
+    # --------------------------------------------------------- 6. debt servicing
     if amount < 0 and primary == LOAN_PAYMENT_PRIMARY and detailed != CARD_PAYMENT_DETAILED:
         # Real cash out and real debt service. NOT net spending: the principal is
         # balance-sheet movement, and WLJ has no authoritative split (no LoanTerms

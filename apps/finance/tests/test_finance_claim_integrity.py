@@ -22,8 +22,6 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from unittest import expectedFailure
-
 from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
@@ -167,27 +165,24 @@ class SpendSemanticsAreDelegatedTests(TestCase):
         self.assertEqual(
             financial_activity(self.user).filter(payee="Card Payment").count(), 0)
 
-    @expectedFailure
-    def test_KNOWN_GAP_unpaired_card_payment_from_cash_ranks_as_a_purchase(self):
-        """DOCUMENTED GAP — reported to the Finance owner, deliberately NOT patched here.
-
-        A credit-card payment made FROM a cash account, carrying the provider's own
-        `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` detail but NOT transfer-paired, classifies
-        as `purchase` and returns a spend magnitude — so it would rank as spending and
-        double-count purchases already counted on the card.
-
-        Production is currently protected only because Danny's card payments ARE
-        transfer-paired (see the test above). This is a gap in the role authority
-        (`finance_calc/roles.py`), which another session owns; the sequencing rule for
-        this incident forbids editing their module to unblock myself. Marked
-        `expectedFailure` so it is visible in CI and flips to a failure the moment the
-        owner closes it — at which point this decorator comes off.
+    def test_an_unpaired_card_payment_from_cash_is_not_consumption(self):
+        """GATE 2, CLOSED. A credit-card payment made FROM a cash account, carrying the
+        provider's own `LOAN_PAYMENTS_CREDIT_CARD_PAYMENT` detail but NOT transfer-paired,
+        used to classify as `purchase` and would have ranked as spending — double-counting
+        the purchases it settles. Failing to find the other side of a transfer must not
+        convert a known debt/payment transaction into consumption.
         """
+        from apps.finance.models import Transaction
         from apps.finance.services.finance_calc import measures as M
+        from apps.finance.services.finance_calc import roles as R
         t = self._tx(-5000.00, payee="Card Payment From Checking",
                      provider_category_primary="LOAN_PAYMENTS",
                      provider_category_detailed="LOAN_PAYMENTS_CREDIT_CARD_PAYMENT")
+        self.assertEqual(R.classify(t).role, Transaction.ROLE_CARD_PAYMENT)
         self.assertIsNone(M.spend_magnitude(t))
+        # ...but it IS payment activity and IS money leaving.
+        self.assertEqual(M.payment_magnitude(t), Decimal("5000.00"))
+        self.assertEqual(M.outflow_magnitude(t), Decimal("5000.00"))
 
     def test_a_purchase_has_a_spend_magnitude(self):
         from apps.finance.services.finance_calc import measures as M

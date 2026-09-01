@@ -84,7 +84,8 @@ class FinanceEntityTruthTests(TestCase):
         """
         self.assertEqual(
             FinanceDomainTruth.entity_types,
-            ("transaction", "account", "recurring", "budget", "goal", "entity",
+            ("transaction", "category_spend",
+             "account", "recurring", "budget", "goal", "entity",
              "connection", "measures", "debt", "payoff", "payoff_comparison",
              "obligations", "controllable_costs", "savings_opportunities",
              "financial_snapshot", "data_health", "forecast", "affordability",

@@ -76,6 +76,37 @@ RANKING_SUBJECTS = {
         # which account" is answered from the row itself.
         "detail_keys": ("payee", "category", "account", "direction", "amount"),
     },
+    "transaction_by_payment": {
+        "domain": "finance", "entity_type": "transaction",
+        "measure_source": "definition", "measure_key": "payment_amount",
+        "unit": "USD", "label": "debt/payment activity",
+        # Mortgage, auto loan, credit-card settlement — real, important outflows that
+        # are NOT consumption. Ranked separately so "largest payment" and "largest
+        # spend" stay different questions with different answers.
+        "aggregation": "occurrence",
+        "producer_filters": {"order_by": "payment_desc"},
+        "detail_keys": ("payee", "category", "account", "amount"),
+    },
+    "transaction_by_cash_outflow": {
+        "domain": "finance", "entity_type": "transaction",
+        "measure_source": "definition", "measure_key": "outflow_amount",
+        "unit": "USD", "label": "money out",
+        # The broad money-out view: consumption + payments + cash withdrawals.
+        # Internal transfers are excluded by the measure — moving your own money
+        # between your own accounts is not money leaving.
+        "aggregation": "occurrence",
+        "producer_filters": {"order_by": "outflow_desc"},
+        "detail_keys": ("payee", "category", "account", "amount"),
+    },
+    "category_by_spend": {
+        "domain": "finance", "entity_type": "category_spend",
+        "measure_source": "definition", "measure_key": "spend_amount",
+        "unit": "USD", "label": "spending by category",
+        # Finance aggregates and Finance ranks. The model is never handed hundreds of
+        # transactions to total — that is a calculation, and calculations are WLJ's.
+        "aggregation": "category_total",
+        "detail_keys": ("category", "transaction_count", "largest_purchase"),
+    },
     "workout_by_volume": {
         "domain": "health", "entity_type": "workout",
         "measure_source": "performance", "measure_key": "strength_load_lb",

@@ -315,7 +315,15 @@ DOMAIN_SEMANTICS = {
     },
     "finance": {
         "purpose": ("The person's finances — accounts, transactions, spending/income "
-                    "trends, budgets, and the bank connections that feed them."),
+                    "trends, budgets, and the bank connections that feed them. "
+                    "THREE DIFFERENT MONEY QUESTIONS, never one: SPENDING is "
+                    "consumption only (`transaction_by_spend`) — a mortgage, car loan "
+                    "or credit-card payment is NOT spending; PAYMENTS are debt service "
+                    "and card settlement (`transaction_by_payment`); CASH OUTFLOW is "
+                    "the broad money-out view (`transaction_by_cash_outflow`), which "
+                    "still excludes transfers between the person's own accounts. "
+                    "Counting a card payment as spending double-counts the purchases "
+                    "it settles. Say which of the three you answered."),
         "entities": {
             "transaction": ("A single financial transaction — its date, amount (income or "
                             "expense), `spend_amount` (what it COST: present only for "
@@ -368,6 +376,25 @@ DOMAIN_SEMANTICS = {
                              "accounts, what arrived, and what was paid out to the "
                              "world. Use when the person asks why two money figures "
                              "differ; the gap is information, not an error."),
+            "category_spend": ("CONSUMPTION spending AGGREGATED BY CATEGORY for a "
+                               "period — each category's total, how many purchases "
+                               "made it up, and its largest single purchase. Finance "
+                               "does the arithmetic; never total transactions "
+                               "yourself. Rank with `category_by_spend` for 'what did "
+                               "I spend most on', 'top spending categories'; read one "
+                               "category for 'how much did I spend on dining'."),
+            "money_bridge": ("WHERE THE MONEY WENT — the canonical walk from gross "
+                             "purchases to net spending as signed steps that must sum "
+                             "to the total, so consumption, refunds and the other "
+                             "components are distinguishable instead of collapsed into "
+                             "one number. USE THIS for 'where did my money go'."),
+            "monthly_views": ("The month's three DISTINCT money questions kept apart — "
+                              "spending/living-cost activity, liquid cash movement, and "
+                              "card-debt movement. The same figures the Finance "
+                              "dashboard shows."),
+            "measures": ("The canonical named money measures for a period (gross "
+                         "purchases, net spending, debt service and the rest), each "
+                         "with its calculation version, assumptions and exclusions."),
             "account": ("A financial account — its type, institution, current balance, and "
                         "last-4 (no full numbers or credentials)."),
             "connection": ("A linked bank connection — HOW and WHEN money data actually "
@@ -383,6 +410,13 @@ DOMAIN_SEMANTICS = {
                  "largest spend", "biggest purchase", "highest expense",
                  "largest transaction", "what did I spend the most money on",
                  "top 5 purchases", "my biggest expenses last month",
+                 "top purchases", "largest payment", "biggest payment",
+                 "top payments", "debt payments", "largest cash outflow",
+                 "biggest money out", "top cash outflows",
+                 "top spending categories", "what categories did I spend the most on",
+                 "spending by category", "how much did I spend dining",
+                 "how much did I spend on transportation",
+                 "largest purchase in a category", "where did my money go",
                  "transactions at", "what did I spend at", "my accounts", "my balances",
                  "how do my accounts update", "does it sync automatically",
                  "do I have to refresh", "sync now", "why is this transaction missing",

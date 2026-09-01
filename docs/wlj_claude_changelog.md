@@ -61566,3 +61566,44 @@ change, and the nightly sweep does not heal drift.
 Applies only transitions that cannot raise apparent spending; everything else is
 reported and left alone. The report is published to the cache and readable through
 `finance-audit → roles.last_reclassification`.
+
+## 2026-09-01 — a transfer is never a spend, and a reclassification leaves a record
+
+**Gap 1 — the classifier depended on another pass having run.** `transfer_detection`
+sets `transfer_state`, but only on the Plaid sync path. A row created any other way —
+manual entry, CSV import, a fixture, a future ingestion route — reaches the role
+classifier with the field at its default, and every transfer branch above the purchase
+default needs a confirmed state, a liability account or a loan-payment category. A
+provider-labelled `TRANSFER_OUT` has none of them, so it fell through and became consumer
+spending.
+
+Closed by reading what the provider actually said — a fact about the ROW, not about
+whether some other pass ran. It becomes **uncertain**, not `internal_transfer`: without
+the counterpart, money moved to the person's own account and money sent to someone else
+are indistinguishable and belong in different measures. Held, on the review queue, in no
+spending total — and its cash movement stays real, which is what matters most.
+
+The primaries come from `transfer_detection.PROVIDER_TRANSFER_PRIMARIES`, the one module
+that owns them; a test asserts identity, because a second copy of that list would be a
+second definition of "transfer".
+
+Classifier **1.3.0 → 1.3.1**.
+
+**Gap 2 — the record was only in the cache.** The 2026-09-01 reclassification left no
+durable account of itself. Redis was `circuit_open` during the deploy, `publish_rehearsal`
+swallowed it by design, and what that run actually did survives only as a before/after
+count I happened to take by hand. *"We think it moved seven rows"* is not an audit trail.
+
+`record_rehearsal` now writes to `FinanceAuditLog` — the existing governed infrastructure,
+no new table: mode (rehearsal / applied / failed), classifier version, timestamp, outcome,
+before/after role distributions, transition counts and amounts. **Aggregates only** — no
+transaction id, payee, description or account, and a test asserts it. The cache stays as
+the fast path; `finance-audit → roles.reclassification_history` reads the durable one.
+
+Migration `0049` realigns the column to 1.3.1 under the same gate as `0048` — only
+transitions that cannot raise apparent spending — and records what it did.
+
+**Unchanged, deliberately:** `sweep_role_reconciliation` remains report-only. Automatic
+role rewrites stay off, so each classifier bump needs its own alignment migration. That is
+the cost of the current stance and it is the right trade: a mass reclassification is a
+decision, not a cron job.

@@ -22,12 +22,15 @@ important should not have exactly one place to fail.
 """
 from __future__ import annotations
 
+import logging
 from decimal import Decimal
 
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
 from apps.finance.services.finance_calc import roles as R
+
+logger = logging.getLogger(__name__)
 
 #: Bounded so one batch is a short transaction even on a slow database. Large enough
 #: that 4k rows is a handful of round trips, small enough that a failure loses little.
@@ -227,8 +230,10 @@ def rehearse_and_apply(user=None, *, commit=False, batch_size=BATCH_SIZE):
     """
     from apps.finance.models import Transaction
 
+    before = _role_distribution()
     rehearsal = run(user, commit=False, batch_size=batch_size)
     report = {
+        "distribution": {"before": before, "after": None},
         "rehearsal": {
             "scanned": rehearsal["scanned"],
             "would_write": rehearsal["differing"],
@@ -251,6 +256,9 @@ def rehearse_and_apply(user=None, *, commit=False, batch_size=BATCH_SIZE):
     report["applied"]["held_transitions"] = held
 
     if not commit:
+        # A rehearsal changes nothing, so "after" is "before" — stated rather than left
+        # null, so a reader never has to work out which mode produced the row.
+        report["distribution"]["after"] = before
         return report
 
     pending, now = [], timezone.now()
@@ -278,18 +286,84 @@ def rehearse_and_apply(user=None, *, commit=False, batch_size=BATCH_SIZE):
 
     report["applied"]["written"] = applied["written"]
     report["applied"]["held_for_review"] = held_rows
+    report["distribution"]["after"] = _role_distribution()
     return report
 
 
+def _role_distribution():
+    """Aggregate counts per role. Indexed, and never a transaction detail."""
+    from apps.finance.models import Transaction
+    from django.db.models import Count
+
+    return {row["economic_role"] or "unclassified": row["n"]
+            for row in Transaction.objects.values("economic_role")
+            .annotate(n=Count("id")).order_by()}
+
+
+def record_rehearsal(report, *, mode, success=True):
+    """Write the outcome to the governed audit log. Durable, and the real record.
+
+    The cache is a convenience — it expires, it is wiped by a restart, and it was
+    `circuit_open` during the one deploy that mattered, so the 2026-09-01 reclassification
+    left no account of itself beyond a before/after count somebody happened to have taken
+    by hand. A financial reclassification that cannot say afterwards what it did is not
+    auditable, and "we think it moved seven rows" is not a record.
+
+    AGGREGATES ONLY: role counts, transition counts and amounts, versions, timestamps,
+    mode and outcome. No transaction id, payee, description or account ever enters this
+    row — `details` is documented as redacted and stays that way.
+    """
+    from apps.finance.models import FinanceAuditLog
+
+    try:
+        FinanceAuditLog.objects.create(
+            user=None,                       # a population-wide operation, not a person's
+            action=FinanceAuditLog.ACTION_UPDATE,
+            entity_type="module",
+            success=bool(success),
+            details={
+                "operation": "role_reclassification",
+                "mode": mode,                # rehearsal | applied | failed
+                "classifier_version": report.get("classifier_version"),
+                "recorded_at": timezone.now().isoformat(),
+                "distribution": report.get("distribution", {}),
+                "rehearsal": report.get("rehearsal", {}),
+                "applied": report.get("applied", {}),
+                "committed": report.get("committed", False),
+            },
+        )
+    except Exception:
+        # Losing the record must never fail the reclassification it describes — but it
+        # must be visible, not swallowed into silence.
+        logger.error("Could not write the role-reclassification audit record; the "
+                     "operation itself is unaffected.", exc_info=True)
+
+
+def read_recorded_rehearsals(limit=5):
+    """The durable history, newest first. Aggregates only, straight from the audit log."""
+    from apps.finance.models import FinanceAuditLog
+
+    rows = (FinanceAuditLog.objects
+            .filter(entity_type="module",
+                    details__operation="role_reclassification")
+            .order_by("-created_at")[:limit])
+    return [{"at": row.created_at.isoformat(), "success": row.success,
+             **{k: v for k, v in (row.details or {}).items() if k != "operation"}}
+            for row in rows]
+
+
 def publish_rehearsal(report):
-    """Put the report where the audit endpoint can read it without recomputing."""
+    """Put the report where the audit endpoint can read it without recomputing.
+
+    Fast access only. `record_rehearsal` is the record that has to survive.
+    """
     from django.core.cache import cache
 
     try:
         cache.set(ROLE_REHEARSAL_CACHE_KEY, report, ROLE_REHEARSAL_TTL_SECONDS)
     except Exception:
-        # Losing the report must never fail the reclassification it describes.
-        pass
+        # The durable record is elsewhere, so this is genuinely losable.
+        logger.info("Role-reclassification report not cached (durable record kept).")
 
 
 def read_rehearsal():

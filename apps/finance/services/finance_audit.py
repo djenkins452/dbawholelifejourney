@@ -361,6 +361,9 @@ def _role_state():
         # classifies to answer this — that is a four-thousand-row pass and belongs
         # nowhere near a request.
         "last_reclassification": B.read_rehearsal(),
+        # The DURABLE record. The cache expires and was `circuit_open` during the one
+        # deploy that mattered; this is what survives.
+        "reclassification_history": B.read_recorded_rehearsals(),
         # Rows whose persisted role was written by an OLDER classifier. They are not
         # wrong by definition — they are simply not known to agree.
         "stale_against_current_classifier": rows.exclude(

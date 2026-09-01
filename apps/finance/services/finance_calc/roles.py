@@ -33,7 +33,7 @@ from typing import Optional
 
 #: Bump when the RULES change. A different version is a new opinion, which is what makes
 #: reclassification explicable rather than mysterious.
-CLASSIFIER_VERSION = "1.3.0"
+CLASSIFIER_VERSION = "1.3.1"
 
 ZERO = Decimal("0.00")
 
@@ -199,6 +199,15 @@ def _looks_like_fee(txn):
         return True
     detailed = _detailed(txn)
     return any(hint in detailed for hint in FEE_DETAILED_HINTS)
+
+
+def _provider_transfer_primaries():
+    """The provider categories that mean "money moved", from the ONE module that owns
+    them. Imported lazily so this module keeps its no-import-at-module-level style and
+    cannot create a cycle; `transfer_detection` does not import roles."""
+    from apps.finance.services.transfer_detection import PROVIDER_TRANSFER_PRIMARIES
+
+    return PROVIDER_TRANSFER_PRIMARIES
 
 
 def classify(txn) -> RoleAssignment:
@@ -414,6 +423,27 @@ def classify(txn) -> RoleAssignment:
     if amount > 0:
         return RoleAssignment(T.ROLE_UNCERTAIN, T.ROLE_CONFIDENCE_LOW,
                               T.ROLE_SOURCE_DERIVED, "ambiguous_credit")
+
+    # ------------------------------- 9b. a transfer the provider named, uncorroborated
+    # `transfer_detection` sets `transfer_state` for these — but ONLY on the Plaid sync
+    # path. A row created any other way (a manual entry, a CSV import, a fixture, a
+    # future ingestion route) reaches this classifier with `transfer_state` still at its
+    # default, and every branch above needs either a confirmed state, a liability
+    # account or a loan-payment category. A provider-labelled TRANSFER_OUT has none of
+    # them, so it fell to the purchase default below and became consumer spending.
+    #
+    # The classifier must not depend on another pass having run. The provider naming a
+    # row a transfer is a fact about the ROW, and it is a fact this module can read for
+    # itself.
+    #
+    # UNCERTAIN rather than `internal_transfer`: without the counterpart WLJ cannot tell
+    # money moved between the person's own accounts from money sent to someone else, and
+    # those belong in different measures. Held, visible on the review queue, in no
+    # spending total — and its cash movement stays real, which is what matters most.
+    if amount < 0 and primary in _provider_transfer_primaries():
+        return RoleAssignment(T.ROLE_UNCERTAIN, T.ROLE_CONFIDENCE_LOW,
+                              T.ROLE_SOURCE_DERIVED,
+                              "provider_transfer_uncorroborated")
 
     # --------------------------------------------------------- 10. the ordinary case
     if amount < 0:

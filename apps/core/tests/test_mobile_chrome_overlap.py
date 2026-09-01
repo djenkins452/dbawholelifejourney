@@ -39,13 +39,21 @@ HIDE_RULE = re.compile(
 
 
 def _usable(user, *, assistant):
+    """`assistant` is PROACTIVE assistance since the 2026-09-02 rename.
+
+    Consent is granted either way: the question here is WHERE the entry point lives,
+    and someone who may not use the Chief of Staff at all is correctly offered none.
+    """
     TermsAcceptance.objects.get_or_create(
         user=user,
         defaults={"terms_version": settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0")})
     prefs = user.preferences
     prefs.has_completed_onboarding = True
     prefs.finances_enabled = True
-    prefs.personal_assistant_enabled = assistant
+    prefs.ai_enabled = True
+    prefs.ai_data_consent = True
+    prefs.personal_assistant_consent = True
+    prefs.proactive_assistance_enabled = assistant
     prefs.save()
     return user
 
@@ -66,10 +74,10 @@ class TheFloatingButtonNeverFloatsOnMobileTests(TestCase):
         return response.content.decode()
 
     def test_the_default_account_gets_the_hide_rule(self):
-        """`personal_assistant_enabled` defaults to False — THE broken case."""
+        """The default account — the case that was broken."""
         self.assertTrue(
             HIDE_RULE.search(self._page(self.off)),
-            "a user with the assistant switched off had a floating button sitting on "
+            "a user with proactive assistance off had a floating button sitting on "
             "top of the page; the hide rule must not depend on that preference")
 
     def test_the_assistant_account_gets_it_too(self):

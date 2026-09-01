@@ -43,7 +43,7 @@ def _make_user(email):
     prefs.ai_enabled = True
     prefs.ai_data_consent = True
     prefs.ai_data_consent_date = timezone.now()
-    prefs.personal_assistant_enabled = True
+    prefs.proactive_assistance_enabled = True
     prefs.personal_assistant_consent = True
     prefs.personal_assistant_consent_date = timezone.now()
     prefs.save()

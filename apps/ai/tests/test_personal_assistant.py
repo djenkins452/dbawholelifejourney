@@ -71,7 +71,7 @@ class AssistantTestMixin:
         user.preferences.ai_data_consent = True
         user.preferences.ai_data_consent_date = timezone.now()
         # Also enable Personal Assistant for backwards compatibility with existing tests
-        user.preferences.personal_assistant_enabled = True
+        user.preferences.proactive_assistance_enabled = True
         user.preferences.personal_assistant_consent = True
         user.preferences.personal_assistant_consent_date = timezone.now()
         user.preferences.save()
@@ -82,7 +82,7 @@ class AssistantTestMixin:
         user.preferences.ai_data_consent = True
         user.preferences.ai_data_consent_date = timezone.now()
         # Explicitly do NOT enable Personal Assistant
-        user.preferences.personal_assistant_enabled = False
+        user.preferences.proactive_assistance_enabled = False
         user.preferences.personal_assistant_consent = False
         user.preferences.save()
 
@@ -759,7 +759,7 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
     Personal Assistant requires:
     1. AI Features enabled (ai_enabled=True)
     2. AI Data Consent (ai_data_consent=True)
-    3. Personal Assistant module enabled (personal_assistant_enabled=True)
+    3. Personal Assistant module enabled (proactive_assistance_enabled=True)
     4. Personal Assistant consent (personal_assistant_consent=True)
     """
 
@@ -773,7 +773,7 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         user.preferences.ai_enabled = True
         user.preferences.ai_data_consent = True
         user.preferences.ai_data_consent_date = timezone.now()
-        user.preferences.personal_assistant_enabled = True
+        user.preferences.proactive_assistance_enabled = True
         user.preferences.personal_assistant_consent = True
         user.preferences.personal_assistant_consent_date = timezone.now()
         user.preferences.save()
@@ -797,7 +797,7 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         data = response.json()
         self.assertFalse(data.get('success', True))
 
-    def test_opening_denied_without_personal_assistant_enabled(self):
+    def test_opening_denied_without_proactive_assistance_enabled(self):
         """Opening endpoint denied when Personal Assistant not enabled."""
         self.user.preferences.ai_enabled = True
         self.user.preferences.ai_data_consent = True
@@ -816,7 +816,7 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         self.user.preferences.ai_enabled = True
         self.user.preferences.ai_data_consent = True
         self.user.preferences.ai_data_consent_date = timezone.now()
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         # Personal Assistant consent not given (default)
         self.user.preferences.save()
 
@@ -894,12 +894,12 @@ class PersonalAssistantModuleAccessTest(AssistantTestMixin, TestCase):
         # Now disable AI via the form logic simulation
         self.user.preferences.ai_enabled = False
         # In real form submission, this would also clear PA settings
-        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.personal_assistant_consent = False
         self.user.preferences.save()
 
         self.user.refresh_from_db()
-        self.assertFalse(self.user.preferences.personal_assistant_enabled)
+        self.assertFalse(self.user.preferences.proactive_assistance_enabled)
         self.assertFalse(self.user.preferences.personal_assistant_consent)
 
     def test_dashboard_redirects_to_home(self):

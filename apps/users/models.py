@@ -691,19 +691,39 @@ class UserPreferences(models.Model):
         self._ai_personal_context = encrypt_personal_data(value)
 
     # ===================
-    # PERSONAL ASSISTANT MODULE
+    # CHIEF OF STAFF
     # ===================
-    # Personal Assistant is a separate module that requires AI Features to be enabled.
-    # It provides deeper AI integration with daily priorities, coaching, and accountability.
-    personal_assistant_enabled = models.BooleanField(
+    # TWO SEPARATE QUESTIONS, and they were one field until 2026-09-02.
+    #
+    #   1. MAY it use my life? -> `personal_assistant_consent` (below). A permission.
+    #      Without it the Chief of Staff cannot read journals, tasks, health or money,
+    #      so it cannot answer anything, so there is nothing to open.
+    #
+    #   2. May it come to ME, unasked? -> `proactive_assistance_enabled` (here). A
+    #      preference about interruption, and nothing else.
+    #
+    # Conflating them meant switching off "the Personal Assistant module" removed the
+    # chat entirely: every entry point disappeared and the chat API refused. Someone who
+    # simply did not want to be interrupted had to give up the assistant to stop it.
+    #
+    # Renamed from `proactive_assistance_enabled` (migration `0096`), which preserves every
+    # existing choice: if it used to interrupt you, it still does.
+    proactive_assistance_enabled = models.BooleanField(
         default=False,
-        help_text="Enable Personal Assistant for AI-powered daily guidance, priorities, and coaching",
+        verbose_name="Proactive assistance",
+        help_text=(
+            "Let the Chief of Staff start things on its own — daily check-ins, briefings, "
+            "suggestions and the expanded panel. Turn this off and it stays quiet until "
+            "you open it; you keep full access from the menu."
+        ),
     )
 
     # Personal Assistant Consent (separate from general AI consent)
-    # Required because the Personal Assistant has deeper access to user data
+    # Required because the Personal Assistant has deeper access to user data.
+    # THIS is what makes the Chief of Staff usable at all — see the note above.
     personal_assistant_consent = models.BooleanField(
         default=False,
+        verbose_name="Chief of Staff",
         help_text="User consents to Personal Assistant accessing journal entries, tasks, goals, health data for personalized coaching",
     )
     personal_assistant_consent_date = models.DateTimeField(

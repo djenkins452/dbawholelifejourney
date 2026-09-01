@@ -2583,7 +2583,7 @@ def _get_proactive_users():
 
     return User.objects.filter(
         is_active=True,
-        preferences__personal_assistant_enabled=True,
+        preferences__proactive_assistance_enabled=True,
         preferences__personal_assistant_consent=True,
         preferences__ai_enabled=True,
         preferences__ai_data_consent=True,
@@ -3111,7 +3111,7 @@ def generate_daily_executive_brief_for_user(user):
         return None
     # Never bypass the user's proactive preference (even if called directly, not via PGS).
     prefs = getattr(user, 'preferences', None)
-    if not (prefs and getattr(prefs, 'personal_assistant_enabled', False)
+    if not (prefs and getattr(prefs, 'proactive_assistance_enabled', False)
             and getattr(prefs, 'assistant_proactive_checkins', False)):
         return None
     try:

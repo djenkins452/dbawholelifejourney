@@ -35,7 +35,7 @@ def _user(email="cost@test.com", *, proactive=True):
         user=u, terms_version=settings.WLJ_SETTINGS.get("TERMS_VERSION", "1.0"))
     p = u.preferences
     p.has_completed_onboarding = True
-    p.personal_assistant_enabled = True
+    p.proactive_assistance_enabled = True
     p.assistant_proactive_checkins = proactive
     p.save()
     return u

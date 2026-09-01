@@ -396,7 +396,7 @@ def run_weekly_pressure():
             return {"computed": 0, "errors": 0}
 
         users = _get_active_ai_users().filter(
-            preferences__personal_assistant_enabled=True,
+            preferences__proactive_assistance_enabled=True,
         )
         computed = 0
         errors = 0
@@ -441,7 +441,7 @@ def run_reflection_queue():
 
         # Step 2: Queue new reflections per user
         users = _get_active_ai_users().filter(
-            preferences__personal_assistant_enabled=True,
+            preferences__proactive_assistance_enabled=True,
         )
         queued = 0
         errors = 0
@@ -483,7 +483,7 @@ def run_relational_drift():
             return {"checked": 0, "alerts": 0, "guidance_created": 0, "errors": 0}
 
         users = _get_active_ai_users().filter(
-            preferences__personal_assistant_enabled=True,
+            preferences__proactive_assistance_enabled=True,
         )
         checked = 0
         total_alerts = 0
@@ -1131,7 +1131,7 @@ def run_pressure_snapshots():
             return {"computed": 0, "errors": 0}
 
         users = _get_active_ai_users().filter(
-            preferences__personal_assistant_enabled=True,
+            preferences__proactive_assistance_enabled=True,
         )
         computed = 0
         errors = 0
@@ -1287,7 +1287,7 @@ def run_cdce_check_ins():
 
     users = User.objects.filter(
         is_active=True,
-        preferences__personal_assistant_enabled=True,
+        preferences__proactive_assistance_enabled=True,
     ).select_related('preferences')[:50]
 
     processed = 0
@@ -1320,7 +1320,7 @@ def run_health_trend_check_ins():
 
     users = User.objects.filter(
         is_active=True,
-        preferences__personal_assistant_enabled=True,
+        preferences__proactive_assistance_enabled=True,
     ).select_related('preferences')[:50]
 
     processed = 0
@@ -1354,7 +1354,7 @@ def run_cos_event_engine_all():
 
     users = User.objects.filter(
         is_active=True,
-        preferences__personal_assistant_enabled=True,
+        preferences__proactive_assistance_enabled=True,
     ).select_related('preferences')[:50]
 
     processed = created = updated = resolved = 0

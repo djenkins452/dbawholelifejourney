@@ -294,7 +294,7 @@ TILE_DEFINITIONS = {
         'name': "Today's Priorities",
         'description': 'Daily priorities — interactive checkboxes to track what matters most today.',
         'icon': 'list-checks',
-        'module_dependency': 'personal_assistant_enabled',
+        'module_dependency': 'proactive_assistance_enabled',
         'default_visible': True,
         'default_size': 'medium',
         'mandatory': False,

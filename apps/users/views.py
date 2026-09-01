@@ -378,13 +378,17 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         # so an affirmative AI consent IS the consent. Revoking AI consent still revokes both.
         # The underlying fields are retained (they still gate the runtime) — M7 owns removal.
         if not instance.ai_data_consent:
-            instance.personal_assistant_enabled = False
             instance.personal_assistant_consent = False
+            # Nothing may approach you using data it is no longer allowed to read.
+            instance.proactive_assistance_enabled = False
         else:
-            instance.personal_assistant_enabled = True
             instance.personal_assistant_consent = True
             if not instance.personal_assistant_consent_date:
                 instance.personal_assistant_consent_date = dj_timezone.now()
+            # `proactive_assistance_enabled` is now the PERSON's choice and is bound from
+            # the form above — consenting is not the same as agreeing to be interrupted.
+            # It used to be forced True here, which is why nobody could keep the Chief of
+            # Staff and still ask it to stay quiet.
 
         # Set SMS consent date if consent was given
         if instance.sms_consent and not instance.sms_consent_date:
@@ -708,7 +712,7 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
             context["ai_data_consent_explicit"] = prefs.ai_data_consent_date is not None
             context["current_coaching_style"] = prefs.ai_coaching_style
             # Personal Assistant settings
-            context["personal_assistant_enabled"] = prefs.personal_assistant_enabled
+            context["proactive_assistance_enabled"] = prefs.proactive_assistance_enabled
             context["personal_assistant_consent"] = prefs.personal_assistant_consent
             # Track if user has explicitly set Personal Assistant (has a consent date)
             # New users without explicit choice should see it ON by default
@@ -755,7 +759,7 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
                     prefs.purpose_enabled,
                 ]),
                 "ai_enabled": prefs.ai_enabled,
-                "personal_assistant_enabled": prefs.personal_assistant_enabled,
+                "proactive_assistance_enabled": prefs.proactive_assistance_enabled,
                 "timezone": prefs.timezone,
             }
 
@@ -843,20 +847,20 @@ class OnboardingWizardView(LoginRequiredMixin, TemplateView):
 
             # Personal Assistant settings (only if AI consent given)
             if ai_consent:
-                pa_enabled = request.POST.get("personal_assistant_enabled") == "on"
-                prefs.personal_assistant_enabled = pa_enabled
+                pa_enabled = request.POST.get("proactive_assistance_enabled") == "on"
+                prefs.proactive_assistance_enabled = pa_enabled
                 # Auto-grant PA consent when PA is enabled (covered by single consent)
                 prefs.personal_assistant_consent = pa_enabled
                 if pa_enabled and not prefs.personal_assistant_consent_date:
                     prefs.personal_assistant_consent_date = timezone.now()
             else:
                 # Disable Personal Assistant if AI consent revoked
-                prefs.personal_assistant_enabled = False
+                prefs.proactive_assistance_enabled = False
                 prefs.personal_assistant_consent = False
 
             prefs.save(update_fields=[
                 "ai_enabled", "ai_data_consent", "ai_data_consent_date",
-                "ai_coaching_style", "personal_assistant_enabled",
+                "ai_coaching_style", "proactive_assistance_enabled",
                 "personal_assistant_consent", "personal_assistant_consent_date",
                 "updated_at"
             ])

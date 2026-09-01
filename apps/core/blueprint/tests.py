@@ -54,7 +54,7 @@ def _create_test_user(email='test@example.com', password='testpass123'):
     )
     user.preferences.has_completed_onboarding = True
     user.preferences.ai_enabled = True
-    user.preferences.personal_assistant_enabled = True
+    user.preferences.proactive_assistance_enabled = True
     user.preferences.save()
     return user
 
@@ -740,7 +740,7 @@ class CommandBriefTests(TestCase):
 
     def test_command_brief_not_shown_when_pa_disabled(self):
         """Command Brief should not render when PA is disabled."""
-        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.save()
 
         response = self.client.get('/dashboard/legacy/classic/')
@@ -1401,7 +1401,7 @@ class ArrivalBriefingTests(TestCase):
     def test_command_brief_none_when_pa_disabled(self):
         """Command brief returns None when personal assistant is disabled."""
         from apps.dashboard.views import DashboardView
-        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.save()
         factory = RequestFactory()
         request = factory.get('/v2/')
@@ -1854,7 +1854,7 @@ class AlignmentBadgeTests(TestCase):
 
     def test_context_processor_no_badge_when_pa_disabled(self):
         """No alignment badge data when personal assistant is disabled."""
-        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.save()
         from apps.core.context_processors import theme_context
         factory = RequestFactory()
@@ -2137,7 +2137,7 @@ class CommandModeTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user(email='cmdmode@test.com')
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
         self.client = Client()
         self.client.login(email='cmdmode@test.com', password='testpass123')
@@ -2204,7 +2204,7 @@ class CommandModeTests(TestCase):
 
     def test_command_mode_absent_without_pa(self):
         """Command Mode should not render when PA is disabled."""
-        self.user.preferences.personal_assistant_enabled = False
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.save()
         response = self.client.get('/dashboard/legacy/classic/')
         command_mode = response.context.get('command_mode')
@@ -2221,7 +2221,7 @@ class WeeklyPressureTests(TestCase):
 
     def setUp(self):
         self.user = _create_test_user(email='pressure@test.com')
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
 
     def test_compute_weekly_pressure_returns_dict(self):
@@ -2334,7 +2334,7 @@ class LiveBuildLoopTests(TestCase):
     def setUp(self):
         self.user = _create_test_user(email='buildloop@test.com')
         self.prefs = self.user.preferences
-        self.prefs.personal_assistant_enabled = True
+        self.prefs.proactive_assistance_enabled = True
         self.prefs.save()
 
     def test_create_event_returns_success(self):
@@ -2510,7 +2510,7 @@ class GovernanceFrameworkTests(TestCase):
     def setUp(self):
         self.user = _create_test_user(email='governance@test.com')
         self.prefs = self.user.preferences
-        self.prefs.personal_assistant_enabled = True
+        self.prefs.proactive_assistance_enabled = True
         self.prefs.save()
 
     def test_blueprint_has_governance_fields(self):

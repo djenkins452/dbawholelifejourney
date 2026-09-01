@@ -41,7 +41,7 @@ def _extract_mentions_from_instance(instance, text_fields, context_type):
         # Gate: AI must be enabled
         if not getattr(prefs, 'ai_enabled', False):
             return
-        if not getattr(prefs, 'personal_assistant_enabled', False):
+        if not getattr(prefs, 'proactive_assistance_enabled', False):
             return
 
         # Gate: Must have contacts

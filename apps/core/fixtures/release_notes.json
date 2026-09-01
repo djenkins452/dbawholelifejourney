@@ -1,6 +1,22 @@
 [
   {
     "model": "core.releasenote",
+    "pk": 319,
+    "fields": {
+      "title": "Quiet mode for your Chief of Staff",
+      "description": "There's a new setting under Preferences → Your Chief of Staff called “Proactive assistance”. Leave it on and nothing changes: your Chief of Staff opens the day with a check-in, offers briefings and suggestions, and keeps its panel open beside you. Turn it off and it simply waits to be asked — no check-ins, no unprompted briefings, no panel opening on its own. You keep it in full: open it any time from the menu, the side rail, or the Assistant tab at the bottom of your phone, and it can do everything it could before. Previously the only way to stop it starting conversations was to switch the whole assistant off, which took it away entirely. Wanting some quiet and wanting to give it up are different things, and now they're different settings.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-09-02",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "/user/preferences/",
+      "created_at": "2026-09-02T12:00:00Z",
+      "updated_at": "2026-09-02T12:00:00Z"
+    }
+  },
+  {
+    "model": "core.releasenote",
     "pk": 304,
     "fields": {
       "title": "Getting to know you — a conversation, not a form",

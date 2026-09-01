@@ -44,7 +44,7 @@ class PGSTestMixin:
         user.preferences.ai_enabled = True
         user.preferences.ai_data_consent = True
         user.preferences.ai_data_consent_date = timezone.now()
-        user.preferences.personal_assistant_enabled = True
+        user.preferences.proactive_assistance_enabled = True
         user.preferences.personal_assistant_consent = True
         user.preferences.personal_assistant_consent_date = timezone.now()
         user.preferences.assistant_proactive_checkins = True

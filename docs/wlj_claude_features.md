@@ -173,7 +173,7 @@ New users are guided through a 6-step onboarding wizard before accessing the app
 | Welcome | `/user/onboarding/start/` | Nothing |
 | Theme | `/user/onboarding/step/theme/` | `theme` |
 | Modules | `/user/onboarding/step/modules/` | Module toggles |
-| AI | `/user/onboarding/step/ai/` | `ai_enabled`, `ai_data_consent`, `ai_coaching_style`, `personal_assistant_enabled`, `personal_assistant_consent` |
+| AI | `/user/onboarding/step/ai/` | `ai_enabled`, `ai_data_consent`, `ai_coaching_style`, `proactive_assistance_enabled`, `personal_assistant_consent` |
 | Location | `/user/onboarding/step/location/` | `timezone`, `location_city`, `location_country` |
 | Complete | `/user/onboarding/step/complete/` | `has_completed_onboarding = True` |
 
@@ -385,13 +385,25 @@ A task-focused personal assistant that helps users get things done and stay alig
   - Drift detection from stated intentions
   - Goal progress reporting
 
-### Prerequisites (Personal Assistant Module)
-The Personal Assistant is a separate module that requires:
+### Prerequisites — access vs. interruption (updated 2026-09-02)
+
+Two separate questions. They were one field until the rename, and conflating them meant
+switching the assistant "off" removed it entirely.
+
+**To USE the Chief of Staff** (`AssistantMixin.check_cos_access`) — all permissions:
 
 1. **AI Features Enabled** (`ai_enabled = True`)
 2. **AI Data Consent** (`ai_data_consent = True`)
-3. **Personal Assistant Enabled** (`personal_assistant_enabled = True`)
-4. **Personal Assistant Consent** (`personal_assistant_consent = True`)
+3. **Chief of Staff Consent** (`personal_assistant_consent = True`)
+
+**For it to START something on its own** (`check_proactive_assistance_enabled`) — the
+above, plus the person's own preference:
+
+4. **Proactive assistance** (`proactive_assistance_enabled = True`)
+
+`proactive_assistance_enabled` is **not** an access control. With it off, the Chief of
+Staff is reachable from the navigation, the desktop rail and the mobile Assistant tab,
+and can do everything it could before — it simply waits to be asked.
 
 ### AI Caching Strategy (Optimized 2025-12-31)
 
@@ -428,21 +440,22 @@ This separation allows users to:
 ### Personal Assistant Module Fields (`UserPreferences`)
 | Field | Type | Description |
 |-------|------|-------------|
-| `personal_assistant_enabled` | Boolean | Enable Personal Assistant module |
-| `personal_assistant_consent` | Boolean | Consent for deeper data access |
+| `proactive_assistance_enabled` | Boolean | May it start things on its own (check-ins, briefings, suggestions, the expanded panel). **Not an access control** — renamed from `personal_assistant_enabled` in `users.0096` |
+| `personal_assistant_consent` | Boolean | Consent for deeper data access. **This is what gates access.** |
 | `personal_assistant_consent_date` | DateTime | When consent was given |
 
 ### Where Configured
 - **Onboarding Wizard** - AI step includes Personal Assistant toggle + consent
 - **Preferences Page** - Personal Assistant section under AI Features
-- **Navigation** - Assistant link only shown when fully enabled and consented
+- **Navigation** - Assistant link shown whenever CoS may be used (`cos_available`)
 
-### Access Control (`AssistantMixin.check_personal_assistant_enabled()`)
-All Personal Assistant API endpoints check for full access:
-1. AI Features enabled
-2. AI Data Consent given
-3. Personal Assistant module enabled
-4. Personal Assistant consent given
+### Access Control
+| Check | Used by | Requires |
+|-------|---------|----------|
+| `AssistantMixin.check_cos_access()` | everything the person opened themselves — chat, streaming chat, attachments, quick replies, confirmations, decisions, analyses | AI enabled + AI consent + CoS consent |
+| `AssistantMixin.check_proactive_assistance_enabled()` | only the surfaces that speak first — `AssistantOpeningView`, `AssistantWakeView`, `ProactiveBriefingView`, `SessionStartView` | the above **plus** `proactive_assistance_enabled` |
+
+`cos_available` (context processor) mirrors `check_cos_access` for templates.
 
 Faith features only shown if `faith_enabled = True`
 

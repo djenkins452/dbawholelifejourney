@@ -46,7 +46,7 @@ def _create_test_user(email='protective@test.com'):
     prefs = user.preferences
     prefs.has_completed_onboarding = True
     prefs.ai_enabled = True
-    prefs.personal_assistant_enabled = True
+    prefs.proactive_assistance_enabled = True
     prefs.save()
     return user
 

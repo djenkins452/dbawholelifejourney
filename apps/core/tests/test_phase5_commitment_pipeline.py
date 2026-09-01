@@ -28,11 +28,11 @@ class _PipelineTestMixin:
             email='ecc-pipeline@test.com', password='testpass123'
         )
         # Enable PA
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.ai_enabled = True
         self.user.preferences.ai_data_consent = True
         self.user.preferences.ai_data_consent_date = timezone.now()
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.personal_assistant_consent = True
         self.user.preferences.personal_assistant_consent_date = timezone.now()
         self.user.preferences.save()

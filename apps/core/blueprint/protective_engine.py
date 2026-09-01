@@ -624,7 +624,7 @@ def run_protective_sweep():
     users = User.objects.filter(
         is_active=True,
         preferences__ai_enabled=True,
-        preferences__personal_assistant_enabled=True,
+        preferences__proactive_assistance_enabled=True,
     ).select_related('preferences')
 
     processed = 0

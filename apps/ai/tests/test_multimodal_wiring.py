@@ -53,7 +53,7 @@ def _make_user(email):
     # Personal-assistant prerequisites so the chat endpoints run (not the enable-gate).
     prefs.ai_enabled = True
     prefs.ai_data_consent = True
-    prefs.personal_assistant_enabled = True
+    prefs.proactive_assistance_enabled = True
     prefs.personal_assistant_consent = True
     prefs.save()
     # Past initial calibration so Learning Mode is not active (an established user, like the

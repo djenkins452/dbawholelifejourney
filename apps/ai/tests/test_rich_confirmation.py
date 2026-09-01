@@ -211,7 +211,7 @@ class EndpointTests(TestCase):
         prefs.has_completed_onboarding = True
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.client.force_login(self.user)

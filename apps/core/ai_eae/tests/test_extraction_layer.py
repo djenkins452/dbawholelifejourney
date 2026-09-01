@@ -39,7 +39,7 @@ class ExtractionTestMixin:
         )
         self.user.preferences.has_completed_onboarding = True
         self.user.preferences.ai_enabled = True
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
         self.today = timezone.now().date()
 

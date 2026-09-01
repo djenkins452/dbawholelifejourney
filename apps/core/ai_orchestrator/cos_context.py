@@ -3692,7 +3692,7 @@ def build_cos_context(user, scoped_builders=None):
         }
     # AI flags remain separate — not module catalog entries
     context['module_permissions']['ai'] = prefs.ai_enabled
-    context['module_permissions']['personal_assistant'] = prefs.personal_assistant_enabled
+    context['module_permissions']['personal_assistant'] = prefs.proactive_assistance_enabled
 
     # ── Phase 2: Deterministic domain filtering ──
     # Builders associated with disabled domains are skipped before execution.

@@ -36,7 +36,7 @@ class SignalExtractionDispatchTests(TestCase):
         )
         self.user.preferences.has_completed_onboarding = True
         self.user.preferences.ai_enabled = True
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
 
     def _create_entry(self, body="Test journal entry with enough words for extraction threshold."):
@@ -75,8 +75,8 @@ class SignalExtractionDispatchTests(TestCase):
 
     @patch("apps.journal.signals._dispatch_signal_extraction")
     def test_post_save_skips_when_assistant_disabled(self, mock_dispatch):
-        """Should not dispatch when personal_assistant_enabled is False."""
-        self.user.preferences.personal_assistant_enabled = False
+        """Should not dispatch when proactive_assistance_enabled is False."""
+        self.user.preferences.proactive_assistance_enabled = False
         self.user.preferences.save()
 
         self._create_entry()
@@ -160,7 +160,7 @@ class SignalExtractionIdempotencyTests(TestCase):
         )
         self.user.preferences.has_completed_onboarding = True
         self.user.preferences.ai_enabled = True
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
 
     def test_idempotency_gate_prevents_duplicates(self):

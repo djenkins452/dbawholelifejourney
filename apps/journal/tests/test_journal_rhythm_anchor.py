@@ -38,7 +38,7 @@ class JournalRhythmAnchorTests(TestCase):
         prefs.has_completed_onboarding = True
         # The auto-complete only runs when the AI assistant is enabled.
         prefs.ai_enabled = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.save()
 
         self.routine = Routine.objects.create(

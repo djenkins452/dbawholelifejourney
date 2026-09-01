@@ -62,7 +62,7 @@
             NOT Operations/system status (an investigation found operators reading a bare
             green "100%" here as platform health). Now explicitly labelled "Alignment", uses
             a target icon (not a shield), and fails to "—" not a reassuring 100. {% endcomment %}
-            {% if personal_assistant_enabled and command_brief and command_brief.active %}
+            {% if proactive_assistance_enabled and command_brief and command_brief.active %}
             <a href="{% url 'ai:cos_settings' %}" class="cos-alignment-badge {% if command_brief.alignment_score is None %}align-unknown{% elif command_brief.alignment_score >= 80 %}align-good{% elif command_brief.alignment_score >= 50 %}align-caution{% else %}align-warning{% endif %}" title="Plan alignment — how on-track your commitments are. This is not system or Operations status.">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
                 <span class="cos-alignment-label">Alignment</span>
@@ -71,7 +71,7 @@
             {% endif %}
 
             <!-- Chat Bot / AI Assistant -->
-            {% if ai_enabled and personal_assistant_enabled %}
+            {% if cos_available %}
             <button type="button" class="desktop-utility-icon" aria-label="Assistant" title="Assistant" data-action="open-assistant">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>

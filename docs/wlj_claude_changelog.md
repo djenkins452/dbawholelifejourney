@@ -61719,3 +61719,58 @@ A second test refuses any new `position: fixed` element in the global stylesheet
 isn't known chrome.
 
 No Finance behaviour changed.
+
+## 2026-09-02 — the assistant switch was two questions wearing one name
+
+`personal_assistant_enabled` looked like a preference and behaved like a kill switch.
+Turning it off removed the Chief of Staff outright: every entry point disappeared —
+navigation, desktop rail, utility icons, More tile, mobile pull-up — and
+`AssistantMixin.check_personal_assistant_enabled` made the **chat API itself refuse**.
+Someone who only wanted it to stop interrupting them had to give the whole thing up.
+
+(That also corrects something I reported last session: I said a user with the assistant
+off "still gets a working CoS chat drawer". They got the drawer. The backend refused it.)
+
+**Two questions, now two fields.**
+
+| Field | Question | Kind |
+|---|---|---|
+| `personal_assistant_consent` | May it read my journals, tasks, health, money? | **Permission** — gates access. Unchanged. |
+| `proactive_assistance_enabled` | May it come to me unasked? | **Preference** — gates interruption only. Renamed from `personal_assistant_enabled`. |
+
+Migration `users.0096` is a `RenameField`, so **every existing choice carries across**:
+if it used to interrupt you it still does.
+
+**Access** (`check_cos_access`) — AI enabled + AI consent + CoS consent. Used by
+everything the person opened: chat, streaming chat, attachments, quick replies,
+confirmations, decisions, weekly and monthly analyses, daily priorities.
+
+**Interruption** (`check_proactive_assistance_enabled`) — the above plus the preference.
+Used by the four surfaces that speak first: `AssistantOpeningView`, `AssistantWakeView`,
+`ProactiveBriefingView`, `SessionStartView`.
+
+Templates follow the same split: entry points now use `cos_available` (consent), while
+the pull-up, the pinned desktop panel and the alignment badge stay on the preference.
+
+**A gap this exposed.** The drawer was hidden at ≥1025px on the assumption that desktop
+always had the pinned panel instead — but that panel only renders when proactive is on,
+so with it off the utility icons opened something with `display: none` and nothing
+happened. That rule now lives with the panel that replaces it, so it applies exactly when
+there IS a replacement.
+
+**Settings.** "Proactive assistance" is a real control again, under Preferences → Your
+Chief of Staff, and is no longer derived from AI consent — consenting to the assistant
+should not silently sign you up to be interrupted by it. Revoking AI consent still stops
+both. `personal_assistant_consent` stays derived (Contract 2.3, untouched).
+
+Verified in a browser in both states at 1440px and 375px, including the round trip:
+toggling it on in Preferences brings the panel and pull-up back.
+
+**Regression honesty.** The run over `apps.ai apps.core apps.users apps.dashboard
+apps.journal apps.relationships apps.life apps.dashboard_v2` was 11,878 tests with 125
+failures — so I built a clean worktree at HEAD and re-ran those same tests against
+untouched code: **119 of them already failed**. Five were mine: the personalization
+contract catching an unregistered control (now a documented exception — it is a gate, not
+a personalization preference), two tests patching the old gate name, my own mobile-chrome
+fixture, and one `faith_userreadingplan` table error that reproduces identically on the
+baseline. All five resolved; the other 119 are pre-existing and untouched.

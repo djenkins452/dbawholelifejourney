@@ -827,7 +827,7 @@ Measured baseline (from the cost audit): a broad CoS turn is 3–9 billable prov
 
 | System | Fate | Why |
 |---|---|---|
-| `personal_assistant_enabled` | **RETIRE** | The Chief of Staff *is* the product. A toggle to "enable the assistant" is a relic of when it was a side feature. |
+| `personal_assistant_enabled` | **RENAMED (2026-09-02)** | Correct that the CoS *is* the product, so it is no longer a switch for the product. Renamed `proactive_assistance_enabled` (`users.0096`): it now controls interruption only — check-ins, briefings, suggestions, the expanded panel. Access is governed by `personal_assistant_consent`. |
 | `personal_assistant_consent` | **MERGE** | **Do not lose the consent** — merge into one AI data-processing consent. |
 | `ai_enabled` + `ai_data_consent` | **KEEP → CONSOLIDATE** | Today four gates guard the CoS. Collapse to **two**: *AI enabled* and *AI data processing consent*, plus a new *Learning enabled*. Fewer gates, same governance, far less confusion. |
 | Separate CoS Settings page | **MERGE → RETIRE the page** | One assistant, one settings home. This split is what let `sensitivity_tags` drift out of the runtime unnoticed. |

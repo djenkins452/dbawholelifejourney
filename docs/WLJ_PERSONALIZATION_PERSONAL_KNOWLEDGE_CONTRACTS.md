@@ -116,7 +116,7 @@ Every preference below has exactly one canonical meaning across the product.
 ### 2.2 Fields that do NOT become canonical
 
 - `personality_overlay` — redundant with Persona. **Retire (M7).** No milestone may build on it.
-- `personal_assistant_enabled` — the CoS is the product. **Retire (M7).**
+- `personal_assistant_enabled` — **RENAMED 2026-09-02** to `proactive_assistance_enabled` (`users.0096`) and given a single meaning: may the CoS start something on its own. It is no longer an access control, so the M7 retirement no longer applies — the field now answers a question the product still needs to ask.
 - `default_relationship` — folded into persona/relationship selection at M1.
 
 ### 2.3 Consent is not a preference

@@ -253,7 +253,7 @@ class TestWakeEndpoint(ReadinessTestMixin, TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.client.login(email='test@example.com', password='testpass123')
@@ -288,7 +288,7 @@ class TestWakeEndpoint(ReadinessTestMixin, TestCase):
 
     def test_disabled_user_gets_disabled_status(self):
         prefs = self.user.preferences
-        prefs.personal_assistant_enabled = False
+        prefs.proactive_assistance_enabled = False
         prefs.save()
         response = self.client.post(
             '/assistant/api/wake/',

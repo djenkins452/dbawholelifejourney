@@ -42,10 +42,10 @@ def _make_user(email):
     prefs = user.preferences
     prefs.has_completed_onboarding = True
     # The streaming view gates on the Personal Assistant prerequisites
-    # (check_personal_assistant_enabled): AI + consent + assistant module.
+    # (check_proactive_assistance_enabled): AI + consent + assistant module.
     prefs.ai_enabled = True
     prefs.ai_data_consent = True
-    prefs.personal_assistant_enabled = True
+    prefs.proactive_assistance_enabled = True
     prefs.personal_assistant_consent = True
     prefs.save()
     return user

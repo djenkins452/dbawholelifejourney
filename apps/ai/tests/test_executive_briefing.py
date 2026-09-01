@@ -50,7 +50,7 @@ class ExecutiveBriefingTestMixin:
             terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0')
         )
         user.preferences.has_completed_onboarding = True
-        user.preferences.personal_assistant_enabled = True
+        user.preferences.proactive_assistance_enabled = True
         user.preferences.ai_enabled = True
         user.preferences.ai_data_consent = True
         user.preferences.save()

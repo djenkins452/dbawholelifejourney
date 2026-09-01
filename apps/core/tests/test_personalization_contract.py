@@ -274,6 +274,12 @@ class UserEditableControlCoverageTests(SimpleTestCase):
         "ai_enabled": "governance gate mirrored from ai_data_consent",
         "ai_profile": "M2/M3 own Personal Knowledge; not an M1 operational preference",
         "ai_personal_context": "legacy Learned Context — M3 owns its replacement",
+        "proactive_assistance_enabled": (
+            "gate, not a personalization preference: it decides WHETHER the proactive "
+            "surfaces run at all (check-ins, briefings, the expanded panel), so it is "
+            "consumed by AssistantMixin.check_proactive_assistance_enabled and the "
+            "panel templates rather than delivered into the CoS profile. It does not "
+            "change how the Chief of Staff behaves once you open it."),
     }
 
     def test_every_rendered_control_maps_to_a_delivered_preference(self):

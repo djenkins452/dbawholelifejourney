@@ -54,7 +54,7 @@ class ProactiveUserMixin(TestCase):
         p.has_completed_onboarding = True
         p.ai_enabled = True
         p.ai_data_consent = True
-        p.personal_assistant_enabled = True
+        p.proactive_assistance_enabled = True
         p.personal_assistant_consent = True
         p.assistant_proactive_checkins = True
         p.use_model_interface = True

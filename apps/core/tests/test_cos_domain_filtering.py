@@ -113,7 +113,7 @@ class DomainFilteringTest(TestCase):
             terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
         )
         self.user.preferences.has_completed_onboarding = True
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
         cache.clear()
 
@@ -247,7 +247,7 @@ class FailOpenTest(TestCase):
             terms_version=settings.WLJ_SETTINGS.get('TERMS_VERSION', '1.0'),
         )
         self.user.preferences.has_completed_onboarding = True
-        self.user.preferences.personal_assistant_enabled = True
+        self.user.preferences.proactive_assistance_enabled = True
         self.user.preferences.save()
         cache.clear()
 

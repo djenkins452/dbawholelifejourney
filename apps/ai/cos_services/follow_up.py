@@ -151,7 +151,7 @@ def deliver_due_follow_ups_for_user(user, now=None, max_per_cycle=MAX_DELIVER_PE
         return 0
 
     prefs = getattr(user, "preferences", None)
-    if not (prefs and getattr(prefs, "personal_assistant_enabled", False)
+    if not (prefs and getattr(prefs, "proactive_assistance_enabled", False)
             and getattr(prefs, "assistant_proactive_checkins", False)):
         return 0
 

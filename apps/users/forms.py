@@ -492,10 +492,15 @@ class PreferencesForm(forms.ModelForm):
             # omits an unchecked box / absent radio, and ModelForm would silently reset the
             # user's choice - exactly what M1 Definition-of-done §9 forbids. They are
             # written in PreferencesView.form_valid ONLY when actually submitted.
-            # Personal Assistant enablement is RETIRED from the UI (Contract 2.3) and is
-            # now derived from AI consent in PreferencesView.form_valid. The fields stay
-            # until M7 because the runtime still gates on them.
-            "personal_assistant_enabled",
+            # `personal_assistant_consent` stays derived from AI consent (Contract 2.3):
+            # the AI consent text names the Chief of Staff and is a superset of the old
+            # PA consent, so affirming one affirms the other. That is unchanged.
+            #
+            # `proactive_assistance_enabled` is NOT derived any more — it is the person's
+            # own answer to "may it start things on its own", rendered in Preferences
+            # under Your Chief of Staff. Deriving it meant consenting to the assistant
+            # silently signed you up to be interrupted by it.
+            "proactive_assistance_enabled",
             "personal_assistant_consent",
             # Location
             "location_city",
@@ -602,7 +607,7 @@ class PreferencesForm(forms.ModelForm):
             "ai_data_consent": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
-            "personal_assistant_enabled": forms.CheckboxInput(attrs={
+            "proactive_assistance_enabled": forms.CheckboxInput(attrs={
                 "class": "form-checkbox",
             }),
             "personal_assistant_consent": forms.CheckboxInput(attrs={

@@ -84,7 +84,7 @@ class CalibrationDebugView(LoginRequiredMixin, View):
                     'calibration_answers') if blueprint else None,
                 'alignment_session_exists': alignment is not None,
                 'alignment_is_complete': alignment.is_complete if alignment else None,
-                'pa_enabled': prefs.personal_assistant_enabled,
+                'pa_enabled': prefs.proactive_assistance_enabled,
                 'pa_consent': prefs.personal_assistant_consent,
             })
         except Exception as e:
@@ -221,35 +221,49 @@ class AssistantMixin:
 
         return True, None
 
-    def check_personal_assistant_enabled(self):
-        """
-        Check if user has Personal Assistant module enabled and consented.
+    def check_cos_access(self):
+        """May this person USE the Chief of Staff? Consent, and only consent.
 
-        Personal Assistant requires:
-        1. AI Features enabled (ai_enabled)
-        2. AI Data Consent (ai_data_consent)
-        3. Personal Assistant module enabled (personal_assistant_enabled)
-        4. Personal Assistant consent (personal_assistant_consent)
+        Three permissions, all unchanged: AI features on, AI data consent, and the
+        assistant's own consent — which is the one that matters, because without it the
+        Chief of Staff may not read the journals, tasks, health or money it would need
+        to answer anything.
 
-        Returns:
-            tuple: (is_enabled, error_message_or_None)
+        `proactive_assistance_enabled` is deliberately NOT here. It used to be, and that
+        is why switching off "the Personal Assistant module" took the chat away from
+        people who only wanted it to stop interrupting them. Whether something may come
+        to you unasked says nothing about whether you may go to it.
+
+        Returns: (is_allowed, error_message_or_None)
         """
         user = self.request.user
         prefs = user.preferences
 
-        # First check AI prerequisites
         if not prefs.ai_enabled:
             return False, "AI Features must be enabled first. Enable AI Features in Preferences."
 
         if not AIService.check_user_consent(user):
             return False, "AI data processing consent required. Update in Preferences."
 
-        # Check Personal Assistant module
-        if not prefs.personal_assistant_enabled:
-            return False, "Personal Assistant is not enabled. Enable it in Preferences."
-
         if not prefs.personal_assistant_consent:
             return False, "Personal Assistant data consent required. Update in Preferences."
+
+        return True, None
+
+    def check_proactive_assistance_enabled(self):
+        """May the Chief of Staff START something — a check-in, a briefing, a greeting?
+
+        Everything `check_cos_access` requires, PLUS the person having said they want to
+        be approached. Used only by the surfaces that speak first; anything the person
+        opened themselves goes through `check_cos_access`.
+        """
+        allowed, error = self.check_cos_access()
+        if not allowed:
+            return False, error
+
+        if not self.request.user.preferences.proactive_assistance_enabled:
+            return False, ("Proactive assistance is off, so the Chief of Staff will not "
+                           "start on its own. You can still open it any time.")
 
         return True, None
 
@@ -272,7 +286,7 @@ class AssistantOpeningView(LoginRequiredMixin, AssistantMixin, View):
 
     def get(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway, SURFACE_OPENING
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_proactive_assistance_enabled()
 
         if not enabled:
             return JsonResponse({
@@ -421,7 +435,7 @@ class AssistantWakeView(LoginRequiredMixin, AssistantMixin, View):
         user = request.user
 
         # Quick PA check — skip prewarm if PA not enabled
-        enabled, _ = self.check_personal_assistant_enabled()
+        enabled, _ = self.check_proactive_assistance_enabled()
         if not enabled:
             return JsonResponse({"status": "disabled"}, status=200)
 
@@ -490,7 +504,7 @@ class ProactiveBriefingView(LoginRequiredMixin, AssistantMixin, View):
 
     def post(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway, SURFACE_BRIEFING
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_proactive_assistance_enabled()
         if not enabled:
             return JsonResponse({
                 'success': False,
@@ -571,7 +585,7 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
 
     def post(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_proactive_assistance_enabled()
         if not enabled:
             return JsonResponse({
                 'action': 'none',
@@ -911,7 +925,7 @@ class AssistantAttachmentUploadView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         if not enabled:
             return JsonResponse({'success': False, 'error': error}, status=200)
 
@@ -980,7 +994,7 @@ class AssistantChatView(LoginRequiredMixin, AssistantMixin, View):
     ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
 
     def post(self, request, *args, **kwargs):
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
 
         if not enabled:
             return JsonResponse({
@@ -1314,7 +1328,7 @@ class AssistantChatStreamView(LoginRequiredMixin, AssistantMixin, View):
     def post(self, request, *args, **kwargs):
         from django.http import StreamingHttpResponse
 
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         if not enabled:
             return JsonResponse(
                 {'success': False, 'error': error}, status=200,
@@ -1787,7 +1801,7 @@ class DailyPrioritiesView(LoginRequiredMixin, AssistantMixin, View):
 
     def get(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway, SURFACE_PRIORITIES
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         force_refresh = request.GET.get('refresh') == 'true'
 
         def _legacy():
@@ -1974,7 +1988,7 @@ class WeeklyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
 
     def get(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway, SURFACE_WEEKLY
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         force_refresh = request.GET.get('refresh') == 'true'
 
         def _legacy():
@@ -2025,7 +2039,7 @@ class MonthlyAnalysisView(LoginRequiredMixin, AssistantMixin, View):
 
     def get(self, request, *args, **kwargs):
         from apps.ai.cos_gateway import CoSGateway, SURFACE_MONTHLY
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         force_refresh = request.GET.get('refresh') == 'true'
 
         def _legacy():
@@ -2212,7 +2226,7 @@ class ConfirmActionView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         if not enabled:
             return JsonResponse({'success': False, 'error': error}, status=200)
 
@@ -2289,7 +2303,7 @@ class QuickReplyView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def post(self, request, *args, **kwargs):
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
 
         if not enabled:
             return JsonResponse({
@@ -2446,7 +2460,7 @@ class CosSettingsView(LoginRequiredMixin, TemplateView):
             context['blueprint'] = None
 
         context['prefs'] = prefs
-        context['pa_enabled'] = getattr(prefs, 'personal_assistant_enabled', False)
+        context['pa_enabled'] = getattr(prefs, 'proactive_assistance_enabled', False)
         context['cos_display_name_raw'] = getattr(prefs, 'cos_display_name', '')
 
         # Learning Mode state for toggle UI
@@ -2749,7 +2763,7 @@ class CosDecisionView(LoginRequiredMixin, AssistantMixin, View):
     """
 
     def get(self, request, *args, **kwargs):
-        enabled, error = self.check_personal_assistant_enabled()
+        enabled, error = self.check_cos_access()
         if not enabled:
             return JsonResponse({
                 'success': False,

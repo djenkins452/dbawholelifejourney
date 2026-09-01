@@ -3483,7 +3483,7 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
         # IMPORTANT: Each layer is injected ONCE. No duplicates.
         # ================================================================
         try:
-            if getattr(self.prefs, 'personal_assistant_enabled', False):
+            if getattr(self.prefs, 'proactive_assistance_enabled', False):
                 # ----------------------------------------------------------
                 # Collect all layers (each gathered once, assembled at end)
                 # ----------------------------------------------------------
@@ -7302,7 +7302,7 @@ Rules for this response:
         no action intents should be recognized or executed.
         """
         try:
-            if not getattr(self.prefs, 'personal_assistant_enabled', False):
+            if not getattr(self.prefs, 'proactive_assistance_enabled', False):
                 return False
             from apps.core.blueprint.cos_governance import get_calibration_state
             cal_state = get_calibration_state(self.user)

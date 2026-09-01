@@ -36,7 +36,7 @@ class SessionStartTestMixin:
         )
         prefs = user.preferences
         prefs.has_completed_onboarding = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
@@ -80,7 +80,7 @@ class TestSessionStartFirstOfDay(SessionStartTestMixin, TestCase):
         view.request = request
 
         with patch.object(
-            view, 'check_personal_assistant_enabled',
+            view, 'check_proactive_assistance_enabled',
             return_value=(True, None),
         ):
             with patch(
@@ -121,7 +121,7 @@ class TestSessionStartFirstOfDay(SessionStartTestMixin, TestCase):
         view.request = request
 
         with patch.object(
-            view, 'check_personal_assistant_enabled',
+            view, 'check_proactive_assistance_enabled',
             return_value=(True, None),
         ):
             with patch(
@@ -172,7 +172,7 @@ class TestSessionStartLightweightAlignment(SessionStartTestMixin, TestCase):
         view.request = request
 
         with patch.object(
-            view, 'check_personal_assistant_enabled',
+            view, 'check_proactive_assistance_enabled',
             return_value=(True, None),
         ):
             with patch(
@@ -224,7 +224,7 @@ class TestSessionStartDrift(SessionStartTestMixin, TestCase):
         mock_drift.drift_probability_24h = 0.65
 
         with patch.object(
-            view, 'check_personal_assistant_enabled',
+            view, 'check_proactive_assistance_enabled',
             return_value=(True, None),
         ):
             with patch(
@@ -266,7 +266,7 @@ class TestSessionStartAuth(SessionStartTestMixin, TestCase):
         view.request = request
 
         with patch.object(
-            view, 'check_personal_assistant_enabled',
+            view, 'check_proactive_assistance_enabled',
             return_value=(False, 'PA not enabled'),
         ):
             response = view.post(request)

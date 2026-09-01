@@ -409,7 +409,7 @@ class Command(BaseCommand):
 
         # Get users with Personal Assistant enabled
         users = User.objects.filter(
-            preferences__personal_assistant_enabled=True,
+            preferences__proactive_assistance_enabled=True,
             preferences__personal_assistant_consent=True,
             preferences__ai_enabled=True,
             preferences__ai_data_consent=True,

@@ -171,7 +171,9 @@ class StreamViewRoutingTests(TestCase):
     def _post(self):
         self.client.force_login(self.user)
         with mock.patch(
-            "apps.ai.views.AssistantChatStreamView.check_personal_assistant_enabled",
+            # The chat stream is something the person opened, so it is gated on
+            # ACCESS, not on whether they want to be interrupted.
+            "apps.ai.views.AssistantChatStreamView.check_cos_access",
             return_value=(True, None),
         ), mock.patch(
             "apps.ai.chatgpt_cos.tasks.run_chatgpt_cos_generation.delay",

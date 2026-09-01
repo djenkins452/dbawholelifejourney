@@ -24,7 +24,7 @@
 
         <h2 class="section-title">Quick Links</h2>
         <div class="tile-grid">
-            {% if ai_enabled and personal_assistant_enabled %}
+            {% if cos_available %}
             <a href="{% url 'ai:cos_settings' %}" class="tile tile-assistant">
                 <div class="tile-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

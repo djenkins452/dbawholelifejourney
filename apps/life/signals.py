@@ -271,7 +271,7 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
         prefs = user.preferences
         if not getattr(prefs, 'ai_enabled', False):
             return
-        if not getattr(prefs, 'personal_assistant_enabled', False):
+        if not getattr(prefs, 'proactive_assistance_enabled', False):
             return
     except Exception as e:
         logger.warning("Document signal gate check failed: %s", e)

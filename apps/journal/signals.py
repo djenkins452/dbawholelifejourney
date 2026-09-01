@@ -41,7 +41,7 @@ def extract_people_from_journal(sender, instance, created, **kwargs):
         prefs = user.preferences
         if not getattr(prefs, 'ai_enabled', False):
             return
-        if not getattr(prefs, 'personal_assistant_enabled', False):
+        if not getattr(prefs, 'proactive_assistance_enabled', False):
             return
     except Exception as e:
         logger.warning("Journal signal gate check failed: %s", e)

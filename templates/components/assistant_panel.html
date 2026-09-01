@@ -10,11 +10,16 @@
   Supports: calibration auto-start, intervention pings, friction gates, voice conversation
 {% endcomment %}
 
-{% if user.is_authenticated and personal_assistant_enabled %}
-{# Hide the floating chat bubble on mobile/tablet — the pull-up panel handles chat #}
+{% if user.is_authenticated and proactive_assistance_enabled %}
+{% comment %}
+  On desktop THIS panel is the chat, so the slide-out drawer stands down. The rule lives
+  here rather than with the drawer because it is only true when this panel exists — and
+  this panel only exists when proactive assistance is on.
+{% endcomment %}
 <style nonce="{{ csp_nonce }}">
-@media (max-width: 1024px) {
-    .assistant-toggle-btn { display: none !important; }
+@media (min-width: 1025px) {
+    .assistant-drawer,
+    .assistant-overlay { display: none !important; }
 }
 </style>
 {% comment %}
@@ -295,7 +300,7 @@ any in-flight stream survive a focus-mode toggle untouched.
     'use strict';
 
     /* ---- Config ---- */
-    var paEnabled = {{ personal_assistant_enabled|yesno:"true,false" }};
+    var paEnabled = {{ proactive_assistance_enabled|yesno:"true,false" }};
     var paConsent = {{ personal_assistant_consent|yesno:"true,false" }};
     var paAccessible = paEnabled && paConsent;
     var cosName = '{{ cos_display_name|default:"Chief of Staff"|escapejs }}';

@@ -71,7 +71,7 @@ def _write_together_enabled(user):
         prefs = user.preferences
         return bool(
             prefs.is_feature_enabled("journal", "write_together")
-            and getattr(prefs, "personal_assistant_enabled", False)
+            and getattr(prefs, "proactive_assistance_enabled", False)
         )
     except Exception:
         return False

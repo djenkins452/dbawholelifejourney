@@ -642,12 +642,17 @@
 }
 
 /* Desktop: hide floating button and drawer — assistant panel handles chat */
+/* The floating button is hidden at EVERY width — on desktop the rail and the utility
+   icons are the way in, and on mobile it covered the page (see the note below).
+
+   The DRAWER is deliberately not hidden here. It used to be, on the assumption that
+   desktop always had the pinned panel instead — but that panel only renders when
+   proactive assistance is on, so with it off the utility icons opened something with
+   `display: none` and nothing happened. The rule that hides the drawer on desktop now
+   lives with the panel that replaces it, so it applies exactly when there IS a
+   replacement. */
 @media (min-width: 1025px) {
     .assistant-toggle-btn {
-        display: none !important;
-    }
-    .assistant-drawer,
-    .assistant-overlay {
         display: none !important;
     }
 }

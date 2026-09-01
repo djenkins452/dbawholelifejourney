@@ -39,7 +39,7 @@ class TestResolveTasksByQuery(TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.handler = ActionHandler(self.user)
@@ -117,7 +117,7 @@ class TestExactMatchBypassesClarification(TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.handler = ActionHandler(self.user)
@@ -158,7 +158,7 @@ class TestMultipleMatchesReturnsCandidates(TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.handler = ActionHandler(self.user)
@@ -211,7 +211,7 @@ class TestClarificationState(TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
 
@@ -352,7 +352,7 @@ class TestResolvedIdBypass(TestCase):
         prefs = self.user.preferences
         prefs.ai_enabled = True
         prefs.ai_data_consent = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.personal_assistant_consent = True
         prefs.save()
         self.handler = ActionHandler(self.user)

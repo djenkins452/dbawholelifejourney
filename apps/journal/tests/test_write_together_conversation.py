@@ -31,7 +31,7 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         prefs = self.user.preferences
         prefs.journal_features = dict(prefs.journal_features or {})
         prefs.journal_features["write_together"] = True
-        prefs.personal_assistant_enabled = pa
+        prefs.proactive_assistance_enabled = pa
         prefs.save()
 
     # --- gating -------------------------------------------------------------
@@ -74,7 +74,7 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         prefs.journal_features = dict(prefs.journal_features or {})
         prefs.journal_features["write_together"] = True
         prefs.journal_features["conversation_style"] = "reflective"
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.save()
         self.login_user()
         resp = self.client.get(self.page_url + "?voice=1")
@@ -131,7 +131,7 @@ class WriteTogetherConversationTests(JournalTestMixin, TestCase):
         prefs = self.user.preferences
         prefs.journal_features = dict(prefs.journal_features or {})
         prefs.journal_features["write_together"] = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.save()
         self.login_user()
         resp = self.client.get(_rev("journal:entry_create"))
@@ -283,7 +283,7 @@ class TodaysDraftAwarenessTests(JournalTestMixin, TestCase):
         prefs = self.user.preferences
         prefs.journal_features = dict(prefs.journal_features or {})
         prefs.journal_features["write_together"] = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.save()
 
     def _make_draft(self, state=JournalConversation.STATE_ACTIVE, with_content=True):
@@ -400,7 +400,7 @@ class UnifiedDraftTests(JournalTestMixin, TestCase):
         prefs = self.user.preferences
         prefs.journal_features = dict(prefs.journal_features or {})
         prefs.journal_features["write_together"] = True
-        prefs.personal_assistant_enabled = True
+        prefs.proactive_assistance_enabled = True
         prefs.save()
 
     def _today(self):

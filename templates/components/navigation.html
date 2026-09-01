@@ -38,7 +38,7 @@
                 </li>
 
                 <!-- Chief of Staff - Conditional on AI + Personal Assistant enabled and consent -->
-                {% if ai_enabled and ai_data_consent and personal_assistant_enabled and personal_assistant_consent %}
+                {% if cos_available %}
                 <li>
                     <a href="{% url 'ai:cos_settings' %}" class="nav-link {% if request.resolver_match.app_name == 'ai' %}active{% endif %}">
                         <svg class="nav-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -825,7 +825,7 @@
             </div>
 
             {% comment %} Plan-Alignment badge (mobile) — commitments on-track, NOT Operations status. {% endcomment %}
-            {% if personal_assistant_enabled and command_brief and command_brief.active %}
+            {% if proactive_assistance_enabled and command_brief and command_brief.active %}
             <a href="{% url 'ai:cos_settings' %}" class="cos-alignment-badge {% if command_brief.alignment_score is None %}align-unknown{% elif command_brief.alignment_score >= 80 %}align-good{% elif command_brief.alignment_score >= 50 %}align-caution{% else %}align-warning{% endif %}" title="Plan alignment — how on-track your commitments are. Not system or Operations status.">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.5"/></svg>
                 <span class="cos-alignment-label">Alignment</span>

@@ -768,6 +768,35 @@
                                     <p class="form-help">Leave blank to use &ldquo;Chief of Staff&rdquo;.</p>
                                 </div>
 
+                                {% comment %}
+                                  Proactive assistance. Interruption only — NOT access.
+                                  Turning this off used to remove the Chief of Staff
+                                  outright: every entry point vanished and the chat API
+                                  refused. Someone who just did not want to be
+                                  interrupted had to give the whole thing up.
+                                {% endcomment %}
+                                <div class="form-group">
+                                    <label class="form-label" for="proactive_assistance_enabled">Proactive assistance</label>
+                                    <div class="module-toggle-row">
+                                        <label class="toggle-switch-label" for="proactive_assistance_enabled">
+                                            <input type="checkbox" name="proactive_assistance_enabled"
+                                                   id="proactive_assistance_enabled"
+                                                   {% if form.proactive_assistance_enabled.value %}checked{% endif %}>
+                                            <span class="toggle-switch"></span>
+                                        </label>
+                                        <span class="module-toggle-text">
+                                            Let it start things on its own
+                                        </span>
+                                    </div>
+                                    <p class="form-help">
+                                        On, your Chief of Staff opens the day with a check-in, offers
+                                        briefings and suggestions, and keeps its panel open beside you.
+                                        Off, it waits to be asked &mdash; <strong>you keep full access
+                                        from the menu and the Assistant tab</strong>, and nothing you
+                                        can do with it changes.
+                                    </p>
+                                </div>
+
                                 <p class="text-muted text-sm mb-4">
                                     Pick a personality. This changes how your Chief of Staff <strong>sounds</strong> &mdash;
                                     its voice, warmth and humour. It never changes your information, what it can do for you,

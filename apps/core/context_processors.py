@@ -165,9 +165,12 @@ def theme_context(request):
         # AI flags - defaults
         'ai_enabled': False,
         'ai_data_consent': False,
-        # Personal Assistant - defaults
-        'personal_assistant_enabled': False,
+        # Chief of Staff - defaults
+        'proactive_assistance_enabled': False,
         'personal_assistant_consent': False,
+        # Whether CoS can be OPENED at all. Consent, never the proactive preference —
+        # not wanting to be interrupted has nothing to do with being allowed in.
+        'cos_available': False,
         # Sub-feature toggles - all True by default (opt-out model)
         'features': {
             'health': {},
@@ -213,9 +216,14 @@ def theme_context(request):
             # AI toggles
             context['ai_enabled'] = prefs.ai_enabled
             context['ai_data_consent'] = prefs.ai_data_consent
-            # Personal Assistant toggles
-            context['personal_assistant_enabled'] = prefs.personal_assistant_enabled
+            # Chief of Staff: two independent questions.
+            #   `cos_available`                -> may it be opened (consent)
+            #   `proactive_assistance_enabled` -> may it open itself (preference)
+            context['proactive_assistance_enabled'] = prefs.proactive_assistance_enabled
             context['personal_assistant_consent'] = prefs.personal_assistant_consent
+            context['cos_available'] = bool(
+                prefs.ai_enabled and prefs.ai_data_consent
+                and prefs.personal_assistant_consent)
             context['cos_display_name'] = prefs.get_cos_name()
             context['cos_has_custom_name'] = bool(prefs.cos_display_name.strip())
             # Calibration state for chat auto-start
@@ -223,7 +231,7 @@ def theme_context(request):
             context['calibration_summary'] = ''
             context['calibration_welcome_shown'] = False
             context['calibration_stage'] = 0
-            if prefs.personal_assistant_enabled:
+            if prefs.proactive_assistance_enabled:
                 try:
                     from django.core.cache import cache as _cache
                     from apps.core.blueprint.cos_governance import (
@@ -273,7 +281,7 @@ def theme_context(request):
             except Exception:
                 context['cycle_tracking_enabled'] = False
             # Chief of Staff alignment badge (lightweight — for nav header)
-            if prefs.personal_assistant_enabled:
+            if prefs.proactive_assistance_enabled:
                 try:
                     from django.core.cache import cache as _cache
                     _align_key = f'alignment_score:{request.user.id}'

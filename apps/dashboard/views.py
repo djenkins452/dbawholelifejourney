@@ -214,7 +214,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         import datetime as dt
 
         # Guard: only for users with personal assistant enabled
-        if not getattr(prefs, 'personal_assistant_enabled', False):
+        if not getattr(prefs, 'proactive_assistance_enabled', False):
             return None
 
         try:
@@ -405,7 +405,7 @@ class DashboardView(HelpContextMixin, LoginRequiredMixin, TemplateView):
         Uses the Human Translation Layer so no raw percentages appear in
         the primary UI. Only human-readable labels and descriptions.
         """
-        if not getattr(prefs, 'personal_assistant_enabled', False):
+        if not getattr(prefs, 'proactive_assistance_enabled', False):
             return None
         if not command_brief or not command_brief.get('active'):
             return None

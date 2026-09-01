@@ -41,7 +41,7 @@ def _create_test_user(email='reltest@example.com', password='testpass123'):
     )
     user.preferences.has_completed_onboarding = True
     user.preferences.ai_enabled = True
-    user.preferences.personal_assistant_enabled = True
+    user.preferences.proactive_assistance_enabled = True
     user.preferences.save()
     return user
 

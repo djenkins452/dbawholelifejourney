@@ -61519,3 +61519,38 @@ a declared template already represented by a detected series is not returned twi
 
 The capability description tells the model plainly: a candidate is a proposal, say so,
 and **WLJ never promotes a candidate on its own and neither may you**.
+
+## 2026-09-01 — the persisted role column had drifted 3,785 rows behind
+
+Production, before anything: **3,228 purchase, 146 debt_service, 58 card_payment, 109
+uncertain** — and `stale_against_current_classifier: 3785`. Spending measures classify
+LIVE so the figures were never wrong, but the persisted `economic_role` column bounds the
+ranked-spend read and drives the review queue, and nothing had realigned it since the
+classifier moved.
+
+**Realigning it is a mass rewrite of financial meaning, and the directions are not
+symmetric.** Moving a row to `card_payment`, `debt_service`, a transfer or
+`uncertain` takes it OUT of consumer spending — recoverable, and visible on the review
+queue. Moving one INTO `purchase`, `income` or a refund puts money into a total the
+person will read as theirs. So `backfill.rehearse_and_apply` rehearses first (writing
+nothing, reporting which role becomes which, how many rows and how much money moves with
+each), then applies **only** transitions whose direction cannot raise what someone appears
+to have spent. Everything else is counted, reported, and left exactly as it was.
+
+`SAFE_BACKFILL_TARGETS` deliberately omits `purchase`, `income`, `refund`,
+`reimbursement` and `reversal_chargeback`.
+
+Two reporting bugs of my own, caught by tests: `_flush` only counts writes when
+committing, so the rehearsal said "would write 0"; and a classifier **version bump alone**
+makes every row differ without changing what any of them MEAN — reporting "3,785 rows
+would change" is a number nobody can act on, so `role_changes` is now counted apart from
+`written`.
+
+The report is published to the cache and read by the audit endpoint, which never
+classifies — a four-thousand-row pass belongs nowhere near a request path.
+
+**Not changed, deliberately:** `sweep_role_reconciliation` still reports drift and refuses
+to rewrite it overnight. The gate above arguably answers the concern behind that rule, but
+`test_drift_is_reported_and_never_silently_rewritten` protects it as an explicit decision,
+and overturning one of those belongs to whoever made it. Recorded in
+`DriftIsNotSelfHealedTests` so the reasoning is visible rather than lost.

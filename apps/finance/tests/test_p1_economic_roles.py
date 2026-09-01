@@ -450,6 +450,12 @@ class ShadowIsolationTests(RoleBase):
             # composes measures, which is the point.
             "apps/finance/tests/test_monthly_views.py",
             "apps/finance/tests/test_finance_claim_integrity.py",
+            # The reclassification tests assert which role a row moves INTO, which is
+            # the whole point of the safety gate they cover.
+            "apps/finance/tests/test_role_reclassification.py",
+            # The audit REPORTS the persisted role distribution so a classifier change
+            # is measurable. It counts roles; it never decides one.
+            "apps/finance/services/finance_audit.py",
             # The recurring workflow tests build rows with a known role to prove the
             # detector maps them to the right KIND of commitment.
             "apps/finance/tests/test_recurring_workflow.py",

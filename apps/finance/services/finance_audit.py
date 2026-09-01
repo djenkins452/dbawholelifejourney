@@ -347,6 +347,7 @@ def _role_state():
     audit endpoint.
     """
     from apps.finance.models import Transaction
+    from apps.finance.services.finance_calc import backfill as B
     from apps.finance.services.finance_calc import roles as R
 
     rows = Transaction.objects.all()
@@ -356,6 +357,10 @@ def _role_state():
         "by_source": _counts_by(rows, "role_source"),
         "by_confidence": _counts_by(rows, "role_confidence"),
         "unclassified": rows.filter(economic_role__isnull=True).count(),
+        # Written by the deploy-time reclassification, READ here. The audit never
+        # classifies to answer this — that is a four-thousand-row pass and belongs
+        # nowhere near a request.
+        "last_reclassification": B.read_rehearsal(),
         # Rows whose persisted role was written by an OLDER classifier. They are not
         # wrong by definition — they are simply not known to agree.
         "stale_against_current_classifier": rows.exclude(

@@ -22,6 +22,8 @@ important should not have exactly one place to fail.
 """
 from __future__ import annotations
 
+from decimal import Decimal
+
 from django.db import transaction as db_transaction
 from django.utils import timezone
 
@@ -69,6 +71,18 @@ def run(user=None, *, commit=False, batch_size=BATCH_SIZE, progress=None):
         "before": {"classified": 0, "unclassified": 0},
         "after": {"classified": 0, "unclassified": 0},
         "checkpoints": [],
+        # WHICH role became which, and how much money moved with it. A rehearsal that
+        # says "3,785 rows would change" answers nothing a person can act on: rows
+        # moving from `purchase` to `card_payment` REMOVE double-counted spending and
+        # are the point of the exercise, while rows moving the other way would ADD
+        # spending and are the thing to look at twice before committing.
+        "transitions": {},
+        "transition_amounts": {},
+        "role_changes": 0,
+        # Rows that DIFFER from what the classifier now says. `written` only counts
+        # rows actually persisted, so on a rehearsal it is zero by definition — and a
+        # rehearsal reporting "would write 0" is worse than useless.
+        "differing": 0,
     }
 
     base = _population(user)
@@ -89,6 +103,17 @@ def run(user=None, *, commit=False, batch_size=BATCH_SIZE, progress=None):
             report["unchanged"] += 1
             continue
 
+        # A version bump alone rewrites every row's provenance without changing what it
+        # MEANS. Only a genuine role change is impact, so they are counted apart.
+        if txn.economic_role != assignment.role:
+            key = f"{txn.economic_role or 'unclassified'} -> {assignment.role}"
+            report["transitions"][key] = report["transitions"].get(key, 0) + 1
+            report["transition_amounts"][key] = str(
+                Decimal(report["transition_amounts"].get(key, "0"))
+                + abs(txn.amount or Decimal("0")))
+            report["role_changes"] += 1
+
+        report["differing"] += 1
         for field, value in assignment.as_update_fields().items():
             setattr(txn, field, value)
         txn.role_classified_at = now
@@ -150,3 +175,128 @@ def classify_one(txn, *, commit=True):
     if commit:
         txn.save(update_fields=WRITE_FIELDS)
     return assignment
+
+
+#: Cache key the deploy-time rehearsal writes and the audit endpoint reads. The audit
+#: runs on the request path and must NEVER classify four thousand rows to answer a
+#: question — background writes, request-path reads, exactly as the platform requires.
+ROLE_REHEARSAL_CACHE_KEY = "wlj:finance:role_backfill_rehearsal"
+ROLE_REHEARSAL_TTL_SECONDS = 60 * 60 * 24 * 30
+
+#: Roles a row may be moved INTO without anyone looking first.
+#:
+#: Every one of these takes a transaction OUT of consumer spending or leaves it out:
+#: settling a card, servicing a debt, moving your own money, or admitting WLJ cannot
+#: tell. Being wrong in these directions understates spending and holds something for
+#: review — recoverable, and visible on the review queue.
+#:
+#: Deliberately ABSENT: `purchase`, `income`, `refund`, `reimbursement`,
+#: `reversal_chargeback`. Each of those ADDS spending, income, or an offset against
+#: spending, and a mass rewrite that quietly increases what a person appears to have
+#: spent is not something a deploy gets to do unattended.
+SAFE_BACKFILL_TARGETS = frozenset({
+    "card_payment", "debt_service", "internal_transfer", "savings_allocation",
+    "investment_contribution", "uncertain", "fee_or_interest_charged",
+    "cash_withdrawal", "opening_balance", "loan_proceeds",
+})
+
+
+def _is_safe_transition(previous_role, new_role):
+    """May this row be rewritten without review?"""
+    if not previous_role:
+        # It had no role at all. Anything is an improvement on nothing.
+        return True
+    if previous_role == new_role:
+        return True
+    return new_role in SAFE_BACKFILL_TARGETS
+
+
+def rehearse_and_apply(user=None, *, commit=False, batch_size=BATCH_SIZE):
+    """Rehearse the reclassification, then apply ONLY the transitions that are safe.
+
+    Two passes on purpose. The first writes nothing and produces the impact report —
+    which roles become which, how many rows, and how much money moves with each. The
+    second applies only the subset whose direction cannot increase what a person
+    appears to have spent; everything else is reported and left exactly as it was, for
+    a human to look at.
+
+    A classifier version bump alone makes every row differ, so `role_changes` (a row
+    whose MEANING changed) is reported apart from `written` (a row whose provenance was
+    refreshed). Confusing the two turns "3,785 rows changed" into a number nobody can
+    act on.
+    """
+    from apps.finance.models import Transaction
+
+    rehearsal = run(user, commit=False, batch_size=batch_size)
+    report = {
+        "rehearsal": {
+            "scanned": rehearsal["scanned"],
+            "would_write": rehearsal["differing"],
+            "role_changes": rehearsal["role_changes"],
+            "transitions": dict(rehearsal["transitions"]),
+            "transition_amounts": dict(rehearsal["transition_amounts"]),
+            "user_protected": rehearsal["user_protected"],
+        },
+        "classifier_version": R.CLASSIFIER_VERSION,
+        "applied": {"written": 0, "held_for_review": 0, "held_transitions": {}},
+        "committed": bool(commit),
+    }
+
+    held = {}
+    for key in rehearsal["transitions"]:
+        previous, _, new = key.partition(" -> ")
+        if not _is_safe_transition(
+                None if previous == "unclassified" else previous, new):
+            held[key] = rehearsal["transitions"][key]
+    report["applied"]["held_transitions"] = held
+
+    if not commit:
+        return report
+
+    pending, now = [], timezone.now()
+    applied = {"scanned": 0, "written": 0, "batches": 0, "checkpoints": []}
+    held_rows = 0
+    for txn in _population(user).iterator(chunk_size=batch_size):
+        applied["scanned"] += 1
+        if txn.economic_role and txn.role_source == Transaction.ROLE_SOURCE_USER:
+            continue
+        assignment = R.classify(txn)
+        if not _differs(txn, assignment):
+            continue
+        if not _is_safe_transition(txn.economic_role, assignment.role):
+            held_rows += 1
+            continue
+        for field, value in assignment.as_update_fields().items():
+            setattr(txn, field, value)
+        txn.role_classified_at = now
+        pending.append(txn)
+        if len(pending) >= batch_size:
+            _flush(pending, True, applied, None)
+            pending = []
+    if pending:
+        _flush(pending, True, applied, None)
+
+    report["applied"]["written"] = applied["written"]
+    report["applied"]["held_for_review"] = held_rows
+    return report
+
+
+def publish_rehearsal(report):
+    """Put the report where the audit endpoint can read it without recomputing."""
+    from django.core.cache import cache
+
+    try:
+        cache.set(ROLE_REHEARSAL_CACHE_KEY, report, ROLE_REHEARSAL_TTL_SECONDS)
+    except Exception:
+        # Losing the report must never fail the reclassification it describes.
+        pass
+
+
+def read_rehearsal():
+    """The last published report, or None. Never computes — see the cache key note."""
+    from django.core.cache import cache
+
+    try:
+        return cache.get(ROLE_REHEARSAL_CACHE_KEY)
+    except Exception:
+        return None

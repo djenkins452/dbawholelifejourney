@@ -61941,3 +61941,59 @@ at. Classified and handed over.
 
 Verified against the clean baseline: **102 → 91 in `apps.ai`+`apps.core`, and the diff of
 the two failure lists shows zero new failures.** Nothing was deleted, skipped or weakened.
+
+## 2026-09-02 — AI/Core cleanup, batch 1: two signals, one clock, four contracts
+
+Authoritative baseline on a clean Postgres test DB at `25c2f75b`: **10,345 tests,
+86 failures.**
+
+**`sleep_trend` was computed twice in the same function.** `build_health_state` had a
+week-over-week comparison — the documented contract, and what `rules_cross_domain.py` and
+`ai/services.py` read — followed later by a *different* computation comparing the first
+half of the 7-day window against its second half. The second wrote the same key and ran
+last, so it won. Someone sleeping six hours a night after a fortnight of eight was told
+their sleep was **stable**, because within that week it was. The duplicate is gone; if a
+within-week slope is ever wanted it needs its own name.
+
+**A half-frozen clock.** Three rhythm tests mocked the date but not `get_user_now`. The
+off_rhythm/returning branches only fire on the first interaction of the day, and that check
+reads the clock — so a real clock against a mocked date disagreed, the branch was skipped,
+and the mode fell through to whatever the real hour said. They passed in the morning and
+failed in the afternoon. Their fixtures also set "yesterday" from the real clock, landing
+the previous interaction *months after* the mocked today. Both pinned.
+
+**`HEALTH_CONTRACT` says every key MUST be present**; `test_empty_health_state` asserted
+`weight_current` was absent — the opposite of a contract other tests enforce. It now
+asserts the real thing: key present, value `None`, status `no_data`.
+
+**Four contracts had been red since the features that broke them shipped**, which is the
+same failure each time — the contract asked for a conscious decision and got silence:
+
+* the lane registry gained `mission`, `correction`, `diagnostic` and `self_report`
+  (35bc9dbd, b9f52515) and the approved list was never updated. Each has a handler and its
+  own tests, so all four are approved explicitly. The order also lived in **two** copies
+  that could drift apart; there is one now.
+* `HealthBriefingSnapshot` has been read by `cos_context` since 90446fc4 (May) without an
+  allowlist entry. It is a background-generated snapshot — the engine-output shape the
+  allowlist sanctions — so it is entered, not ignored.
+* metric purity: `deterministic_router` and `cos_recommendations` each averaged
+  `GlucoseEntry` directly, and `executive_interpretation` did its own task-horizon
+  counting. Fixed at the source — `glucose_queries.average_in_window` and
+  `TaskQueries.horizon_counts` now own those definitions, so two callers cannot answer the
+  same question differently. `significant_events` re-counted milestones the Goal model
+  already exposes.
+* the same scan swept in **management commands** — a cost report whose whole job is
+  aggregating `LLMUsageEvent`, and a persona seeder. They are operator tooling, not the
+  CoS truth surface, and only appeared because the walk is recursive. Scope narrowed
+  deliberately rather than adding eleven call sites to a debt baseline that would imply
+  they are violations awaiting migration.
+
+**Stale premises in three CoS test files.** `test_cos_empty_answer` and
+`test_chatgpt_cos_clean` asked *"how am I doing overall?"* to reach the tool loop — but
+`_cos_briefing_lane` correctly answers that with the executive brief, so they had stopped
+exercising the loop and were asserting against a briefing. The assertions were right; the
+prompt had quietly stopped meaning what its own comment said. Repointed at a prompt no
+lane claims, and each now asserts the loop actually ran — without that, the next lane to
+claim the prompt puts them right back to passing while testing nothing.
+
+`apps.core.ai_state` is green (317 tests).

@@ -23,6 +23,13 @@ from apps.ai.chatgpt_cos.service import ChatGPTCoSService
 from apps.ai.chatgpt_cos.tasks import run_chatgpt_cos_generation
 from apps.ai.models import AssistantConversation, AssistantMessage
 
+#: A question no deterministic lane claims, so `generate()` really reaches the tool
+#: loop. These tests used to ask "How am I doing?" / "How am I doing overall?", which
+#: `_cos_briefing_lane` correctly answers with the executive brief — so they stopped
+#: exercising the loop and started asserting against a briefing. The intent was always
+#: "a non-foundational prompt"; only the prompt had quietly stopped being one.
+LOOP_PROMPT = "what happened with the roof estimate?"
+
 User = get_user_model()
 
 _LOOP = "apps.ai.services.ai_service._call_api_with_tools"
@@ -56,8 +63,11 @@ class ChatGPTCoSServiceTests(TestCase):
              mock.patch(_STANDING, return_value={"status": "ready", "x": 1}), \
              mock.patch(_LOOP, return_value="You're on track.") as loop:
             result = ChatGPTCoSService(self.user).generate(
-                self.conversation, "How am I doing?",
+                self.conversation, LOOP_PROMPT,
             )
+        # The premise first: if a lane claimed the prompt the loop never ran and every
+        # assertion below is about something else.
+        loop.assert_called_once()
         self.assertEqual(result["answer"], "You're on track.")
         # all CoS tools advertised to the model
         self.assertEqual(
@@ -66,7 +76,6 @@ class ChatGPTCoSServiceTests(TestCase):
              "search_history", "execute_action",
              "get_foundational_health_facts"},
         )
-        loop.assert_called_once()
         # standing context is injected into the system prompt
         sys_prompt = loop.call_args.args[0]
         self.assertIn("Chief of Staff", sys_prompt)
@@ -92,12 +101,14 @@ class ChatGPTCoSServiceTests(TestCase):
         with mock.patch(_REASONING, return_value=None), \
              mock.patch(_WARM, return_value={"health": {"weight_current": 286}}) as warm, \
              mock.patch(_STANDING, return_value={"status": "ready"}) as standing, \
-             mock.patch(_LOOP, return_value="ok"):
-            # Non-foundational prompt: foundational fact prompts take the
-            # deterministic fast path and never build standing context.
+             mock.patch(_LOOP, return_value="ok") as loop:
+            # Non-foundational prompt: foundational fact prompts take the deterministic
+            # fast path, and briefing prompts are claimed by the briefing lane — neither
+            # builds standing context.
             ChatGPTCoSService(self.user).generate(
-                self.conversation, "How am I doing overall?",
+                self.conversation, LOOP_PROMPT,
             )
+        loop.assert_called_once()
         warm.assert_called()
         self.assertIs(warm.call_args.kwargs.get("allow_rebuild"), True)
         self.assertIs(standing.call_args.kwargs.get("allow_build"), True)

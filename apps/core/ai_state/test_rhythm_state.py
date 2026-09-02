@@ -699,10 +699,18 @@ class TestSituationIntegration(TestCase):
     @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
     @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
     @patch('apps.core.utils.get_user_today')
-    def test_off_rhythm_end_to_end(self, mock_today, *_mocks):
+    @patch('apps.core.utils.get_user_now')
+    def test_off_rhythm_end_to_end(self, mock_now, mock_today, *_mocks):
         """off_rhythm rhythm_state -> MODE_OFF_RHYTHM + workout template."""
         today = date(2026, 5, 22)
         mock_today.return_value = today
+        # Freeze the CLOCK as well as the date. The off_rhythm/returning branches
+        # only fire on the first interaction of the day, and
+        # `_is_first_interaction_today` reads `get_user_now` — so with a real clock
+        # against a mocked date the two disagree, the branch is skipped, and the
+        # mode falls through to whatever the real hour says (afternoon_focus at
+        # 13:00). The result depended on what time of day the suite happened to run.
+        mock_now.return_value = datetime(2026, 5, 22, 8, 0, tzinfo=dt_timezone.utc)
         # Workout full stop + foundational collapse -> off_rhythm via composer.
         _seed_user_state(
             self.user,
@@ -729,7 +737,10 @@ class TestSituationIntegration(TestCase):
         from apps.core.ai_state.models import CoSSituationState
         from django.utils import timezone as dj_tz
         sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
-        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        # Yesterday relative to the MOCKED day, not the real one. Using the real clock
+        # here put the 'previous' interaction months AFTER the mocked today, so the
+        # first-of-day rule never fired.
+        sit.last_user_interaction = mock_now.return_value - timedelta(days=1)
         sit.save()
 
         from apps.core.ai_state.situation_computer import compute_situation_for_user
@@ -746,10 +757,18 @@ class TestSituationIntegration(TestCase):
     @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
     @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
     @patch('apps.core.utils.get_user_today')
-    def test_returning_end_to_end_with_repeat_suppression(self, mock_today, *_mocks):
+    @patch('apps.core.utils.get_user_now')
+    def test_returning_end_to_end_with_repeat_suppression(self, mock_now, mock_today, *_mocks):
         """Returning fires once; second same-day compute falls through."""
         today = date(2026, 5, 22)
         mock_today.return_value = today
+        # Freeze the CLOCK as well as the date. The off_rhythm/returning branches
+        # only fire on the first interaction of the day, and
+        # `_is_first_interaction_today` reads `get_user_now` — so with a real clock
+        # against a mocked date the two disagree, the branch is skipped, and the
+        # mode falls through to whatever the real hour says (afternoon_focus at
+        # 13:00). The result depended on what time of day the suite happened to run.
+        mock_now.return_value = datetime(2026, 5, 22, 8, 0, tzinfo=dt_timezone.utc)
         # 34 active + 2 absent + 1 today => days_since_last == 3, had_today True.
         self._seed_today_active(today, [1] * 34 + [0, 0, 1])
         _seed_user_state(
@@ -774,7 +793,10 @@ class TestSituationIntegration(TestCase):
         # Set last_user_interaction to yesterday -> first-of-day = True.
         from django.utils import timezone as dj_tz
         sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
-        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        # Yesterday relative to the MOCKED day, not the real one. Using the real clock
+        # here put the 'previous' interaction months AFTER the mocked today, so the
+        # first-of-day rule never fired.
+        sit.last_user_interaction = mock_now.return_value - timedelta(days=1)
         sit.save()
 
         from apps.core.ai_state.situation_computer import compute_situation_for_user
@@ -788,7 +810,7 @@ class TestSituationIntegration(TestCase):
         # last_user_interaction to "now". The next compute should see this
         # as not-first-of-day and fall through to a time-based mode.
         sit.refresh_from_db()
-        sit.last_user_interaction = dj_tz.now()
+        sit.last_user_interaction = mock_now.return_value
         sit.save()
 
         second = compute_situation_for_user(self.user)
@@ -816,9 +838,17 @@ class TestRealLifeDannySlippingScenario(TestCase):
     @patch('apps.core.ai_state.situation_computer._is_in_recovery', return_value=False)
     @patch('apps.core.ai_state.situation_computer._has_urgent_signals', return_value=False)
     @patch('apps.core.utils.get_user_today')
-    def test_real_life_danny_slipping_scenario(self, mock_today, *_mocks):
+    @patch('apps.core.utils.get_user_now')
+    def test_real_life_danny_slipping_scenario(self, mock_now, mock_today, *_mocks):
         today = date(2026, 5, 22)
         mock_today.return_value = today
+        # Freeze the CLOCK as well as the date. The off_rhythm/returning branches
+        # only fire on the first interaction of the day, and
+        # `_is_first_interaction_today` reads `get_user_now` — so with a real clock
+        # against a mocked date the two disagree, the branch is skipped, and the
+        # mode falls through to whatever the real hour says (afternoon_focus at
+        # 13:00). The result depended on what time of day the suite happened to run.
+        mock_now.return_value = datetime(2026, 5, 22, 8, 0, tzinfo=dt_timezone.utc)
 
         # Inputs reflecting the lived scenario:
         # - Workouts: dropped to 1/week against a ~4/week baseline.
@@ -856,7 +886,10 @@ class TestRealLifeDannySlippingScenario(TestCase):
         # First-message-of-day setup.
         from django.utils import timezone as dj_tz
         sit, _ = CoSSituationState.objects.get_or_create(user=self.user)
-        sit.last_user_interaction = dj_tz.now() - timedelta(days=1)
+        # Yesterday relative to the MOCKED day, not the real one. Using the real clock
+        # here put the 'previous' interaction months AFTER the mocked today, so the
+        # first-of-day rule never fired.
+        sit.last_user_interaction = mock_now.return_value - timedelta(days=1)
         sit.save()
 
         # Composer assertions: status off_rhythm with workout high-tier flag.

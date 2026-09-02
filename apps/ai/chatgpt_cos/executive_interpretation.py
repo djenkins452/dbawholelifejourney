@@ -162,15 +162,11 @@ def _task_horizons(user):
     not a single 'pending' lump. Defensive: any failure yields zeros."""
     out = {"today": 0, "overdue": 0, "soon": 0, "backlog": 0, "total": 0}
     try:
-        from datetime import timedelta
         from apps.life.services.task_queries import TaskQueries
-        from apps.core.utils import get_user_now
-        now = get_user_now(user)
-        out["today"] = TaskQueries.due_today(user).count()
-        out["overdue"] = TaskQueries.overdue(user).count()
-        out["soon"] = TaskQueries.due_within(user, now + timedelta(days=7)).count()
-        out["backlog"] = TaskQueries.no_due_date(user).count()
-        out["total"] = TaskQueries.pending(user).count()
+        # One accessor call. The counting used to happen here, which put the "soon"
+        # window inside an AI-facing file where a second caller could define it
+        # differently — and is what MetricPurityTests flags.
+        out.update(TaskQueries.horizon_counts(user))
     except Exception:
         logger.warning("interpretation: task horizons failed", exc_info=True)
     return out

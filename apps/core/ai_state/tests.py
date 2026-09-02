@@ -225,12 +225,21 @@ class TestHealthStateBuilder(TestCase):
         self.user = _create_test_user()
 
     def test_empty_health_state(self):
+        """No weight entries → the key is PRESENT and explicitly empty.
+
+        This used to assert the key was absent, which contradicts HEALTH_CONTRACT:
+        "Every key listed here MUST be present in the dict returned by
+        build_health_state()" — precisely so readers never KeyError and can tell "no
+        data" from "not built". Other tests enforce that contract, so this one was
+        asserting the opposite of the design.
+        """
         from apps.core.ai_state.state_builder import build_health_state
 
         state = build_health_state(self.user)
         self.assertIsInstance(state, dict)
-        # No weight entries → no weight keys
-        self.assertNotIn("weight_current", state)
+        self.assertIn("weight_current", state)
+        self.assertIsNone(state["weight_current"])
+        self.assertEqual(state["weight_status"], "no_data")
 
     def test_weight_entry_reflected_in_state(self):
         from apps.health.models import WeightEntry

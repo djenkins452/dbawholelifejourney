@@ -40,12 +40,11 @@ def _current_metric(user, domain):
                 user=user, status="active").order_by("recorded_at").last()
             return (round(float(last.value_in_lb), 1), " lb", True) if last else None
         if domain == "glucose":
-            from django.db.models import Avg
-            from apps.health.models import GlucoseEntry
-            a = GlucoseEntry.objects.filter(
-                user=user, recorded_at__gte=now - timedelta(days=7)
-            ).aggregate(a=Avg("value"))["a"]
-            return (round(float(a)), " mg/dL", True) if a is not None else None
+            # Same accessor the deterministic router uses, so "average glucose over a
+            # window" has one definition rather than one per caller.
+            from apps.health.services.glucose_queries import average_in_window
+            a = average_in_window(user, now - timedelta(days=7), now)
+            return (a, " mg/dL", True) if a is not None else None
     except Exception:
         logger.warning("cos_rec: current metric failed (%s)", domain, exc_info=True)
     return None

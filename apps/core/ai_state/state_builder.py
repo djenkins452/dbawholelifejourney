@@ -734,30 +734,18 @@ def build_health_state(user):
                     sum(numeric) / len(numeric), 1,
                 )
 
-        # sleep_trend: compare first-half vs second-half of the 7-day
-        # window. Threshold: 15-minute difference in average sleep
-        # duration is the minimum to call a direction (prevents
-        # oscillation on trivial day-to-day variance).
-        if sleep_count >= 4:
-            window_midpoint = (now - timedelta(days=3)).date()
-            first_half = recent_sleep.filter(
-                sleep_date__lt=window_midpoint
-            ).aggregate(avg=_Avg("total_duration_minutes"))["avg"]
-            second_half = recent_sleep.filter(
-                sleep_date__gte=window_midpoint
-            ).aggregate(avg=_Avg("total_duration_minutes"))["avg"]
-            if first_half is not None and second_half is not None:
-                delta_min = float(second_half) - float(first_half)
-                if delta_min >= 15:
-                    state["sleep_trend"] = "increasing"
-                elif delta_min <= -15:
-                    state["sleep_trend"] = "decreasing"
-                else:
-                    state["sleep_trend"] = "stable"
-            else:
-                state["sleep_trend"] = "insufficient_data"
-        else:
-            state["sleep_trend"] = "insufficient_data"
+        # sleep_trend is computed ONCE, above: last 7 nights against the prior 7.
+        #
+        # A second computation used to sit here comparing the first half of the 7-day
+        # window against its second half — a different question (this week's slope, not
+        # week-over-week change) writing to the same key, and running later, so it won.
+        # A person sleeping six hours a night after a fortnight of eight was told their
+        # sleep was "stable", because within that week it was.
+        #
+        # `rules_cross_domain.py` and `ai/services.py` both read this key expecting the
+        # week-over-week meaning, so the earlier one is the contract. If a within-week
+        # slope is ever wanted it needs its own name — see the Finance measure rule:
+        # never widen one key to answer a second question.
 
     # ── Steps (last 7 days) ───────────────────────────────────
     recent_steps = StepsEntry.objects.filter(

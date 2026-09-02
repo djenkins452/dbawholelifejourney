@@ -159,6 +159,29 @@ class TaskQueries:
         )
 
     @classmethod
+    def horizon_counts(cls, user, as_of=None):
+        """Task counts by executive horizon, from this one accessor.
+
+        The Chief of Staff needs "how much is due today / overdue / coming up", and it
+        was assembling that itself by calling `.count()` on five querysets from here.
+        That is the right SOURCE with the arithmetic in the wrong place: two callers
+        could count "soon" over different windows and both look canonical. The window
+        lives here now, so it has one definition.
+        """
+        from datetime import timedelta
+
+        from apps.core.utils import get_user_now
+
+        now = as_of or get_user_now(user)
+        return {
+            "today": cls.due_today(user, as_of=now).count(),
+            "overdue": cls.overdue(user, as_of=now).count(),
+            "soon": cls.due_within(user, now + timedelta(days=7)).count(),
+            "backlog": cls.no_due_date(user).count(),
+            "total": cls.pending(user).count(),
+        }
+
+    @classmethod
     def no_due_date(cls, user):
         """Pending tasks with no due date."""
         return cls.pending(user).filter(due_date__isnull=True)

@@ -31,6 +31,24 @@ from apps.ai.chatgpt_cos.lanes import (
 )
 from apps.ai.models import AssistantConversation
 
+#: THE approved routing order. One list, referenced by both contracts below — they
+#: used to hold separate copies, which is how one of them could be updated while the
+#: other went on asserting a registry that no longer existed.
+#:
+#: Adding a lane here is a deliberate act. REVIEWED 2026-09-02: `mission`, `correction`,
+#: `diagnostic` and `self_report` arrived with 35bc9dbd (mission persistence) and
+#: b9f52515 (Status -> Diagnosis); each has a handler and its own tests, and neither
+#: commit updated the list, so both contracts had been red since. Approved explicitly.
+APPROVED_LANE_ORDER = [
+    "mission", "temporal", "why_explainer", "referential", "clarification_reply",
+    "conversation_planner", "correction", "decision_support", "reconciliation",
+    "priority_correction", "diagnostic", "self_report", "accomplishment",
+    "sleep_history", "weight_history", "workout_history", "foundational_facts",
+    "clarification", "general_continuity", "goals_checkin", "next_rhythm",
+    "priority_now", "executive_risk", "executive_opportunity", "executive_pattern",
+    "cos_briefing", "personal_reasoning", "general_conversation",
+]
+
 User = get_user_model()
 
 _CALL_API = "apps.ai.services.ai_service._call_api"
@@ -143,12 +161,7 @@ class RoutingPreservationTests(TestCase):
         cls.user = User.objects.create_user(email="lane_route@example.com", password="x")
 
     def test_registry_order(self):
-        self.assertEqual([n for n, _ in LANE_REGISTRY],
-                         ["temporal", "why_explainer", "referential",
-                          "clarification_reply", "conversation_planner",
-                          "decision_support", "reconciliation", "priority_correction", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts", "clarification",
-                          "general_continuity", "goals_checkin", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
-                          "personal_reasoning", "general_conversation"])
+        self.assertEqual([n for n, _ in LANE_REGISTRY], APPROVED_LANE_ORDER)
 
     def test_health_questions_never_claimed_by_new_lanes(self):
         # The Clarification + General lanes must NEVER claim a health/personal
@@ -298,7 +311,14 @@ class P24RhythmApiTests(TestCase):
 class ApprovedRegistryOrderTests(TestCase):
     """The exact approved order (clarification + next_rhythm BEFORE personal
     reasoning; general AFTER it). Issue #1 General ordering is intentionally
-    unchanged pending production telemetry."""
+    unchanged pending production telemetry.
+
+    REVIEWED 2026-09-02: `mission`, `correction`, `diagnostic` and `self_report`
+    were added to the registry by 35bc9dbd (mission persistence) and b9f52515
+    (Status -> Diagnosis), and this list was never updated — so the contract has
+    been red since those features shipped. Each of the four has a handler and its
+    own tests, so they are deliberate lanes. Approved here explicitly rather than
+    in silence, which is the whole point of keeping the list."""
 
     @classmethod
     def setUpTestData(cls):
@@ -308,12 +328,7 @@ class ApprovedRegistryOrderTests(TestCase):
         self.conv = AssistantConversation.objects.create(user=self.user)
 
     def test_order_is_approved(self):
-        self.assertEqual(
-            [n for n, _ in LANE_REGISTRY],
-            ["temporal", "why_explainer", "referential", "clarification_reply",
-             "conversation_planner", "decision_support", "reconciliation", "priority_correction", "accomplishment", "sleep_history", "weight_history", "workout_history", "foundational_facts",
-             "clarification", "general_continuity", "goals_checkin", "next_rhythm", "priority_now", "executive_risk", "executive_opportunity", "executive_pattern", "cos_briefing",
-             "personal_reasoning", "general_conversation"])
+        self.assertEqual([n for n, _ in LANE_REGISTRY], APPROVED_LANE_ORDER)
 
     def test_check_in_routes_to_clarification_and_not_personal_reasoning(self):
         # the planner must NEVER run for 'check in' — mock it to explode; the

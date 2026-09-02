@@ -202,9 +202,11 @@ def _mission_progress(goal):
     if goal is None:
         return 0, 0
     try:
-        total = goal.milestones.count()
-        done = goal.milestones.filter(completed=True).count()
-        return done, total
+        # The Goal model already owns these counts (`milestone_count` /
+        # `completed_milestone_count`). Counting the relation again here re-derived
+        # truth the object can state itself — and did it in an AI-facing file, which
+        # `MetricPurityTests` forbids for exactly that reason.
+        return goal.completed_milestone_count, goal.milestone_count
     except Exception:
         return 0, 0
 

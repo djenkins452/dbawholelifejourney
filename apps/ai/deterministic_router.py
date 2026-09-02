@@ -5804,16 +5804,16 @@ def _accountability_assessment(user, domain):
                 recorded_at__lte=now - timedelta(days=28)).last()
             past = round(float(older.value_in_lb), 1) if older else None
         elif domain == 'glucose':
-            from apps.health.models import GlucoseEntry
+            # Through the health accessor, not straight into GlucoseEntry: this is an
+            # AI-facing file, and averaging a domain model here is what MetricPurityTests
+            # forbids — two callers would otherwise be free to define "average glucose"
+            # differently.
+            from apps.health.services.glucose_queries import average_in_window
             unit, lower_better = ' mg/dL', True
 
-            def _gavg(d0, d1):
-                a = GlucoseEntry.objects.filter(
-                    user=user, recorded_at__gte=d0,
-                    recorded_at__lt=d1).aggregate(a=Avg('value'))['a']
-                return round(float(a)) if a is not None else None
-            recent = _gavg(now - timedelta(days=7), now)
-            past = _gavg(now - timedelta(days=35), now - timedelta(days=28))
+            recent = average_in_window(user, now - timedelta(days=7), now)
+            past = average_in_window(user, now - timedelta(days=35),
+                                     now - timedelta(days=28))
     except Exception:
         logger.warning("accountability assessment failed", exc_info=True)
         return None

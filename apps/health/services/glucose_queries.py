@@ -112,3 +112,22 @@ def _relation(cur, prev):
     except (TypeError, ValueError, KeyError):
         pass
     return rel
+
+
+def average_in_window(user, start, end):
+    """Mean glucose over `[start, end)`, or None when the window holds no readings.
+
+    Aggregation belongs in this accessor, not in the callers. `deterministic_router`
+    was averaging `GlucoseEntry` itself for its accountability comparison — an
+    AI-facing file reaching past the health layer into a domain model, which is what
+    `MetricPurityTests` forbids. One place owns "average glucose over a window", so
+    two callers cannot answer it differently.
+    """
+    from django.db.models import Avg
+
+    from apps.health.models import GlucoseEntry
+
+    average = GlucoseEntry.objects.filter(
+        user=user, recorded_at__gte=start, recorded_at__lt=end,
+    ).aggregate(average=Avg("value"))["average"]
+    return None if average is None else round(float(average))

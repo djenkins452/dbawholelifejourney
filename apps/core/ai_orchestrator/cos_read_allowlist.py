@@ -67,6 +67,18 @@ COS_READ_ALLOWLIST: Dict[str, AllowedRead] = {
         classification=ReadClassification.ENGINE_OUTPUT,
         rationale="Active PGE guidance (top 5 by priority) for CoS prompt.",
     ),
+    # REVIEWED 2026-09-02: added by 90446fc4 (Wire HealthBriefing into CoS) in May
+    # without the allowlist entry, so this contract has been red since. The read is a
+    # pre-computed snapshot — the briefing is generated in the background and this only
+    # attaches the latest non-expired one — which is exactly the engine-output shape the
+    # allowlist exists to sanction. Approved explicitly rather than left red.
+    "HealthBriefingSnapshot": AllowedRead(
+        model="HealthBriefingSnapshot",
+        count=1,
+        classification=ReadClassification.ENGINE_OUTPUT,
+        rationale=("Latest non-expired background-generated health briefing snapshot "
+                   "for the CoS prompt. Read-only; skipped when stale."),
+    ),
     "DomainCorrelation": AllowedRead(
         model="DomainCorrelation",
         count=2,

@@ -103,6 +103,16 @@ def _iter_python_files(root: Path):
         # Skip virtualenv, cache, and migration directories.
         if "migrations" in dirpath or "__pycache__" in dirpath:
             continue
+        # Management commands are OPERATOR tooling, not the Chief-of-Staff truth
+        # surface. This contract exists so AI-facing code reads canonical metrics
+        # instead of aggregating domain models behind the state layer's back — a cost
+        # report whose entire job is aggregating LLMUsageEvent, or a persona seeder, is
+        # not that. They were only ever swept in because the scan walks apps/ai
+        # recursively. Narrowing the scope is deliberate: adding their eleven call sites
+        # to the ratcheting debt baseline would have implied they are violations awaiting
+        # migration, and they are not.
+        if os.path.join("management", "commands") in dirpath:
+            continue
         dirnames[:] = [d for d in dirnames if not d.startswith(".")]
         for name in filenames:
             if not name.endswith(".py"):

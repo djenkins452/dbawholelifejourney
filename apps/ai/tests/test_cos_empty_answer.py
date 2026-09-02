@@ -172,6 +172,13 @@ class GenerateEmptyReasonTests(TestCase):
         cls.user = User.objects.create_user(email="cos_empty@example.com",
                                              password="x")
 
+    #: A question no deterministic lane claims, so `generate()` really does reach the
+    #: tool loop. It used to be "how am I doing overall?", which `_cos_briefing_lane`
+    #: correctly answers with the executive brief — so these tests stopped exercising
+    #: the loop at all and were asserting against a briefing. The assertions were right;
+    #: the prompt had quietly stopped meaning what the comment said it meant.
+    LOOP_PROMPT = "what happened with the roof estimate?"
+
     def _generate_with_loop_return(self, loop_return):
         from apps.ai.chatgpt_cos.service import ChatGPTCoSService
         svc = ChatGPTCoSService(self.user)
@@ -185,10 +192,15 @@ class GenerateEmptyReasonTests(TestCase):
              mock.patch("apps.ai.chatgpt_cos.reasoning.answer_reasoning_question",
                         return_value=None), \
              mock.patch("apps.ai.services.ai_service._call_api_with_tools",
-                        return_value=loop_return):
-            # Non-foundational prompt so generate() exercises the tool loop
-            # (foundational fact prompts take the deterministic fast path).
-            return svc.generate(object(), "how am I doing overall?")
+                        return_value=loop_return) as loop:
+            result = svc.generate(object(), self.LOOP_PROMPT)
+        # The premise, asserted rather than assumed. Without this a future lane can claim
+        # the prompt and these tests go on passing while testing something else entirely
+        # — which is exactly what happened.
+        self.assertTrue(loop.called,
+                        "a deterministic lane claimed the prompt, so the tool loop never "
+                        "ran and these assertions are about the wrong thing")
+        return result
 
     def test_model_empty_after_tools(self):
         result = self._generate_with_loop_return("")

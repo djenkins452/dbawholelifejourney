@@ -35,7 +35,11 @@ class ABPair:
     prompt_ref: str
     message_hash: str
     context_fingerprint: str
-    model_a: str = "gpt-4o"
+    # No hardcoded default. `config/settings.py` is the only place a model name lives
+    # (test_model_guard enforces it) — a literal here silently pins an old model for
+    # anyone who forgets to pass one, which is exactly how a "gpt-4o" outlives its
+    # replacement.
+    model_a: str = ""
     model_b: str = ""
     answer_a: str = ""
     answer_b: str = ""

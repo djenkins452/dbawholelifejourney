@@ -75,7 +75,7 @@ def _edit(text):
         return None
     try:
         resp = client.chat.completions.create(
-            model=getattr(settings, "OPENAI_MODEL", "gpt-4o"),
+            model=settings.OPENAI_MODEL,
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": text},

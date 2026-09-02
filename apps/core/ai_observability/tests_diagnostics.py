@@ -487,7 +487,28 @@ class DiagnosticsViewAccessTests(TestCase):
         response = self.client.get("/admin-console/ops/")
         self.assertEqual(response.status_code, 302)
 
+    def test_ops_poll_returns_pending_before_the_worker_has_built_it(self):
+        """A cold cache must NOT trigger a live computation.
+
+        The Ops Wall payload costs hundreds of queries; the request path is required to
+        read a snapshot and return `pending` when there is none, never to compute. This
+        used to be tested by asserting the v2 keys on a cold cache — which passes only
+        if the endpoint breaks that rule.
+        """
+        self.client.force_login(self.staff_user)
+        response = self.client.get("/admin-console/ops/poll/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json().get("status"), "pending")
+
     def test_ops_poll_staff_access(self):
+        # Build the payload the way the background worker does, then poll.
+        from apps.core.ai_observability.ops_telemetry import (
+            OPS_STREAM_CACHE_KEY, build_ops_stream_payload,
+        )
+        from django.core.cache import cache
+
+        cache.set(OPS_STREAM_CACHE_KEY, build_ops_stream_payload(), 300)
+
         self.client.force_login(self.staff_user)
         response = self.client.get("/admin-console/ops/poll/")
         self.assertEqual(response.status_code, 200)

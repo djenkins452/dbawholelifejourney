@@ -16,7 +16,8 @@ from unittest.mock import patch
 from django.conf import settings
 from django.test import TestCase, Client
 
-from apps.ai.llm_accounting import (llm_traffic_context, record_llm_event,
+from apps.ai.llm_accounting import (TRAFFIC_UNATTRIBUTED,
+                                    llm_traffic_context, record_llm_event,
                                     TRAFFIC_CERTIFICATION, TRAFFIC_PRODUCTION,
                                     SOURCE_INTERACTIVE_CHAT)
 from apps.owner_finance.models import (LLMPriceBook, LLMUsageEvent, ThirdPartyVendor)
@@ -55,7 +56,11 @@ class UsageAccountingTests(TestCase):
         self.assertEqual(ev.output_tokens, 300)
         self.assertEqual(ev.model_name, "gpt-4o")
         self.assertTrue(ev.success)
-        self.assertEqual(ev.traffic_class, TRAFFIC_PRODUCTION)      # default
+        # An UNDECLARED call is `unattributed`, not `production`. That is the honest
+        # default and it is deliberate: silently stamping unlabelled traffic as customer
+        # cost is exactly the misattribution the LLM ledger exists to prevent, and it
+        # would hide every call site that forgot to declare itself.
+        self.assertEqual(ev.traffic_class, TRAFFIC_UNATTRIBUTED)
         self.assertEqual(ev.source, SOURCE_INTERACTIVE_CHAT)        # derived from endpoint
         self.assertEqual(ev.latency_ms, 850)
 

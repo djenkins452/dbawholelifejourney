@@ -348,7 +348,7 @@ def _extract(text, home=None, known_places=None):
     client = _client()
     if client is None:
         return None
-    model = getattr(settings, "LEGACY_DISCOVERY_MODEL", getattr(settings, "OPENAI_MODEL", "gpt-4o"))
+    model = getattr(settings, "LEGACY_DISCOVERY_MODEL", None) or settings.OPENAI_MODEL
     user_content = text[:8000]
     ctx = []
     if home:

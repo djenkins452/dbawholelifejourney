@@ -81,7 +81,7 @@ def _classify(units):
     client = _client()
     if client is None:
         return None
-    model = getattr(settings, "OPENAI_MODEL", "gpt-4o")
+    model = settings.OPENAI_MODEL
     lines = []
     for u in units:
         snippet = (u.get("title") or "").strip()

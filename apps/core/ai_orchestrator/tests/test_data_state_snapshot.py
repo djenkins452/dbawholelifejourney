@@ -30,18 +30,39 @@ class DataStateSnapshotCompletedTasksTest(TestCase):
         self.user.preferences.save()
 
     def _create_task(self, title, completed_at=None):
-        """Helper: create a Task, optionally marking it completed at a specific time."""
+        """Helper: create a Task, optionally marking it completed at a specific time.
+
+        The task is DUE TODAY. "Completed today" is occurrence-scoped — an occurrence
+        DUE today and done (`TaskQueries.completed_due_on`), never merely one whose
+        `completed_at` happens to fall today. That is deliberate: a task due last week
+        and ticked off this morning is not part of today's plan. Without a due date
+        these fixtures were completed but never due, so they were correctly excluded and
+        the snapshot had nothing to show.
+        """
         from apps.life.models import Task
 
+        # DUE on the day it was completed. "Completed today" is occurrence-scoped — an
+        # occurrence DUE today and done — so a task completed on March 1 must be DUE on
+        # March 1 to be the historical completion these tests mean. Keying the fixture
+        # on `completed_at` alone described a state the rule does not recognise.
         task = Task.objects.create(
             user=self.user,
             title=title,
+            due_date=(completed_at.date() if completed_at
+                      else timezone.now().date()),
             completion_status='pending',
         )
         if completed_at:
             task.completion_status = 'completed'
             task.completed_at = completed_at
             task.save(update_fields=['completion_status', 'completed_at'])
+        # The snapshot reads the STORED SAE state, and the refresh after a task change
+        # is deferred to a worker (`_defer_sae_refresh`) which does not run in tests. So
+        # the state here was built while the task was still pending and reported zero
+        # completions — nothing wrong with the snapshot, just a fixture standing in a
+        # place production never stands in. Rebuild it, which is what the worker does.
+        from apps.core.ai_state.state_engine import rebuild_user_state
+        rebuild_user_state(self.user)
         return task
 
     def test_only_today_tasks_appear_in_snapshot(self):

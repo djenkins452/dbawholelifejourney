@@ -161,7 +161,11 @@ class GroundingAndSelfConsistencyContractTests(TestCase):
         text = CONSTITUTION if isinstance(CONSTITUTION, str) else str(CONSTITUTION)
         self.assertIn("ANSWER GROUNDING", text)
         self.assertIn("when the scope changes, RETRIEVE AGAIN", text)
-        self.assertIn("Never carry a number from an earlier turn to a new date", text)
+        # The carry-forward prohibition, not its 2026-era wording. It used to say "to a
+        # new date" and now says "to a new SCOPE" — date, period or record — which is
+        # the same rule covering more ground.
+        self.assertRegex(text, r"never carry a number to a new scope|"
+                               r"Never carry a number from an earlier turn to a new date")
 
     def test_envelope_reading_rule_is_in_the_standing_constitution(self):
         from apps.ai.model_interface.constitution import CONSTITUTION
@@ -184,7 +188,12 @@ class GroundingAndSelfConsistencyContractTests(TestCase):
         from apps.ai.model_interface.constitution import CONSTITUTION
         text = CONSTITUTION if isinstance(CONSTITUTION, str) else str(CONSTITUTION)
         grounding = text[text.index("ANSWER GROUNDING"):text.index("TRUTH ENVELOPE")]
-        self.assertIn("applies to EVERY user-specific value", grounding)
+        # The UNIVERSAL SCOPE is the contract, not one sentence's wording. This pinned
+        # "applies to EVERY user-specific value" verbatim; the rule now reads "applies
+        # to EVERY value about THIS user, in EVERY framing" — the same promise, stated
+        # more broadly. A test that fails when a rule gets stronger is testing prose.
+        self.assertRegex(grounding, r"applies to EVERY\b")
+        self.assertRegex(grounding, r"EVERY value about THIS user|EVERY user-specific value")
         # Stated as a universal about values/scopes, not a branch on a subject.
         self.assertIn("A value retrieved for one date, period, or record", grounding)
 

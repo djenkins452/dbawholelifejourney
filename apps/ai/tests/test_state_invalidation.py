@@ -24,6 +24,16 @@ from apps.life.models import Task
 from apps.users.models import User
 
 
+# Invalidation is asserted on `invalidate_cos_context` — the function that actually
+# clears the three cache layers. `invalidate_cos_context_on_action` is a thin wrapper
+# around it (it adds a debug line), and task completion stopped going through that
+# wrapper when the call moved out of `mark_complete` into the `post_save` handler,
+# which calls the inner function directly. Patching the wrapper therefore proved
+# nothing about whether the cache was cleared. `assert_any_call` rather than
+# `assert_called_once_with` because a path may legitimately invalidate more than once
+# (model method plus signal); the contract is that it happens, not how many times.
+
+
 @override_settings(CACHES=LOCMEM_CACHE)
 class TestTaskStateInvalidation(TestCase):
     """Verify task state changes invalidate CoS context cache."""
@@ -42,19 +52,19 @@ class TestTaskStateInvalidation(TestCase):
             completion_status='pending',
         )
 
-    @patch('apps.ai.readiness_cache.invalidate_cos_context_on_action')
+    @patch('apps.ai.readiness_cache.invalidate_cos_context')
     def test_mark_complete_invalidates_cos_cache(self, mock_invalidate):
         """mark_complete() must invalidate CoS context."""
         self.task.mark_complete()
-        mock_invalidate.assert_called_once_with(self.user)
+        mock_invalidate.assert_any_call(self.user)
 
-    @patch('apps.ai.readiness_cache.invalidate_cos_context_on_action')
+    @patch('apps.ai.readiness_cache.invalidate_cos_context')
     def test_mark_skipped_invalidates_cos_cache(self, mock_invalidate):
         """mark_skipped() must invalidate CoS context."""
         self.task.mark_skipped()
-        mock_invalidate.assert_called_once_with(self.user)
+        mock_invalidate.assert_any_call(self.user)
 
-    @patch('apps.ai.readiness_cache.invalidate_cos_context_on_action')
+    @patch('apps.ai.readiness_cache.invalidate_cos_context')
     def test_mark_incomplete_invalidates_cos_cache(self, mock_invalidate):
         """mark_incomplete() must invalidate CoS context."""
         self.task.completion_status = 'completed'
@@ -62,13 +72,13 @@ class TestTaskStateInvalidation(TestCase):
         mock_invalidate.reset_mock()
 
         self.task.mark_incomplete()
-        mock_invalidate.assert_called_once_with(self.user)
+        mock_invalidate.assert_any_call(self.user)
 
-    @patch('apps.ai.readiness_cache.invalidate_cos_context_on_action')
+    @patch('apps.ai.readiness_cache.invalidate_cos_context')
     def test_soft_delete_invalidates_cos_cache(self, mock_invalidate):
         """soft_delete() must invalidate CoS context."""
         self.task.soft_delete()
-        mock_invalidate.assert_called_once_with(self.user)
+        mock_invalidate.assert_any_call(self.user)
 
     def test_soft_delete_emits_task_deleted_event(self):
         """soft_delete() on a Task must emit TASK_DELETED event."""

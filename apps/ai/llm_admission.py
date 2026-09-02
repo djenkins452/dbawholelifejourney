@@ -95,6 +95,71 @@ def current_workload_is_autonomous():
         return False
 
 
+#     DIAGNOSTIC WORKLOAD — an operator looking, not a customer using.
+#
+# Production is unconditionally admitted below, and that is right: real customers must
+# never be refused. But an operator endpoint that RUNS IN production inherits that
+# permission, and on 2026-09-02 a verification call to `cos-run` spent Danny's credits
+# with nobody having authorized it. Being in production is not evidence that a human
+# asked for this particular call.
+#
+# So diagnostics declare themselves and default to REFUSED. Authorizing one is explicit,
+# bounded to a call count, and audited — the same shape as the development governor,
+# applied to the one environment that had no gate at all.
+_diagnostic: contextvars.ContextVar = contextvars.ContextVar(
+    "wlj_llm_diagnostic_workload", default=None)
+
+
+class DiagnosticBudget:
+    """An operator's explicit permission to spend, for N calls and no more."""
+
+    __slots__ = ("reason", "authorized", "spent", "operator")
+
+    def __init__(self, reason, authorized, operator=""):
+        self.reason = reason
+        self.authorized = max(0, int(authorized or 0))
+        self.spent = 0
+        self.operator = operator or ""
+
+    @property
+    def remaining(self):
+        return max(0, self.authorized - self.spent)
+
+    def consume(self):
+        if self.remaining <= 0:
+            return False
+        self.spent += 1
+        return True
+
+    def as_audit(self):
+        return {"reason": self.reason, "authorized": self.authorized,
+                "spent": self.spent, "operator": self.operator}
+
+
+@contextlib.contextmanager
+def diagnostic_workload(reason, *, authorized_calls=0, operator=""):
+    """Mark everything inside as OPERATOR DIAGNOSTIC work.
+
+    `authorized_calls` defaults to 0, which means every provider call inside is refused
+    — a diagnostic that quietly costs money is the failure this exists to prevent. A
+    caller that genuinely needs a real call passes the number a human authorized, and
+    gets exactly that many.
+
+    The budget object is yielded so the caller can report what was actually spent.
+    """
+    budget = DiagnosticBudget(reason, authorized_calls, operator)
+    token = _diagnostic.set(budget)
+    try:
+        yield budget
+    finally:
+        _diagnostic.reset(token)
+
+
+def current_diagnostic_budget():
+    """The budget for this diagnostic, or None when this is not diagnostic work."""
+    return _diagnostic.get()
+
+
 def proactive_ai_enabled():
     """Is provider-backed autonomous work authorized in THIS environment?
 
@@ -207,6 +272,17 @@ def may_real_llm_call(*, source=None, traffic_class=None, environment=None):
     if current_workload_is_autonomous() and not proactive_ai_enabled():
         return _denied("proactive_ai_disabled", env)
 
+    # ── Operator diagnostics are gated in EVERY environment, production included. ──
+    # Checked BEFORE the production allow for the same reason as autonomous work: being
+    # in production means real customers are served there, not that a diagnostic may
+    # spend on their behalf.
+    budget = current_diagnostic_budget()
+    if budget is not None:
+        if not budget.consume():
+            return _denied("diagnostic_not_authorized", env)
+        return AdmissionDecision(True, "authorized_diagnostic", env,
+                                 remaining=budget.remaining)
+
     # ── Production: real customers. Unconditionally admitted, accounted as before. ──
     if env == ENV_PRODUCTION:
         return AdmissionDecision(True, "production_runtime", env)
@@ -298,6 +374,13 @@ def _explain(decision, operation):
         "budget_exhausted": (
             "The authorized call budget is spent or expired. STOP. Do not reset it, mint "
             "another, switch environments, or use a different key — ask Danny."),
+        "diagnostic_not_authorized": (
+            "This is an OPERATOR DIAGNOSTIC and diagnostics do not spend money by "
+            "default — not even in production, where the surrounding runtime serves real "
+            "customers. Verify with deterministic fixtures, the truth probe, or "
+            "read-only evidence instead. If a real call is genuinely the only way to "
+            "answer the question, ask Danny for a number and pass it explicitly; the "
+            "endpoint will allow exactly that many and record who authorized it."),
     }
     return base + guidance.get(decision.reason, "")
 

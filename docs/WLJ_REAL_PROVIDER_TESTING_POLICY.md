@@ -235,3 +235,47 @@ assigns it and no management command turns it on.
 
 Re-enable when validating proactive features deliberately, or at launch readiness. Verify
 afterwards with `manage.py llm_dev_usage --days 1` and `/owner/finance/`.
+
+---
+
+## Operator diagnostics in production — CLOSED 2026-09-02
+
+**The hole.** `may_real_llm_call` admits production unconditionally, which is right:
+real customers must never be refused. But an operator endpoint that *runs in* production
+inherited that permission. On 2026-09-02 a verification call to `cos-run` ran a real
+Chief-of-Staff turn and spent credits with nobody having authorized it.
+
+**Being in production is not evidence that a human asked for this particular call.**
+The governor already knew that for *autonomous* work — `current_workload_is_autonomous()`
+is checked BEFORE the production allow for exactly this reason. Diagnostics needed the
+same treatment and did not have it.
+
+**The gate.** `diagnostic_workload(reason, authorized_calls=0)` marks a block as operator
+diagnostic. `may_real_llm_call` checks it before the production allow and refuses unless
+a budget was granted:
+
+| Situation | Outcome |
+|---|---|
+| Customer request in production | admitted (`production_runtime`) — unchanged |
+| Diagnostic, no authorization | **refused** (`diagnostic_not_authorized`) |
+| Diagnostic, `authorized_calls=N` | admitted for exactly N, then refused |
+
+**Using it.** `cos-run` authorizes nothing by default and passes `0` to the worker, so a
+plain verification call now fails closed with an explanation. A real call requires:
+
+```
+?authorize_paid_calls=<1..5>&authorized_by=<who agreed>
+```
+
+Both are required, the count is capped, and authorizing writes a `SecurityAuditLog` row
+(`resource_id="cos-run"`) **before** the run — recording the number and who agreed, and
+storing only the email domain, not the address. The result carries `provider_spend`
+saying how many calls were actually made.
+
+**Normal verification does not need this.** Use the truth probe, `finance-audit`,
+deterministic fixtures, DB/state inspection, or `ToolCallLog` — all read-only and free.
+A diagnostic that needs the model to answer its question is usually asking the wrong
+question.
+
+Enforced by `apps/ai/tests/test_diagnostic_spend_gate.py`, including that the gate is
+ordered before the production allow — after it, production would admit everything.

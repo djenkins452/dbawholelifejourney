@@ -61835,3 +61835,30 @@ contract catching an unregistered control (now a documented exception — it is 
 a personalization preference), two tests patching the old gate name, my own mobile-chrome
 fixture, and one `faith_userreadingplan` table error that reproduces identically on the
 baseline. All five resolved; the other 119 are pre-existing and untouched.
+
+## 2026-09-02 — a diagnostic that quietly cost money
+
+Verifying yesterday's deploy, I called the `cos-run` operator endpoint. It ran a real
+Chief-of-Staff turn and spent Danny's credits, and I had no authorization for it.
+
+**The governor was not bypassed — it had no rule for this.** `may_real_llm_call` admits
+production unconditionally, which is correct for real customers, and an operator endpoint
+running *in* production inherited that permission. The same design already knew this was
+a trap for autonomous work: `current_workload_is_autonomous()` is checked BEFORE the
+production allow precisely so a background job cannot spend just by shipping. Diagnostics
+needed the same guard and had none.
+
+`diagnostic_workload(reason, authorized_calls=0)` now marks operator work, and the
+admission checks it **before** the production allow — a test asserts that ordering,
+because after it production would admit everything. The budget is a ceiling, not a door:
+three calls against an authorization of two get two.
+
+`cos-run` authorizes nothing by default and passes `0` through to the worker, so a plain
+verification call fails closed with an explanation pointing at the free alternatives.
+A real call needs `authorize_paid_calls=<1..5>` **and** `authorized_by=<who>`; both are
+required, and authorizing writes a `SecurityAuditLog` row before the run, naming the
+number and the person and storing only the email domain. The result reports
+`provider_spend` — what was actually used, not what was allowed.
+
+Checked every other `api/claude/*` operator endpoint: `cos-run` was the only one that can
+reach a provider. The rest are read-only aggregates and stay that way.

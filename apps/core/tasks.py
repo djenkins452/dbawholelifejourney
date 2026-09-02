@@ -47,17 +47,24 @@ WORKER_BUILD_CACHE_KEY = "wlj:ops:worker_build"
 
 
 @shared_task(name="apps.core.tasks.run_cos_acceptance_turn", ignore_result=True)
-def run_cos_acceptance_turn(user_email, message, result_key):
+def run_cos_acceptance_turn(user_email, message, result_key, authorized_calls=0):
     """Run ONE Chief-of-Staff turn through the REAL production pipeline for a user, in an
     ISOLATED throwaway conversation, and cache the actual model response + the tools it
     called. This is the acceptance-test harness: it lets the engineering owner run a
     production conversation verbatim, judge it, fix the first failing layer, and re-run —
     without waiting on the customer to hand-test each cycle. Read-mostly (the turn is not
     marked active, so it never touches the user's live chat); side effects are only whatever
-    the model itself decides to do (broad assessment questions are read-only)."""
+    the model itself decides to do (broad assessment questions are read-only).
+
+    `authorized_calls` DEFAULTS TO 0, which refuses every provider call inside. This is a
+    diagnostic, and a diagnostic that quietly spends money is exactly what happened on
+    2026-09-02. A real call requires a human to say how many."""
     from django.contrib.auth import get_user_model
     from django.core.cache import cache
     from django.utils import timezone
+
+    from apps.ai.llm_admission import diagnostic_workload
+
     out = {"status": "error", "stamped_at": timezone.now().isoformat()}
     try:
         user = get_user_model().objects.get(email__iexact=user_email)
@@ -69,16 +76,23 @@ def run_cos_acceptance_turn(user_email, message, result_key):
         # Cost governance: every provider request this turn is DEVELOPMENT/certification
         # traffic, not customer cost. Tag it so the ledger keeps them distinct.
         from apps.ai.llm_accounting import llm_traffic_context, TRAFFIC_CERTIFICATION
-        with llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
+        # Diagnostic budget travels from the operator endpoint to here. With the default
+        # of 0 the governor refuses every provider call and this turn fails closed with
+        # an explanation, rather than silently costing money.
+        with diagnostic_workload("cos_acceptance_turn",
+                                 authorized_calls=authorized_calls) as budget, \
+                llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
             resp = CoSGateway.respond(user=user, surface=SURFACE_CHAT, message=message,
                                       conversation=conv, stream=False)
+            spend = budget.as_audit()
         answer = getattr(resp, "text", "") or ""
         tools = [{"kind": r.kind, "tool": r.tool_name, "args": r.args,
                   "status": r.result_status, "digest": r.result_digest}
                  for r in ToolCallLog.objects.filter(conversation_id=conv.id)
                  .order_by("created_at")]
         out = {"status": "ready", "answer": answer, "tool_calls": tools,
-               "conversation_id": conv.id, "stamped_at": timezone.now().isoformat()}
+               "conversation_id": conv.id, "provider_spend": spend,
+               "stamped_at": timezone.now().isoformat()}
     except Exception as e:  # never crash the worker; surface the error to the operator
         logger.warning("run_cos_acceptance_turn failed: %s", e, exc_info=True)
         out = {"status": "error", "error": repr(e),
@@ -96,7 +110,8 @@ _ACCEPTANCE_SEED_TYPES = {"nudge", "state_assessment", "insight", "celebration",
 
 
 @shared_task(name="apps.core.tasks.run_cos_acceptance_conversation", ignore_result=True)
-def run_cos_acceptance_conversation(user_email, steps, result_key):
+def run_cos_acceptance_conversation(user_email, steps, result_key,
+                                    authorized_calls=0):
     """Run a MULTI-TURN Chief-of-Staff acceptance conversation through the REAL production
     pipeline, in ONE isolated throwaway conversation, and cache the actual model responses.
 
@@ -129,8 +144,13 @@ def run_cos_acceptance_conversation(user_email, steps, result_key):
         # Cost governance: this whole scripted conversation is DEVELOPMENT/certification
         # traffic, not customer cost.
         from apps.ai.llm_accounting import llm_traffic_context, TRAFFIC_CERTIFICATION
+        from apps.ai.llm_admission import diagnostic_workload
         transcript = []
-        with llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
+        # One budget for the WHOLE script: N authorized calls, shared across every user
+        # turn in it. A ten-step script does not get ten free passes.
+        with diagnostic_workload("cos_acceptance_conversation",
+                                 authorized_calls=authorized_calls) as budget, \
+                llm_traffic_context(traffic_class=TRAFFIC_CERTIFICATION):
             for step in (steps or []):
                 if not isinstance(step, dict):
                     continue
@@ -158,7 +178,8 @@ def run_cos_acceptance_conversation(user_email, steps, result_key):
                     transcript.append({"kind": "turn", "user": umsg, "answer": answer,
                                        "tool_calls": tools})
         out = {"status": "ready", "transcript": transcript,
-               "conversation_id": conv.id, "stamped_at": timezone.now().isoformat()}
+               "conversation_id": conv.id, "provider_spend": budget.as_audit(),
+               "stamped_at": timezone.now().isoformat()}
     except Exception as e:  # never crash the worker; surface the error to the operator
         logger.warning("run_cos_acceptance_conversation failed: %s", e, exc_info=True)
         out = {"status": "error", "error": repr(e),

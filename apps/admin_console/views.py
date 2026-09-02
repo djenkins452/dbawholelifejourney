@@ -4062,6 +4062,17 @@ class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
         # Confirm the user exists before enqueuing (fail fast, clear error).
         if not email:
             return JsonResponse({'error': 'email query param required'}, status=400)
+
+        # ── PAID CALLS ARE OFF UNLESS SOMEBODY SAYS OTHERWISE ──────────────────
+        # This endpoint runs a REAL Chief-of-Staff turn, which costs money. It used to
+        # inherit production's blanket admission and spend silently; on 2026-09-02 a
+        # verification call did exactly that. Now the default is zero, the number is
+        # explicit and bounded, and authorizing it is recorded.
+        authorized, error = self._authorized_calls(request)
+        if error:
+            return error
+        if authorized:
+            self._record_authorization(request, email, authorized)
         try:
             get_user_model().objects.get(email__iexact=email)
         except get_user_model().DoesNotExist:
@@ -4086,11 +4097,13 @@ class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
             try:
                 from apps.core.celery_utils import safe_enqueue
                 from apps.core.tasks import run_cos_acceptance_conversation
-                enqueued = safe_enqueue(run_cos_acceptance_conversation, email, steps, rk)
+                enqueued = safe_enqueue(run_cos_acceptance_conversation, email, steps,
+                                        rk, authorized)
             except Exception as exc:
                 return JsonResponse({'error': f'enqueue failed: {exc!r}'}, status=500)
             return JsonResponse({'run_id': rk, 'enqueued': bool(enqueued),
-                                 'mode': 'conversation', 'poll': f'?run_id={rk}'})
+                                 'mode': 'conversation', 'authorized_calls': authorized,
+                                 'poll': f'?run_id={rk}'})
 
         message = (request.GET.get('message') or '').strip()
         if not message:
@@ -4099,11 +4112,60 @@ class CoSAcceptanceRunAPIView(APIRateLimitMixin, View):
         try:
             from apps.core.celery_utils import safe_enqueue
             from apps.core.tasks import run_cos_acceptance_turn
-            enqueued = safe_enqueue(run_cos_acceptance_turn, email, message, rk)
+            enqueued = safe_enqueue(run_cos_acceptance_turn, email, message, rk,
+                                    authorized)
         except Exception as exc:
             return JsonResponse({'error': f'enqueue failed: {exc!r}'}, status=500)
         return JsonResponse({'run_id': rk, 'enqueued': bool(enqueued),
+                             'authorized_calls': authorized,
                              'poll': f'?run_id={rk}'})
+
+
+    # ------------------------------------------------------------------ paid calls
+    #: Nobody needs more than this from a diagnostic. A number larger than a handful is
+    #: a sign the question should be answered a different way.
+    MAX_AUTHORIZED_CALLS = 5
+
+    def _authorized_calls(self, request):
+        """How many paid provider calls this run may make. Zero unless asked.
+
+        Returns `(count, error_response_or_None)`.
+        """
+        raw = (request.GET.get('authorize_paid_calls') or '').strip()
+        if not raw or raw == '0':
+            return 0, None
+        try:
+            count = int(raw)
+        except ValueError:
+            return 0, JsonResponse(
+                {'error': 'authorize_paid_calls must be a whole number'}, status=400)
+        if count < 0 or count > self.MAX_AUTHORIZED_CALLS:
+            return 0, JsonResponse(
+                {'error': f'authorize_paid_calls must be between 0 and '
+                          f'{self.MAX_AUTHORIZED_CALLS}'}, status=400)
+        # Who authorized it. Not a security control — the API key already answered that
+        # — but an audit record naming nobody is not worth writing.
+        if not (request.GET.get('authorized_by') or '').strip():
+            return 0, JsonResponse(
+                {'error': 'authorized_by is required when authorizing paid calls — the '
+                          'audit record has to name the person who agreed to the spend'},
+                status=400)
+        return count, None
+
+    def _record_authorization(self, request, email, count):
+        """Durable record that a human authorized real spend, before it happens."""
+        try:
+            from apps.security.models import SecurityAuditLog
+            SecurityAuditLog.log(
+                request, SecurityAuditLog.ACTION_RUN_ASSESSMENT,
+                resource_type='llm_diagnostic', resource_id='cos-run',
+                details={'operation': 'cos_acceptance_run',
+                         'authorized_paid_calls': count,
+                         'authorized_by': (request.GET.get('authorized_by') or '')[:120],
+                         'subject_email_domain': email.rsplit('@', 1)[-1]})
+        except Exception:
+            logger.error('Could not record the paid-call authorization for cos-run; '
+                         'the run itself is unaffected.', exc_info=True)
 
 
 class ReadyTasksAPIView(APIRateLimitMixin, View):

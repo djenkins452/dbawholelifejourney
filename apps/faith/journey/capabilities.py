@@ -48,6 +48,17 @@ registry.register(DomainCapability(
     # reporting all six as invalid ever since. This domain produces no journal-extracted
     # taxonomy signals, which is what an empty list says.
     expected_signal_types=[],
+    # The journey's domain EVENTS (apps/faith/journey/signals.py). Documented here,
+    # where they belong, rather than in `expected_signal_types` — which means
+    # signal-taxonomy keys and rejected all six.
+    emitted_events=[
+        'journey.started',
+        'journey.day.completed',
+        'journey.arc.completed',
+        'journey.application.committed',
+        'journey.confusion.flagged',
+        'journey.resumed',
+    ],
     related_domains=['faith'],
     feature_flag=None,
     url_namespace='journey',

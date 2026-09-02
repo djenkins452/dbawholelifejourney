@@ -18,6 +18,7 @@ Proven root cause:
 These tests lock in the fix at both layers.
 """
 import datetime as dt
+from unittest import mock
 
 from django.conf import settings
 from django.test import TestCase
@@ -98,11 +99,26 @@ class RecurringDueDateBackfillTests(TestCase):
 
 
 class RecurringOccurrenceEditViewTests(TestCase):
+    """The clock is pinned to 08:00 today (see `setUp`).
+
+    These tests assign a scheduled_time of 17:00 to an occurrence due TODAY and assert
+    it is not overdue. With a real clock that is only true before 5pm — the suite passed
+    in the morning and failed in the evening. Pinning it makes the assertion about the
+    FORM behaviour it is named for (omitting due_date must not clear it) rather than
+    about what time the suite happens to run.
+    """
+
     """End-to-end: edit today's occurrence through TaskUpdateView the way the
     production UI does, and prove it is not born overdue and the series survives
     completion."""
 
     def setUp(self):
+        patcher = mock.patch(
+            "apps.core.utils.get_user_now",
+            return_value=timezone.now().replace(hour=8, minute=0, second=0,
+                                                microsecond=0))
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.user = User.objects.create_user(
             email="recur-view@test.com", password="testpass123"
         )

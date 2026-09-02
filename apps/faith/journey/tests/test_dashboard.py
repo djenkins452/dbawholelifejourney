@@ -124,13 +124,17 @@ class CapabilityRegistrationTests(TestCase):
         self.assertEqual(cap.intent_types, [])
         # Phase 1 promise: no proactive surfacing
         self.assertEqual(cap.proactive_signals, [])
-        # Six signals documented (additive only — no consumers wired)
-        self.assertIn("journey.started", cap.expected_signal_types)
-        self.assertIn("journey.day.completed", cap.expected_signal_types)
-        self.assertIn("journey.arc.completed", cap.expected_signal_types)
-        self.assertIn("journey.application.committed", cap.expected_signal_types)
-        self.assertIn("journey.confusion.flagged", cap.expected_signal_types)
-        self.assertIn("journey.resumed", cap.expected_signal_types)
+        # Six EVENTS documented (additive only — no consumers wired). They live in
+        # `emitted_events`; `expected_signal_types` means signal-TAXONOMY keys, and
+        # declaring events there made the registry validator reject all six while this
+        # test required them. Same six, right field.
+        self.assertIn("journey.started", cap.emitted_events)
+        self.assertIn("journey.day.completed", cap.emitted_events)
+        self.assertIn("journey.arc.completed", cap.emitted_events)
+        self.assertIn("journey.application.committed", cap.emitted_events)
+        self.assertIn("journey.confusion.flagged", cap.emitted_events)
+        self.assertIn("journey.resumed", cap.emitted_events)
+        self.assertEqual(cap.expected_signal_types, [])
 
     def test_existing_faith_capability_unmodified(self):
         """Sanity: the faith domain capability still exists and is untouched."""

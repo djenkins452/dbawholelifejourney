@@ -81,6 +81,16 @@ class DomainCapability:
     # Does NOT drive runtime signal routing.
     expected_signal_types: list = field(default_factory=list)  # e.g., ["health_activity", "health_biometrics"]
 
+    # DOMAIN EVENTS this domain emits on the event bus (e.g. "journey.started").
+    # Documentation only — like `expected_signal_types` it drives no runtime routing.
+    #
+    # It exists because the two were being conflated: `faith.journey` listed its six
+    # bus EVENTS under `expected_signal_types`, which means signal-TAXONOMY keys, so the
+    # registry validator reported all six as invalid while the journey's own test
+    # required them to be there. Two different things had one field and could not both
+    # be right. They are separate now, and both are documented.
+    emitted_events: list = field(default_factory=list)  # e.g., ["journey.started"]
+
     # Related domains for cross-domain reasoning
     related_domains: list = field(default_factory=list)  # e.g., ["fitness", "meals", "goals"]
 

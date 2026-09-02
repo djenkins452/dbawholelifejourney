@@ -508,7 +508,14 @@ class Tier1ConflictEnforcementTests(TestCase):
         )
 
     def _create_plan_with_tier1_block(self):
-        """Helper: create a plan with a Tier 1 block 9:00-10:00."""
+        """Helper: create a plan with a Tier 1 block 9:00-10:00.
+
+        Returns `(plan, block)`. The block's REAL id matters: callers used to pass
+        `original_block_id=1`, assuming the first block created in the test database
+        gets pk 1. It does not once anything else has used the sequence, and the
+        override event then carried a foreign key to a row that does not exist — caught
+        only at teardown, as a constraint violation rather than a readable failure.
+        """
         from apps.core.blueprint.models import ArchitecturePlan, ScheduledBlock
 
         plan = ArchitecturePlan.objects.create(
@@ -516,7 +523,7 @@ class Tier1ConflictEnforcementTests(TestCase):
             date=timezone.localdate(),
             status='active',
         )
-        ScheduledBlock.objects.create(
+        block = ScheduledBlock.objects.create(
             plan=plan,
             title='Morning Prayer',
             start_time=datetime.time(9, 0),
@@ -526,13 +533,13 @@ class Tier1ConflictEnforcementTests(TestCase):
             behavior_key='PRAYER',
             is_locked=True,
         )
-        return plan
+        return plan, block
 
     def test_tier1_conflict_detected(self):
         """Scheduling over Tier 1 block triggers conflict."""
         from apps.core.blueprint.architecture_engine import check_tier1_conflict
 
-        self._create_plan_with_tier1_block()
+        _plan, block = self._create_plan_with_tier1_block()
 
         result = check_tier1_conflict(
             self.user,
@@ -551,7 +558,7 @@ class Tier1ConflictEnforcementTests(TestCase):
         """Scheduling outside Tier 1 block returns None."""
         from apps.core.blueprint.architecture_engine import check_tier1_conflict
 
-        self._create_plan_with_tier1_block()
+        _plan, block = self._create_plan_with_tier1_block()
 
         result = check_tier1_conflict(
             self.user,
@@ -565,10 +572,11 @@ class Tier1ConflictEnforcementTests(TestCase):
         """Override only allowed with exact phrase."""
         from apps.core.blueprint.architecture_engine import process_tier1_override
 
+        _plan, block = self._create_plan_with_tier1_block()
         result = process_tier1_override(
             self.user,
             "I want to override this",
-            original_block_id=1,
+            original_block_id=block.id,
             conflicting_description='Meeting',
         )
         self.assertFalse(result['allowed'])
@@ -578,12 +586,12 @@ class Tier1ConflictEnforcementTests(TestCase):
         from apps.core.blueprint.architecture_engine import process_tier1_override
         from apps.core.blueprint.models import Tier1OverrideEvent
 
-        self._create_plan_with_tier1_block()
+        _plan, block = self._create_plan_with_tier1_block()
 
         result = process_tier1_override(
             self.user,
             "Override Tier 1 protection",
-            original_block_id=1,
+            original_block_id=block.id,
             conflicting_description='Emergency meeting',
             escalation_level='CLEAN',
             density_score=0.6,

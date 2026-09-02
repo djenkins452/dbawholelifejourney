@@ -62056,3 +62056,41 @@ that was not a prescription. It could not have caught drift in either direction.
 Health suite: 18 failures, **17 pre-existing at HEAD**, and the one difference
 (`test_user_sees_only_own_glucose`) passes in isolation — a full-suite ordering artifact,
 not a regression.
+
+## 2026-09-02 — AI/Core cleanup, batch 3: a hybrid answered from records alone
+
+**A hybrid medication question was answered personal-only.** `classify_foundational_fact`
+declines "which of my medications are commonly used for diabetes?" — the educational
+overlay is documented and deliberate: WLJ owns the personal list, the "commonly used for"
+part is general knowledge, and the deterministic fact-stater cannot combine them, so it
+must yield to the tool loop. But `_medication_history` is a **second entry point** into
+deterministic medication answers and never applied that guard. The classifier declined
+and the history path answered anyway — *"You don't have any prescriptions on file for
+diabetes."* in reply to a question whose whole point was the knowledge layered on top.
+Same guard, both doors.
+
+**Three glucose truth-consistency tests were mocking a retired source.**
+`_latest_glucose_fact` was moved from the SAE snapshot to `glucose_queries`, the canonical
+Layer-1 accessor, precisely so "my glucose" and "my previous glucose" could not be
+answered by two producers. The tests still injected `latest_glucose` into the snapshot and
+seeded no rows, so the fact carried no timestamp, the deterministic bypass never fired,
+and the rogue LLM answer they inject to *prove* the bypass came through. They now seed a
+real reading — the bypass is proven again, against the producer that actually runs.
+
+**Two tests asserted an abstain that was deliberately removed.** b2b8cd08 ("P1
+health-retrieval consistency — **no-abstain**") stopped the sleep and workout handlers
+returning None on empty data, because abstaining hands the question to the model, which is
+where an invented answer comes from. "I don't see any sleep logged yet" *is* the answer.
+
+**Planning questions moved to the executive layer** (d094d618 wired executive-lens
+questions to the single executive layer). The tests asserted the old route name; what they
+exist to guard — that a horizon question is never answered by today's task list — still
+holds, and is now asserted directly.
+
+**The PGS dedup tests were running against a scheduler that returns early.**
+Provider-backed proactive AI is paused for pre-production, so the runner skips before
+dispatching. These tests are about the dedup mechanism, not the pause, so they enable the
+flag; the pause has its own coverage in the governor's suite.
+
+Authoritative re-measure: **86 → 55** failures in `apps.ai` + `apps.core` (that run
+predates the fixes above).

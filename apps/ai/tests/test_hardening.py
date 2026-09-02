@@ -294,8 +294,17 @@ class TestCacheTTL(TestCase):
         self.assertTrue(callable(invalidate_cos_context_on_action))
 
 
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=True)
 class TestPGSBatchDedup(HardeningTestMixin, TestCase):
-    """Test that PGS runner sets up batch dedup for each user."""
+    """Test that PGS runner sets up batch dedup for each user.
+
+    Provider-backed proactive AI is PAUSED for pre-production
+    (`WLJ_PROACTIVE_AI_ENABLED`, 2026-08-20), so the scheduler now returns
+    `skipped: proactive_ai_disabled` before it dispatches anything — and these tests,
+    which are about the DEDUP MECHANISM rather than the pause policy, were asserting
+    against a run that never happened. The flag is enabled here so the mechanism is
+    still covered; the pause itself is tested by the governor's own suite.
+    """
 
     def setUp(self):
         self.user = self.create_user(email='batch@example.com')

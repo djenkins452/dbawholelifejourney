@@ -7,7 +7,7 @@
 #   with a timestamp/clinical interpretation is answered deterministically (LLM
 #   bypassed). The test injects a ROGUE LLM to prove the bypass. No mocked agreement.
 # ==============================================================================
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest import mock
 
 from django.contrib.auth import get_user_model
@@ -32,7 +32,23 @@ class GlucoseTimeConsistencyTests(TestCase):
         self.user.preferences.save()
 
     def _value_then_time(self, ts):
+        """Seed a REAL reading at `ts`, then ask for the value and the time.
+
+        This used to inject `latest_glucose` / `last_glucose_entry` into the SAE
+        snapshot. `_latest_glucose_fact` no longer reads the snapshot — it was moved to
+        `glucose_queries`, the canonical Layer-1 accessor, precisely so that "my glucose"
+        and "my previous glucose" could not be answered by two different producers. With
+        no row seeded there was nothing to find, so the fact carried no timestamp, the
+        deterministic bypass never triggered, and the rogue LLM answer came through —
+        the tests were failing for the mock, not for the behaviour they describe.
+        """
+        from apps.health.models import GlucoseEntry
+
         conv = AssistantConversation.objects.create(user=self.user)
+        GlucoseEntry.objects.create(
+            user=self.user, value=91, unit="mg/dL",
+            recorded_at=datetime.fromisoformat(ts),
+        )
         state = {"latest_glucose": 91, "latest_glucose_unit": "mg/dL",
                  "last_glucose_entry": ts}
         with mock.patch(_CALL, return_value=_ROGUE), mock.patch(_GMS, return_value=state):

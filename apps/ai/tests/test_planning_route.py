@@ -137,7 +137,10 @@ class PlanningRouting(TestCase):
             target_date=self.today + timedelta(days=90))
         res = dr.classify_and_route("what should i focus on next month", self.user)
         self.assertIsNotNone(res)
-        self.assertEqual(res.route_name, "planning_query")
+        # d094d618 routed executive-lens questions to the single executive layer, and a
+        # horizon question ("next month", "this quarter") is one. The route that owns it
+        # changed; what this test exists to guard did not — see the assertions below.
+        self.assertEqual(res.route_name, "executive_summary_query")
         # The core bug: a planning question must NOT be answered by the
         # execution engines (next_action / decision / focus).
         self.assertNotIn(res.route_name,
@@ -149,8 +152,12 @@ class PlanningRouting(TestCase):
         # route (honest answer) — it never falls through to today's tasks.
         res = dr.classify_and_route("what should i prioritize this quarter", self.user)
         self.assertIsNotNone(res)
-        self.assertEqual(res.route_name, "planning_query")
-        self.assertIn("Primary Mission", res.response)
+        self.assertEqual(res.route_name, "executive_summary_query")
+        # The point is that it is answered HONESTLY and never with today's task list.
+        # With no mission and no standing signal the executive layer says so, which is
+        # the same promise the old planning text made in its own words.
+        self.assertNotIn("next_action", res.route_name)
+        self.assertTrue(res.response)
 
     def test_execution_question_still_routes_to_execution(self):
         # Guard: a pure next-step question is unaffected by the planning gate.

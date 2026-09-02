@@ -348,6 +348,15 @@ def _medication_history(user, message):
     and program-change. Parameters (name / condition / date / window) are read from the
     message and resolved against canonical truth."""
     text = (message or "").lower()
+    # The SAME hybrid guard `classify_foundational_fact` applies. This is a second
+    # entry point into deterministic medication answers, and it did not have it — so
+    # "which of my medications are commonly used for diabetes?" was declined by the
+    # classifier and then answered here anyway, from WLJ records alone. The person gets
+    # a bare list (or "you don't have any prescriptions on file") in reply to a question
+    # whose whole point was the general knowledge layered on top. Decline, and let the
+    # tool loop combine both.
+    if _has_educational_overlay(text):
+        return None
     from datetime import date  # noqa
     from apps.core.utils import get_user_today
     from apps.health.services.medicine_queries import MedicineQueries

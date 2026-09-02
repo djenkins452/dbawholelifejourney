@@ -68,9 +68,18 @@ class SleepRetrievalTests(SimpleTestCase):
         self.assertIn("6.3", out)
         self.assertIn("don't have last night", out)
 
-    def test_no_data_falls_through(self):
+    def test_no_data_says_so_rather_than_abstaining(self):
+        """Honest absence, not a fall-through.
+
+        b2b8cd08 ("P1 health-retrieval consistency — NO-ABSTAIN") deliberately stopped
+        these handlers returning None on empty data: abstaining handed the question to
+        the model, which is exactly where an invented answer comes from. Saying "nothing
+        logged yet" is the answer.
+        """
         with _patch_state(health={}):
-            self.assertIsNone(dr._handle_sleep_query(object(), "how did i sleep?"))
+            out = dr._handle_sleep_query(object(), "how did i sleep?")
+        self.assertIsNotNone(out)
+        self.assertIn("don't see any sleep logged", out.lower())
 
 
 class WorkoutRetrievalTests(SimpleTestCase):
@@ -98,9 +107,12 @@ class WorkoutRetrievalTests(SimpleTestCase):
         for bad in ("mentioned", "getting up early", "you said", "journal"):
             self.assertNotIn(bad, out.lower())
 
-    def test_handler_no_data_falls_through(self):
+    def test_handler_no_data_says_so_rather_than_abstaining(self):
+        """Same no-abstain contract as sleep — see b2b8cd08."""
         with _patch_state(fitness={}):
-            self.assertIsNone(dr._handle_last_workout_query(object()))
+            out = dr._handle_last_workout_query(object())
+        self.assertIsNotNone(out)
+        self.assertIn("don't see any completed workouts", out.lower())
 
 
 class ProbeTests(SimpleTestCase):

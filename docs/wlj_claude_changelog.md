@@ -62094,3 +62094,93 @@ flag; the pause has its own coverage in the governor's suite.
 
 Authoritative re-measure: **86 → 55** failures in `apps.ai` + `apps.core` (that run
 predates the fixes above).
+
+## 2026-09-02 — AI/Core cleanup, batches 4–6: the conversation lane, then the rest
+
+Eleven commits, `f6c6a7a5` → `48f37846`. Grouped by what was actually wrong, because the
+same few classes account for nearly all of it.
+
+### Genuine product defects (the CoS behaved wrongly; the tests were right)
+
+- **"doing ok, a bit tired" was routed as a crisis** (`799953e4`). `classify_need`'s own
+  rule says the signal is being BEHIND or OVERWHELMED, "not merely tired" — but the coping
+  list only held the bare `"im ok"` form, so the far more natural *"I'm **doing** ok, a bit
+  tired"* slipped past and the energy fallback took "tired" as negative. Someone answering
+  a check-in got a problem-solving intervention instead of the briefing they asked for.
+  The whole "doing ok / fine / alright / well" family is in the list now.
+- **"Good morning" was claimed as a self-report** (`bda0f6a1`). The self-report lane's
+  docstring says these arrive "without a greeting"; nothing enforced it, and
+  `classify_subjective_energy` reads "Good morning" as positive energy because of the word
+  *good*. The lane took every morning greeting and answered with a self-report synthesis
+  instead of letting it reach the briefing — on the first thing the person says all day.
+- **A value-less fact was stated as a fact** (`de225180`). `format_fact_sentence`
+  interpolated a missing value into its templates and emitted *"Your last glucose reading
+  was."* — a sentence with a hole in it that reads as truth and says nothing.
+- **One `date` in a snapshot took down the entire daily briefing** (`1f32bf74`).
+  `store_briefing` wrote SAE state straight into a JSONField; the state carries `date`,
+  `datetime` and `Decimal`, and *"Object of type date is not JSON serializable"* killed the
+  whole briefing for the sake of a snapshot that is diagnostic context, not the briefing.
+  Coerced to text — an awkward value now costs its own fidelity and nothing else.
+- **A user-visible naming leak** (`40e3f58b`). A notification read "Beth finished your
+  response" for *every* user. Beth is one user's chosen display name, never a system
+  identity. Fifteen references cleared; the rest were comments and an admin title.
+- **Execution state did not record which day it was** (`40e3f58b`). It carries `is_today`
+  and today-scoped completion but was not registered as calendar-bound, so a snapshot built
+  yesterday read as today's truth. Registered and stamped.
+- **Four hardcoded `gpt-4o` fallbacks** (`22df137b`). A `getattr` fallback literal silently
+  pins an old model for anyone who forgets to set one — which is how a superseded model
+  outlives its replacement. `config/settings.py` is the only place a model name belongs.
+- **The Ops poll endpoint was allowed to compute on the request path** (`22df137b`). The
+  test asserted the v2 payload against a COLD cache, which passes only if the endpoint
+  computes live — the one thing the Ops Wall is forbidden to do. It asserts `pending` on a
+  cold cache now, with a second test priming the payload the way the worker does.
+- **Unlabelled LLM traffic was stamped `production`** (`22df137b`). An undeclared call is
+  `unattributed`. Stamping it as customer cost is the misattribution the ledger exists to
+  prevent, and it hides every call site that never declared itself.
+
+### One contract, many copies (the drift class)
+
+- **Seven** test files each held their own copy of the approved truth-tool list, so all
+  seven sat red together while five real tools were added — `get_consistency`,
+  `get_change_point`, `get_ranked_entity`, `get_data_health`, `get_execution_review`. One
+  list now: `apps/ai/tests/truth_tool_contract.py :: APPROVED_TRUTH_TOOLS`, with the review
+  recorded there (`ef3a5e9b`, `bda0f6a1`).
+- **Two different things shared `expected_signal_types`** (`48f37846`). faith.journey
+  documented its six bus EVENTS in a field that means signal-TAXONOMY keys, so the registry
+  validator rejected all six while the journey's own test required them — no way for both
+  to be right. `emitted_events` is that field now.
+
+### Fixtures that described a world the rules do not recognise
+
+- Adherence fixtures used `health.medication_adherence_pct`, which the rule's own comment
+  records as a DEAD key the state builder never writes — so the risk case could not fire
+  and the "compliant" case passed for the wrong reason (`4d97c61c`).
+- "Completed today" is occurrence-scoped — DUE today AND done — so a task "completed March
+  1" must be DUE March 1 to be the historical completion the test means (`f6c6a7a5`).
+- The Phase-2 cleanup migration matches a title AND the certification window (17–18 Aug);
+  the fixture created its tasks at "now", so nothing could ever match. The pairing is the
+  point: a real "Call the pharmacy" written on any other day must survive (`89857f2f`).
+- A Tier-1 override test passed `original_block_id=1`, assuming the first `ScheduledBlock`
+  in the test database gets pk 1. It does not once anything else has used the sequence, and
+  the FK violation surfaced at teardown rather than as a readable failure (`48f37846`).
+- The recurring-occurrence view tests assign 17:00 to an occurrence due today and assert it
+  is not overdue, against a real clock — true in the morning, false after 5pm. Clock pinned
+  (`48f37846`).
+
+### Tests demanding behaviour that was deliberately deleted
+
+- `test_pge_guidance_logger_calls_pil` required the persona layer to run inside the guidance
+  logger. That call was REMOVED in the 2026-06-01 trust fix because it prepended a greeting
+  at storage time, so guidance written in the morning still read "Good morning!" at 8 PM.
+  The helper was deleted rather than unwired precisely to stop it returning — and a test
+  demanding it be called is an invitation to bring it back. It asserts the fix now
+  (`89857f2f`).
+- Two constitution tests pinned exact prose and failed because the rule got STRONGER:
+  "EVERY user-specific value" became "EVERY value about THIS user, in EVERY framing". Both
+  assert the property now (`f6c6a7a5`).
+- Cache invalidation was asserted on a thin wrapper the live path stopped using; asserted on
+  the function that does the work, which both paths reach (`f6c6a7a5`).
+
+**Authoritative clean-PostgreSQL measure: 86 → 0 failures** across `apps.ai` + `apps.core`
+(10,365 tests). No test was skipped, weakened, deleted or marked expected-failure, and no
+paid provider call was made — every fix is deterministic fixtures or product code.

@@ -20,9 +20,19 @@ User = get_user_model()
 
 
 def _template(title, slug):
-    return ReadingPlanTemplate.objects.create(
-        title=title, slug=slug, description="x", category="topical",
-        difficulty="beginner", duration_days=9, is_active=True, is_featured=False)
+    """Reuse the seeded template for this slug rather than inserting a second one.
+
+    `slug` is unique, and migration 0020 seeds the Gospel plans — including
+    `journey-through-john` and `journey-through-matthew`, two of the three slugs these
+    fixtures use. Creating them unconditionally raised a UniqueViolation in setUpTestData,
+    so both classes errored before a single test ran.
+    """
+    tmpl, _created = ReadingPlanTemplate.objects.update_or_create(
+        slug=slug,
+        defaults=dict(title=title, description="x", category="topical",
+                      difficulty="beginner", duration_days=9,
+                      is_active=True, is_featured=False))
+    return tmpl
 
 
 class FaithActivePlanResolutionTests(TestCase):

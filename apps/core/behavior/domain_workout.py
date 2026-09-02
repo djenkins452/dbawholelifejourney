@@ -40,7 +40,7 @@ def calculate_workout_behavior_output(user, start_date, end_date):
         dict matching behavior output contract, or None if no active plan
     """
     from apps.core.utils import get_user_now, get_user_today
-    from apps.health.models import WorkoutPlan, WorkoutScheduleLog, WorkoutSession
+    from apps.health.models import WorkoutPlan, WorkoutScheduleLog
 
     active_plan = WorkoutPlan.objects.filter(
         user=user, is_active=True, status='active',
@@ -98,13 +98,10 @@ def calculate_workout_behavior_output(user, start_date, end_date):
     )
 
     # ── Source 2: WorkoutSession (any completed session for that date) ──
+    from apps.health.services.workout_queries import WorkoutQueries
     session_dates = set(
-        WorkoutSession.objects.filter(
-            user=user,
-            date__gte=start_date,
-            date__lte=end_date,
-            completed_at__isnull=False,
-        ).values_list('date', flat=True)
+        WorkoutQueries.completed_in_range(user, start_date, end_date)
+        .values_list('date', flat=True)
     )
 
     # ── Source 3: RoutineLog (workout obligation items) ──

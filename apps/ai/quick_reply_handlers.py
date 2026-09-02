@@ -410,11 +410,18 @@ def handle_confirm_workout(user, params: dict) -> dict:
     workout_type = params.get('workout_type', 'General')
     duration = params.get('duration', 30)
 
+    # Stamp completion like every other writer. This handler logs a workout the
+    # user has ALREADY done, but it was the one production path that left
+    # completed_at null while setting duration_minutes — the single ambiguous
+    # shape that forced every reader to infer completion instead of reading it.
+    now = timezone.now()
     WorkoutSession.objects.create(
         user=user,
         date=today,
         workout_type=workout_type,
         duration_minutes=duration,
+        started_at=now - timedelta(minutes=duration or 0),
+        completed_at=now,
         notes='Logged via assistant quick reply',
     )
 

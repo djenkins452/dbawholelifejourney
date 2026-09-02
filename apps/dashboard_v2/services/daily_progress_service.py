@@ -199,7 +199,7 @@ class DailyProgressService:
         """
         try:
             from apps.core.utils import get_user_now
-            from apps.health.models import WorkoutPlan, WorkoutSession
+            from apps.health.models import WorkoutPlan
 
             # Check if today is a scheduled workout day
             day_of_week = self.today.weekday()  # 0=Monday, 6=Sunday
@@ -221,11 +221,8 @@ class DailyProgressService:
                     if schedule_entry.preferred_time > current_time:
                         return 100, {"workout_done": 0, "workout_total": 0}
 
-            done = WorkoutSession.objects.filter(
-                user=self.user,
-                date=self.today,
-                completed_at__isnull=False,
-            ).exists()
+            from apps.health.services.workout_queries import WorkoutQueries
+            done = WorkoutQueries.is_completed_on(self.user, self.today)
 
             score = 100 if done else 0
             return score, {"workout_done": 1 if done else 0, "workout_total": 1}

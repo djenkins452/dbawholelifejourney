@@ -350,27 +350,21 @@ class DailyHealthSummaryBuilder:
         """Collect workout session data and compute training load."""
         from apps.health.models import ExerciseSet, WorkoutSession
 
-        sessions = list(WorkoutSession.objects.filter(
-            user=user, date=target_date, completed_at__isnull=False,
-        ))
+        # Canonical completion authority — not a hand-rolled predicate. A local
+        # `completed_at__isnull=False` here disagreed with WorkoutQueries for every
+        # session logged with a duration but no explicit completion click.
+        from apps.health.services.workout_queries import WorkoutQueries
+        sessions = list(WorkoutQueries.completed_on(user, target_date))
         count = len(sessions)
         if count == 0:
             return {"workout_count": 0}
 
         total_minutes = 0
         total_load = Decimal("0")
-        intensity_breakdown = {'high': 0, 'moderate': 0, 'low': 0}
-        activity_sessions = 0
 
         for session in sessions:
             if session.duration_minutes:
                 total_minutes += session.duration_minutes
-
-            if session.session_mode == 'activity':
-                activity_sessions += 1
-
-            if session.intensity in intensity_breakdown:
-                intensity_breakdown[session.intensity] += 1
 
             # Training load = sum(weight * reps) for resistance
             sets = ExerciseSet.objects.filter(
@@ -388,12 +382,16 @@ class DailyHealthSummaryBuilder:
                 # Estimate: 1 min cardio ~ 8 cal (moderate)
                 total_load += Decimal(str(session.duration_minutes * 8))
 
+        # Every key here is written straight into DailyHealthSummary via
+        # update_or_create(defaults=...), so every key MUST be a model field.
+        # `intensity_breakdown` and `activity_sessions` were not: they were computed
+        # here, never stored, never read, and made build_for_date raise FieldError for
+        # any day containing a workout. The intensity breakdown that IS consumed is
+        # computed by the training-load signal, which keeps it in a JSON field.
         return {
             "workout_count": count,
             "workout_minutes": total_minutes or None,
             "training_load": total_load if total_load > 0 else None,
-            "intensity_breakdown": intensity_breakdown,
-            "activity_sessions": activity_sessions,
         }
 
     def _collect_weight_and_composition(self, user, target_date):

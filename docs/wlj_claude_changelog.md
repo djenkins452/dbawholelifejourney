@@ -62184,3 +62184,75 @@ same few classes account for nearly all of it.
 **Authoritative clean-PostgreSQL measure: 86 → 0 failures** across `apps.ai` + `apps.core`
 (10,365 tests). No test was skipped, weakened, deleted or marked expected-failure, and no
 paid provider call was made — every fix is deterministic fixtures or product code.
+
+## 2026-09-02 — Workout completion: one authority, and two writers that dodged it
+
+**The reported symptom.** `test_all_paths_agree` asserted `135 != 75` — two WLJ surfaces
+totalling the same user's workout minutes over the same sessions and disagreeing.
+
+**What each number was** (runtime-proven, not inferred, over one fixture):
+- **135** — `WorkoutQueries.completed_in_range` → `build_fitness_state.workout_minutes_7d`:
+  30 + 45 + **60**, three sessions.
+- **75** — `DailyHealthSummaryBuilder._collect_workouts`: 30 + 45, two sessions.
+
+The 60 is a session carrying a logged duration but no `completed_at`.
+
+**First failing layer: Layer 1, Truth.** Two completion predicates, not one:
+- `WorkoutQueries._COMPLETED_Q` — `completed_at` **OR** exercises logged **OR** a duration
+  recorded. Broadened deliberately on 2026-04-04 (`5d046408`) because structured workouts
+  do not stamp `completed_at` until the explicit "Complete Workout" click, yet a session
+  with exercises logged is done from the user's point of view.
+- A hand-rolled `completed_at__isnull=False`, in **nine** production modules.
+
+`workout_queries.py` is declared the canonical service — "All consumers … MUST use these
+methods instead of ad-hoc WorkoutSession QuerySets" — and twenty CoS/truth/execution
+modules do. But its own module docstring still stated the **pre-2026-04-04 narrow rule**
+while the code six lines below implemented the broad one. Anyone reading the authority was
+taught the wrong rule, which is how the copies kept reappearing.
+
+**Canonical decision.** `WorkoutQueries` is the authority. The narrow copies were drift,
+and they under-counted: only ONE production writer ever produced duration-without-
+`completed_at` — the assistant's quick-reply logger — so a workout logged through the
+assistant counted for the CoS and was invisible to the Health UI, the daily summary, the
+activity signals, the dashboard and the exports.
+
+**Deliberately NOT unified** — the exception that proves the rule. Routine auto-complete
+(`health/signals.py`) keeps the narrow predicate, because it is not asking the truth
+question. "Has the user worked out?" is answered yes by logged sets; "should WLJ tick off
+their morning routine for them?" is an **action**, and acting on a session the user is
+still in the middle of would complete the routine after one warm-up set. Recorded in the
+contract allowlist rather than left as another stray copy.
+
+**Two writers produced rows the authority could not recognise:**
+- `execution_completion._complete_workout` — the "mark my workout complete" path — wrote a
+  session with no `completed_at`, no duration and no exercises: the single shape
+  `_COMPLETED_Q` rejects. Proven at runtime: the assistant answered *"Recorded a workout
+  for 2026-09-02"* and WLJ, asked immediately after, said **no workout today**. It now
+  stamps completion — and nothing else, because duration and start time are unknown there
+  and inventing a duration would inflate every minutes total on every surface.
+  Its "already complete" check also used *any* session that day, so a started-and-abandoned
+  session blocked a real completion from being recorded.
+- `quick_reply_handlers` — logs a finished workout without stamping it. Now stamped.
+
+**A second defect this exposed.** `_collect_workouts` returned `intensity_breakdown` and
+`activity_sessions`, which are **not** `DailyHealthSummary` fields, and `build_for_date`
+writes its dict straight into `update_or_create(defaults=…)`. So the daily health summary
+raised `FieldError` for **any day containing a workout** — since 2026-04-04 (`b7563218`).
+Nothing read either key. Removed, with a contract that walks the collectors so a third
+stray key fails in a test rather than in a Celery worker.
+
+**Files:** `health/services/workout_queries.py` (docstring corrected; `minutes_on`,
+`minutes_in_range`, `completed(qs)` added as the named minutes authority),
+`health/services/daily_summary_builder.py`, `core/ai_eae/signal_aggregation.py` (×2),
+`core/behavior/domain_workout.py`, `health/views.py` (×2), `health/views_export.py`,
+`health/services/fitness_utils.py`, `dashboard_v2/compliance/adapters/workout.py`,
+`dashboard_v2/services/daily_progress_service.py`,
+`core/execution/execution_completion.py`, `ai/quick_reply_handlers.py`.
+New contracts: `test_workout_completion_authority_contract.py`,
+`test_daily_summary_field_contract.py`.
+
+**Not the same root cause** (checked, left alone): `test_health_activity_includes_activity_level`
+(signal key renamed `activity_level` → `daily_classification`),
+`test_threshold_met_completes_routine` (threshold raised 10 → 20 minutes),
+`test_overlapping_manual_entry_merged` (HealthKit merge later required a matching
+`workout_type`). None involve the completion predicate.

@@ -554,12 +554,36 @@ def _schedule_applies(schedule, dow):
 
 # --- Workout: reuse the model with the actual date -----------------------------------------
 def _complete_workout(user, title, target_date):
+    """Record a completed workout, in a shape the completion authority recognises.
+
+    This used to write a session with no completed_at, no duration and no exercises
+    — the one shape `WorkoutQueries._COMPLETED_Q` calls NOT completed. So the
+    assistant answered "Recorded a workout for <date>" and WLJ, asked a moment later,
+    said the user had not worked out. The row existed; the truth did not.
+
+    `completed_at` is stamped because that is what this function is recording. Nothing
+    else is: duration and start time are unknown here, and inventing a duration would
+    inflate every minutes total on every surface — the defect this domain just spent a
+    fix eliminating. An unknown stays unknown.
+    """
+    from django.utils import timezone as _tz
+
     from apps.health.models import WorkoutSession
-    exists = WorkoutSession.objects.filter(user=user, date=target_date).first()
-    if exists:
+    from apps.health.services.workout_queries import WorkoutQueries
+
+    # "Already complete" must mean complete BY THE SAME RULE everything else uses —
+    # a merely-started session left over from earlier in the day is not a workout.
+    if WorkoutQueries.is_completed_on(user, target_date):
         return _result("already_complete", "workout", title)
-    WorkoutSession.objects.create(user=user, date=target_date,
-                                  name=(title or "Workout"))
+
+    started = WorkoutSession.objects.filter(user=user, date=target_date).first()
+    if started is not None:
+        started.completed_at = _tz.now()
+        started.save(update_fields=["completed_at"])
+    else:
+        WorkoutSession.objects.create(user=user, date=target_date,
+                                      name=(title or "Workout"),
+                                      completed_at=_tz.now())
     return _result("recorded", "workout", title,
                    message=f"Recorded a workout for {target_date.isoformat()}.")
 

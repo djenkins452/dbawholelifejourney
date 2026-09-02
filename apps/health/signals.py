@@ -322,10 +322,19 @@ def handle_workout_session_completed(sender, instance, **kwargs):
         try:
             from django.db.models import Sum as _Sum
 
-            from apps.health.models import WorkoutSession
             from apps.health.services.fitness_utils import ROUTINE_COMPLETION_THRESHOLD_MINUTES
             from apps.life.services.routine_helpers import auto_complete_routine_schedules
 
+            from apps.health.models import WorkoutSession
+
+            # DELIBERATELY narrower than WorkoutQueries._COMPLETED_Q — see the
+            # allowlist in test_workout_completion_authority_contract.py.
+            # "Has the user worked out?" is a TRUTH question and logged sets answer
+            # it yes. "Should WLJ now mark their routine item complete for them?" is
+            # an ACTION, and acting on a session the user is still in the middle of
+            # is worse than acting late: one warm-up set at 07:05 would tick off the
+            # morning routine while they are still under the bar. The explicit
+            # completion stamp is the signal that they are done.
             completed_qs = (
                 WorkoutSession.objects
                 .filter(

@@ -53,7 +53,6 @@ def evaluate_workout(user, start_date, end_date):
         from apps.health.models import (
             WorkoutPlan,
             WorkoutScheduleLog,
-            WorkoutSession,
         )
 
         active_plan = WorkoutPlan.objects.filter(
@@ -81,11 +80,9 @@ def evaluate_workout(user, start_date, end_date):
 
         # Build lookup of completed WorkoutSessions by date (raw truth)
         # A session with completed_at set = workout definitively happened.
-        session_qs = WorkoutSession.objects.filter(
-            user=user,
-            date__gte=start_date,
-            date__lte=end_date,
-            completed_at__isnull=False,
+        from apps.health.services.workout_queries import WorkoutQueries
+        session_qs = WorkoutQueries.completed_in_range(
+            user, start_date, end_date,
         ).values_list("date", "id")
         # Map date → first completed session id
         session_map = {}

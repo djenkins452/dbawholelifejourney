@@ -150,16 +150,12 @@ def get_weekly_volume(user, week_start_date):
     Returns:
         Dict with total_volume (float), set_count (int), workout_count (int).
     """
-    from apps.health.models import ExerciseSet, WorkoutSession
+    from apps.health.models import ExerciseSet
 
     week_end = week_start_date + timedelta(days=6)
 
-    workouts = WorkoutSession.objects.filter(
-        user=user,
-        date__gte=week_start_date,
-        date__lte=week_end,
-        completed_at__isnull=False,
-    )
+    from apps.health.services.workout_queries import WorkoutQueries
+    workouts = WorkoutQueries.completed_in_range(user, week_start_date, week_end)
 
     sets = ExerciseSet.objects.filter(
         workout_exercise__session__in=workouts,

@@ -550,10 +550,8 @@ class HealthHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Tem
             context["workouts_this_week"] = week_workouts.count()
 
             # Total duration this week (only completed sessions)
-            week_duration = week_workouts.filter(
-                duration_minutes__isnull=False,
-                completed_at__isnull=False,
-            ).aggregate(total=Sum('duration_minutes'))['total'] or 0
+            from apps.health.services.workout_queries import WorkoutQueries
+            week_duration = WorkoutQueries.minutes_in_range(user, week_start, today)
             context["fitness_duration_this_week"] = week_duration
 
             # Workouts this month
@@ -1714,8 +1712,9 @@ class FitnessHomeView(PageSummaryMixin, HelpContextMixin, LoginRequiredMixin, Te
 
         # Best suggestion for today — frequency-based with weekday tie-breaking
         # Single query: last 20 completed workouts
+        from apps.health.services.workout_queries import WorkoutQueries
         recent_completed = list(
-            WorkoutSession.objects.filter(user=user, completed_at__isnull=False)
+            WorkoutQueries.completed_in_range(user, today - timedelta(days=365), today)
             .order_by("-date")
             .values_list("id", "name", "date")[:20]
         )

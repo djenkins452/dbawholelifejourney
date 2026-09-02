@@ -18,11 +18,25 @@ on WorkoutSession.objects already filters status='active', but we add an
 explicit .exclude(status='deleted') for safety since some call sites
 previously relied on it.
 
-COMPLETION RULE:
-  A workout is "completed" when completed_at is not null.
-  A started-but-not-finished session is NOT completed.
-  This matches the Health UI (views.py:467) and SAE fitness builder
-  (state_builder.py build_fitness_state 7d/30d counts).
+COMPLETION RULE (the single authority — see `_COMPLETED_Q`):
+  A workout is "completed" when it carries evidence that the work happened:
+  completed_at is set, OR exercises are logged, OR a duration was recorded.
+  A session that was merely STARTED — started_at set, no exercises, no
+  duration, no completed_at — is NOT completed.
+
+  This rule was broadened deliberately on 2026-04-04 (5d046408) because
+  structured workouts do not stamp completed_at until the explicit "Complete
+  Workout" click, yet a session with exercises logged is done from the user's
+  point of view. This docstring previously still described the pre-2026-04-04
+  narrow rule (completed_at only) while the code below implemented the broad
+  one — which is how ad-hoc `completed_at__isnull=False` copies kept
+  reappearing in consumers. There is ONE rule and it lives here.
+
+MINUTES:
+  `minutes_in_range` / `minutes_on` are the ONLY sanctioned way to total
+  workout minutes. Every surface that answers "how many minutes did I train"
+  must call them, so the Health UI, the daily summary, the signals, the
+  exports and the CoS cannot disagree.
 
 Usage:
     from apps.health.services.workout_queries import WorkoutQueries
@@ -108,6 +122,35 @@ class WorkoutQueries:
             date__gte=start_date,
             date__lte=end_date,
         ).exclude(status='deleted').distinct()
+
+    @classmethod
+    def completed(cls, queryset):
+        """Apply the canonical completion rule to a queryset the caller already scoped.
+
+        For consumers that hold their own user/date-filtered WorkoutSession queryset
+        (an export, a report) and need completion applied without restating it.
+        """
+        return queryset.filter(_COMPLETED_Q).exclude(status='deleted').distinct()
+
+    @classmethod
+    def minutes_on(cls, user, target_date):
+        """Total completed workout minutes on a date (the canonical day total)."""
+        from django.db.models import Sum
+        return cls.completed_on(user, target_date).aggregate(
+            total=Sum("duration_minutes"))["total"] or 0
+
+    @classmethod
+    def minutes_in_range(cls, user, start_date, end_date):
+        """Total completed workout minutes across a date range (inclusive).
+
+        The canonical answer to "how many minutes did I train". Note the WINDOW is
+        the caller's: a day total and a 7-day total are different questions and must
+        keep different names (`workout_minutes` vs `workout_minutes_7d`). What they
+        must never differ on is which sessions count.
+        """
+        from django.db.models import Sum
+        return cls.completed_in_range(user, start_date, end_date).aggregate(
+            total=Sum("duration_minutes"))["total"] or 0
 
     @classmethod
     def in_range(cls, user, start_date, end_date):

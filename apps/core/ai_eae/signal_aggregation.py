@@ -219,15 +219,10 @@ class SignalAggregationService:
           45+      → 1.0   (strong_activity)
         Includes activity_level classification and session_mode breakdown.
         """
-        from apps.health.models import WorkoutSession
-
         is_expected = expected_map.get('workout', False)
 
-        sessions = list(
-            WorkoutSession.objects.filter(
-                user=user, date=date, completed_at__isnull=False,
-            ).exclude(status='deleted')
-        )
+        from apps.health.services.workout_queries import WorkoutQueries
+        sessions = list(WorkoutQueries.completed_on(user, date))
         total_minutes = sum(s.duration_minutes or 0 for s in sessions)
         session_count = len(sessions)
 
@@ -315,15 +310,10 @@ class SignalAggregationService:
         Intensity weights: high=1.3x, moderate=1.0x, low=0.7x, blank=1.0x.
         States: no_activity / light_activity / moderate_activity / strong_activity.
         """
-        from apps.health.models import WorkoutSession
-
         is_expected = expected_map.get('workout', False)
 
-        sessions = list(
-            WorkoutSession.objects.filter(
-                user=user, date=date, completed_at__isnull=False,
-            ).exclude(status='deleted')
-        )
+        from apps.health.services.workout_queries import WorkoutQueries
+        sessions = list(WorkoutQueries.completed_on(user, date))
         session_count = len(sessions)
 
         if session_count == 0:

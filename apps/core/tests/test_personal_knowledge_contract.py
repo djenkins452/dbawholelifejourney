@@ -406,10 +406,27 @@ class PersonalTruthIntegrationTests(TestCase):
         self.assertIn("Heather is my wife.", prompt)
 
     def test_no_second_personal_knowledge_context_block_exists(self):
+        """PK must REACH the model only through the existing personal_truth seam.
+
+        Scoped to the envelope builder rather than the whole file: natural learning WRITES
+        through the canonical PK service from the tool dispatch, which is the one authority
+        and not a second delivery path. What must never appear is a parallel context block
+        or envelope field carrying knowledge to the model.
+        """
+        import ast
         src = (REPO / "apps/ai/model_interface/service.py").read_text(encoding="utf-8")
-        self.assertNotIn("personal_knowledge", src,
+        tree = ast.parse(src)
+        builder = next(
+            (n for n in ast.walk(tree)
+             if isinstance(n, ast.FunctionDef) and n.name == "build_standing_context"),
+            None)
+        self.assertIsNotNone(builder, "build_standing_context not found")
+        self.assertNotIn("personal_knowledge", ast.unparse(builder),
                          "Personal Knowledge must ride the existing personal_truth seam, "
                          "not a parallel envelope field or prompt block")
+        # And no second prompt block naming it.
+        self.assertNotIn('"personal_knowledge"] =', src)
+        self.assertNotIn("=== PERSONAL KNOWLEDGE", src)
 
 
 class ModelFacingSafetyTests(TestCase):

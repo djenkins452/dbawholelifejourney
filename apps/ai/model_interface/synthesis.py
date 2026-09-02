@@ -340,6 +340,14 @@ SYNTHESIS_SYSTEM = (
     "ALREADY investigated and gathered the deterministic WLJ evidence below. Do NOT ask "
     "for more, do NOT say you will look something up, do NOT mention tools or retrieval — "
     "just give Danny the executive read.\n\n"
+    "ACCOUNT FOR HIS CIRCUMSTANCES BEFORE YOU JUDGE HIS NUMBERS. If he has told you "
+    "something this conversation that explains what the evidence shows — a recovery, a "
+    "disruption, a deliberate change of plan, anything WLJ holds no record of — that "
+    "context is part of the truth of his situation, and a verdict that ignores it is "
+    "simply wrong. The measurements stay canonical: do not revise a number because of "
+    "something he said. But WHAT THE NUMBERS MEAN depends on what is going on in his "
+    "life, and telling someone their activity has dropped when they have just explained "
+    "why is not executive judgment — it is not listening.\n\n"
     "YOUR JOB: step back from the evidence and answer his question with a judgment. Lead "
     "with the ONE thing that most matters, stated as a verdict in your first sentence. "
     "Then, in flowing PROSE (usually three to six sentences), tell the through-line: how "
@@ -374,6 +382,41 @@ SYNTHESIS_SYSTEM = (
 # the grounded Phase-1 answer. (A retry storm here was making broad turns run >260s.)
 SYNTHESIS_TIMEOUT_SECONDS = 35
 
+# What the person told us in THIS conversation, bounded. Phase 2 is deliberately a small,
+# self-contained prompt, so this is a slice — enough to carry circumstance, not a transcript.
+_CONTEXT_TURNS = 8
+_CONTEXT_CHARS_PER_TURN = 400
+_CONTEXT_CHARS_TOTAL = 2000
+
+
+def render_conversation_context(conversation_history):
+    """The circumstances the person has stated this conversation, as CONTEXT — never as
+    evidence.
+
+    Phase 2 used to receive only the question, the standing orientation and the retrieved
+    evidence; `conversation_history` was accepted and then dropped on the floor. Anything
+    the user had just explained about their situation — something WLJ holds no record of,
+    because it is circumstance rather than a measurement — was invisible at exactly the
+    moment a judgment was formed. That is how a person could say they were injured and be
+    told minutes later that their declining activity showed poor engagement.
+
+    Bounded and newest-last so the freshest statements survive truncation.
+    """
+    rows = [r for r in (conversation_history or [])
+            if isinstance(r, dict) and (r.get("content") or "").strip()]
+    if not rows:
+        return ""
+    out, used = [], 0
+    for row in reversed(rows[-_CONTEXT_TURNS:]):
+        who = "Danny" if row.get("role") == "user" else "You"
+        text = " ".join((row.get("content") or "").split())[:_CONTEXT_CHARS_PER_TURN]
+        line = f"{who}: {text}"
+        if used + len(line) > _CONTEXT_CHARS_TOTAL:
+            break
+        out.append(line)
+        used += len(line)
+    return "\n".join(reversed(out))
+
 
 def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
                             conversation_history=None, user=None, temperature=0.5):
@@ -390,10 +433,19 @@ def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
     try:
         evidence_block = render_evidence(evidence)
         orientation = build_orientation(standing_context)
+        recent = render_conversation_context(conversation_history)
+        context_block = (
+            f"WHAT DANNY HAS TOLD YOU IN THIS CONVERSATION (his circumstances — CONTEXT, "
+            f"not measurements). WLJ may hold no record of any of it, and that does not "
+            f"make it untrue. If something here explains what the evidence shows, your "
+            f"judgment MUST account for it rather than reading the numbers as if he had "
+            f"said nothing:\n{recent}\n\n"
+        ) if recent else ""
         user_prompt = (
             f"Danny's question:\n{message}\n\n"
             f"STANDING ORIENTATION (who he is / what he is working toward — NOT current "
             f"evidence):\n{orientation}\n\n"
+            f"{context_block}"
             f"DETERMINISTIC WLJ EVIDENCE you gathered this turn (ground every important claim "
             f"in THIS; do not invent; if it is insufficient for a claim, say so):\n"
             f"{evidence_block}"

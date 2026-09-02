@@ -1265,45 +1265,105 @@ class ModelInterfaceService:
                     turn_id=turn_id, surface=surface,
                     conversation_id=conversation_id,
                 )
-            if name == "record_interview_knowledge":
-                # M4 deliberate teaching. GATED ON AN ACTIVE SESSION — outside Getting to
-                # Know You this is a no-op, which is what keeps ordinary conversation from
-                # learning (M6 remains separate and unbuilt). No per-fact confirmation: the
-                # user opened this surface to teach, and About Me is the review surface.
-                # Every write still goes through the canonical PK service.
+            if name == "remember_about_user":
+                # THE personal-memory write. Ordinary conversation may record context —
+                # deliberately, because a Chief of Staff that cannot remember an injury
+                # you mentioned five minutes ago is not one. Conservatism lives in the
+                # tool description (what is worth keeping) and in WLJ's own policy
+                # (domain boundary, sensitivity, ownership), never in a session gate.
+                # Every write still goes through the ONE canonical PK service.
                 from apps.ai.cos_services import interview as _iv
+                from apps.core.personal_knowledge import service as _pk
+                from apps.core.personal_knowledge.models import (
+                    Provenance, ReviewState, Sensitivity)
+
                 session = _iv.active_session(user, conversation)
-                if session is None:
-                    out = {"status": "not_in_interview",
-                           "message": ("Nothing was recorded — this only applies during "
-                                       "Getting to Know You.")}
-                else:
-                    recorded, rejected = _iv.record_facts(session, args.get("facts"))
+                recorded, rejected, superseded = [], [], []
+
+                # EVOLVING TRUTH — a fact he has told us has changed. Uses the EXISTING
+                # M2 lineage: the old row becomes SUPERSEDED and points at its
+                # replacement, so history survives and only current truth is retrieved.
+                for item in (args.get("supersedes") or [])[:8]:
+                    if not isinstance(item, dict):
+                        continue
+                    fact = _pk.get_fact(user, item.get("fact_id"))
+                    new_text = (item.get("statement") or "").strip()
+                    if fact is None or not new_text:
+                        rejected.append({"statement": new_text,
+                                         "reason": "no such fact to supersede"})
+                        continue
+                    try:
+                        superseded.append(_pk.correct_fact(fact, new_text).statement)
+                    except Exception as exc:
+                        rejected.append({"statement": new_text, "reason": str(exc)})
+
+                area_applied = False
+                if session is not None:
+                    recorded, rej = _iv.record_facts(session, args.get("facts"))
+                    rejected.extend(rej)
                     outcome = args.get("area_outcome") or {}
-                    area_set = False
                     if outcome.get("area") and outcome.get("state"):
-                        area_set = _iv.set_topic_state(
+                        area_applied = _iv.set_topic_state(
                             session, outcome.get("area"), outcome.get("state"))
                     _iv.note_turn(session)
-                    out = {
-                        "status": "recorded" if recorded else "nothing_recorded",
-                        # HONEST result — never claim more was kept than actually was.
-                        "remembered": [f.statement for f in recorded],
-                        "not_remembered": rejected,
-                        "area_outcome_applied": area_set,
-                        "message": (
-                            f"Kept {len(recorded)} thing(s)."
-                            + (f" {len(rejected)} could not be kept; do not say they were."
-                               if rejected else "")),
-                    }
+                else:
+                    # Natural learning. Same authority, same policy; provenance records
+                    # that it came from ordinary conversation rather than deliberate
+                    # teaching, so About Me can always show him where a fact came from.
+                    for item in (args.get("facts") or [])[:8]:
+                        if not isinstance(item, dict):
+                            continue
+                        statement = (item.get("statement") or "").strip()
+                        if not statement:
+                            continue
+                        try:
+                            recorded.append(_pk.add_fact(
+                                user, statement,
+                                topic=(item.get("topic") or "other").strip().lower(),
+                                subject_label=(item.get("subject") or "").strip(),
+                                # The frozen design reserved this value for exactly this
+                                # path ("Accepted from conversation"). USER_AUTHORED because
+                                # these are HIS OWN WORDS, not a WLJ guess — holding them
+                                # UNREVIEWED would bar them from standing context and make
+                                # natural learning useless on arrival. About Me is the
+                                # control surface; friction is not the safety mechanism.
+                                provenance=Provenance.CANDIDATE_ACCEPTED,
+                                review_state=ReviewState.USER_AUTHORED,
+                                sensitivity=(Sensitivity.SENSITIVE
+                                             if item.get("sensitive")
+                                             else Sensitivity.NORMAL),
+                                source_conversation=conversation,
+                            ))
+                        except Exception as exc:
+                            rejected.append({"statement": statement, "reason": str(exc)})
+
+                out = {
+                    "status": ("recorded" if (recorded or superseded or area_applied)
+                               else "nothing_recorded"),
+                    # The boundary outcome must still be reported — an interview turn that
+                    # only rules a subject out records nothing else, and the caller has to
+                    # be able to tell that it landed.
+                    "area_outcome_applied": area_applied,
+                    # HONEST result — never claim more was kept than actually was.
+                    "remembered": [f.statement for f in recorded],
+                    "updated": superseded,
+                    "not_remembered": rejected,
+                    "message": (
+                        f"Kept {len(recorded)} thing(s)"
+                        + (f", updated {len(superseded)}" if superseded else "")
+                        + "."
+                        + (f" {len(rejected)} could not be kept; do not say they were."
+                           if rejected else "")),
+                }
                 _audit.record_tool_call(
                     user, kind="action", tool_name=name, turn_id=turn_id,
                     surface=surface, args=args, result_status=out.get("status", ""),
                     conversation_id=conversation_id,
                     result_digest={"status": out.get("status"),
-                                   "recorded": len(out.get("remembered") or []),
-                                   "rejected": len(out.get("not_remembered") or []),
-                                   "area_outcome_applied": out.get("area_outcome_applied")},
+                                   "recorded": len(recorded),
+                                   "superseded": len(superseded),
+                                   "rejected": len(rejected),
+                                   "in_interview": session is not None},
                 )
                 return out
             if name == "next_review_item":

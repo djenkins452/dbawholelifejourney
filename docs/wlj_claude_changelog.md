@@ -5,6 +5,40 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-02 — feat(cos): the personal-context loop — current context, capability truth, natural memory
+
+**Production.** Danny said he was recovering from injured ribs and easing back into exercise. Minutes later the CoS criticised his reduced workout frequency without reference to the injury, then told him it could not remember temporary information. **Two independent defects**, and only one of them was ever about memory.
+
+### 1. Current-conversation reasoning — the root cause, stated by the code itself
+
+`run_executive_synthesis` **accepted `conversation_history` and never used it.** Its own docstring said history "is not needed here" because the prompt is self-contained — question + standing orientation + retrieved evidence. That reasoning holds for *cross-turn* continuity and is wrong *within* a turn: anything the user had just explained about his circumstances, which WLJ holds no record of **because circumstance is not a measurement**, was invisible at the exact moment a judgment was formed. Phase 1 retrieved "workouts down"; Phase 2 never saw "I cracked a rib".
+
+Fixed by using the parameter that was already being passed: a bounded, newest-last slice (8 turns / 2000 chars) rendered as **"WHAT DANNY HAS TOLD YOU IN THIS CONVERSATION — CONTEXT, not measurements"**, plus a governing clause: *account for his circumstances before you judge his numbers; the measurements stay canonical — do not revise a number because of something he said — but what the numbers MEAN depends on what is going on in his life, and telling someone their activity has dropped when they have just explained why is not executive judgment, it is not listening.*
+
+### 2. Capability truth
+
+Nothing in the prompt claimed the CoS couldn't remember — it answered from **generic assistant priors** about a product that has had Personal Knowledge since M2. Same class as the Plaid failure: an unstated capability gets answered from general knowledge. Added a governing clause naming the four kinds of knowing — this conversation · stored Personal Knowledge (his, editable and deletable in About Me) · canonical WLJ records · noticed-but-not-saved — and forbidding the denial: *"you have not mentioned that before" is honest; "I am unable to remember" is not.*
+
+### 3. Natural learning — one tool, one store
+
+`record_interview_knowledge` became **`remember_about_user`**, and the **interview session gate was deliberately removed**. A Chief of Staff that could only remember inside one screen was the defect, not the safety property. Conservatism now lives in the tool description and in WLJ's own policy — never in a session check.
+
+It distinguishes **durable** ("Heather is my wife") from **situational** ("recovering from a cracked rib and easing back into exercise", "travelling until the 20th") — situational is exactly the context that stops the CoS misreading his numbers later — and asks for statements that stay true when read back.
+
+**Evolving truth** arrives via a new `supersedes` parameter using the **existing M2 lineage**: the old fact becomes `SUPERSEDED` and points at its replacement, so history survives and only current truth is retrieved. He is not left permanently defined by an injury he has recovered from. The tool is told to **ask rather than guess** on meaningful conflict ("that's different from what I remember — has that changed?") and explicitly **not to police trivial differences** — not wanting something tonight is a moment, not a change of self.
+
+**Product decision made explicitly:** naturally-learned facts are `provenance=CANDIDATE_ACCEPTED` (the value the frozen design reserved for this path) and `review_state=USER_AUTHORED` — his own words, not a WLJ guess. Holding them UNREVIEWED would bar them from standing context and make natural learning useless on arrival. **About Me is the control surface; friction is not the safety mechanism.**
+
+**Nothing was relaxed:** one authority, domain boundary, sensitivity exclusion, ownership scoping, encryption, bounded standing tier, honest `remembered` / `updated` / `not_remembered` reporting, full audit, and immediate effect of deletion/correction.
+
+**Contracts updated, not silenced:** the M6 no-learning guard is now the authorized behaviour, so its test asserts the new rule; the PK-writer guard now checks the writer set is small, known and person-driven; and the one-store contract was **narrowed to what it actually protects** — delivery — because its whole-file substring caught a legitimate *write* path.
+
+**Files:** `apps/ai/model_interface/synthesis.py`, `constitution.py`, `service.py`; tests `test_personal_context_loop.py` (new), `test_interview_contract.py`, `test_personal_knowledge_contract.py`, `test_write_surface_safety_contract.py`.
+
+**Verification: ZERO provider calls.** 31 new loop tests + 278 PK/safety/runtime tests green. `makemigrations --check` clean; no schema change.
+
+---
+
 ## 2026-09-02 — fix(action-safety): three red safety contracts resolved at the settled baseline
 
 Reconciled against committed HEAD `9d42634f` after the concurrent session finished (tree clean, HEAD == remote, `seed_pa_tmp.py` already removed by that session, no migrations pending). The continuity fixes from `00c19be1` are preserved as its parent.

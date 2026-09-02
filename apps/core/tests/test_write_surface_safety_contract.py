@@ -98,22 +98,23 @@ WRITE_SURFACE = {
                       "for, not domain truth. Confirming it would re-ask the request "
                       "itself. Reversible by the user, audited, no domain mutation."),
     },
-    "record_interview_knowledge": {
-        "authority": CANONICAL,        # apps.core.personal_knowledge.service.add_fact
+    "remember_about_user": {
+        "authority": CANONICAL,        # apps.core.personal_knowledge.service (add/correct)
         "confirmation": EXEMPT,
-        "target_binding": "n/a",       # creates new knowledge; targets nothing existing
+        "target_binding": "n/a",       # new knowledge; a supersede targets a fact BY ID
         "reversible": True,            # every fact is editable/deletable in About Me
-        "postcondition": "verified",   # the result reports exactly what was kept
+        "postcondition": "verified",   # the result reports exactly what was kept/updated
         "exemption": (
-            "Deliberate teaching. The user opened Getting to Know You specifically to "
-            "teach WLJ about themselves, so confirming each extracted fact would turn the "
-            "conversation into a clerical queue and destroy the experience the milestone "
-            "exists to create. Safety comes from elsewhere: it is GATED on an active "
-            "interview session (a no-op otherwise), it creates only Personal Knowledge and "
-            "never domain truth, every write goes through the canonical PK service with "
-            "its domain-boundary validation, the result reports honestly what was and was "
-            "not kept, and About Me is the standing review surface where anything can be "
-            "corrected or removed immediately."),
+            "Personal memory, not domain truth. Confirming each remembered sentence would "
+            "turn every conversation into a clerical queue and make the Chief of Staff "
+            "worse than one that simply forgot — the failure this capability exists to "
+            "end. Safety comes from elsewhere, and none of it is relaxed: it creates ONLY "
+            "Personal Knowledge and never domain truth; every write goes through the "
+            "canonical PK service with its domain-boundary validation, sensitivity policy "
+            "and ownership scoping; a supersede uses the EXISTING M2 lineage so the old "
+            "fact becomes history rather than being destroyed; the result reports honestly "
+            "what was and was not kept; and About Me is the standing control surface where "
+            "anything can be corrected or removed immediately, taking effect at once."),
     },
     "next_review_item": {
         "authority": CANONICAL, "confirmation": EXEMPT,

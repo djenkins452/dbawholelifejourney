@@ -292,17 +292,26 @@ class GatingTests(InterviewHarness):
             turn_id="t", surface="test", tools_called=[],
             conversation_id=self.conv.id, conversation=self.conv)
 
-    def test_recording_outside_an_interview_is_a_no_op(self):
+    def test_ordinary_conversation_may_now_record_through_the_same_authority(self):
+        """The interview session gate was REMOVED deliberately (2026-09-02).
+
+        A Chief of Staff that could not remember what you told it outside one specific
+        screen was the defect, not the safety property. Conservatism now lives in the tool
+        description and in WLJ's own policy — never in a session check — and every write
+        still goes through the ONE canonical Personal Knowledge service.
+        """
         out = self._dispatch()(
-            "record_interview_knowledge",
-            {"facts": [{"statement": "Sneaky background learning.", "topic": "other"}]})
-        self.assertEqual(out.get("status"), "not_in_interview")
-        self.assertEqual(pk.active_facts(self.user).count(), 0,
-                         "ordinary conversation persisted Personal Knowledge")
+            "remember_about_user",
+            {"facts": [{"statement": "I am between jobs at the moment.", "topic": "work"}]})
+        self.assertEqual(out.get("status"), "recorded")
+        fact = pk.active_facts(self.user).first()
+        self.assertIsNotNone(fact)
+        self.assertEqual(fact.provenance, Provenance.CANDIDATE_ACCEPTED,
+                         "natural learning must be distinguishable from deliberate teaching")
 
     def test_recording_inside_an_interview_goes_through_the_same_dispatch(self):
         iv.start_or_resume(self.user, self.conv)
-        out = self._dispatch()("record_interview_knowledge", {
+        out = self._dispatch()("remember_about_user", {
             "facts": [{"statement": "MARKER-DISPATCH Heather is my wife.",
                        "topic": "family"}],
             "area_outcome": {"area": "faith", "state": "declined"},
@@ -317,11 +326,11 @@ class GatingTests(InterviewHarness):
     def test_the_write_is_audited(self):
         from apps.ai.models import ToolCallLog
         iv.start_or_resume(self.user, self.conv)
-        self._dispatch()("record_interview_knowledge", {
+        self._dispatch()("remember_about_user", {
             "facts": [{"statement": "Heather is my wife.", "topic": "family"}]})
         self.assertTrue(
             ToolCallLog.objects.filter(
-                user=self.user, tool_name="record_interview_knowledge").exists(),
+                user=self.user, tool_name="remember_about_user").exists(),
             "a state-changing call left no audit row")
 
     def test_no_background_or_scheduled_writer_exists(self):
@@ -330,10 +339,14 @@ class GatingTests(InterviewHarness):
             self.assertNotIn(marker, src,
                              "the interview must have no background writer")
 
-    def test_every_personal_knowledge_writer_is_user_deliberate(self):
-        """The M6 guard. Personal Knowledge may only be written by a path the user
-        deliberately initiated. If a new caller appears here, it must be a deliberate
-        surface — not background extraction."""
+    def test_every_personal_knowledge_writer_is_accounted_for(self):
+        """The guard that survives natural learning.
+
+        Ordinary conversation may now write Personal Knowledge (authorized 2026-09-02), so
+        "user-deliberate" is no longer the test. What still must hold is that the set of
+        writers is SMALL, KNOWN and each one is a path a person actually drove — a new
+        writer must not appear unnoticed, and nothing may write from a background job.
+        """
         import subprocess
         out = subprocess.run(
             ["grep", "-rn", "--include=*.py", "add_fact(", "apps/"],
@@ -343,11 +356,12 @@ class GatingTests(InterviewHarness):
             if "/tests/" not in line and "def add_fact" not in line
         }
         self.assertEqual(callers, {
-            "apps/core/personal_knowledge/service.py",   # correct_fact, internal
+            "apps/core/personal_knowledge/service.py",       # correct_fact, internal
             "apps/core/personal_knowledge/legacy_import.py",  # one-time, user-invoked
-            "apps/ai/cos_services/interview.py",         # session-gated teaching
-            "apps/users/about_me_views.py",              # the user typing it
-        }, "a new Personal Knowledge writer appeared — is it user-deliberate?")
+            "apps/ai/cos_services/interview.py",             # Getting to Know You
+            "apps/users/about_me_views.py",                  # the user typing it
+            "apps/ai/model_interface/service.py",            # natural learning, in-turn
+        }, "a new Personal Knowledge writer appeared — is it driven by a real person?")
 
     def test_the_legacy_background_extractor_still_does_not_touch_pk(self):
         """Post-response extraction predates M4 and writes the OLD store. M4 must not
@@ -420,30 +434,30 @@ class CostAndSafetyTests(SimpleTestCase):
         from apps.ai.model_interface.constitution import all_tools
         names = [(t.get("function") or {}).get("name")
                  for t in all_tools(writes_enabled=True)]
-        self.assertIn("record_interview_knowledge", names)
+        self.assertIn("remember_about_user", names)
         self.assertEqual(
-            len([n for n in names if n and "interview" in n]), 1,
-            "more than one interview tool means an extra extraction call per turn")
+            len([n for n in names if n == "remember_about_user"]), 1,
+            "more than one memory tool means an extra extraction call per turn")
         tool = next(t["function"] for t in all_tools(writes_enabled=True)
-                    if (t.get("function") or {}).get("name") == "record_interview_knowledge")
+                    if (t.get("function") or {}).get("name") == "remember_about_user")
         props = tool["parameters"]["properties"]
         self.assertIn("facts", props)
         self.assertIn("area_outcome", props)
 
     def test_the_write_is_declared_on_the_certified_write_surface(self):
         from apps.core.tests.test_write_surface_safety_contract import WRITE_SURFACE
-        self.assertIn("record_interview_knowledge", WRITE_SURFACE)
-        spec = WRITE_SURFACE["record_interview_knowledge"]
+        self.assertIn("remember_about_user", WRITE_SURFACE)
+        spec = WRITE_SURFACE["remember_about_user"]
         self.assertTrue((spec.get("exemption") or "").strip(),
                         "a confirmation exemption must state its governing reason")
 
     def test_the_tool_forbids_recording_interpretation(self):
         from apps.ai.model_interface.constitution import all_tools
         tool = next(t["function"] for t in all_tools(writes_enabled=True)
-                    if (t.get("function") or {}).get("name") == "record_interview_knowledge")
+                    if (t.get("function") or {}).get("name") == "remember_about_user")
         desc = tool["description"].lower()
         self.assertIn("never record an interpretation", desc)
-        self.assertIn("store what they said", desc)
+        self.assertIn("store what he said", desc)
 
 class DiscoverabilityTests(TestCase):
     """The surface is useless if nobody can reach it."""
@@ -605,7 +619,7 @@ class DegradedBehaviourTests(InterviewHarness):
 
         with mock.patch("apps.core.personal_knowledge.service.add_fact",
                         side_effect=_flaky):
-            out = self._dispatch()("record_interview_knowledge", {"facts": [
+            out = self._dispatch()("remember_about_user", {"facts": [
                 {"statement": "Heather is my wife.", "topic": "family"},
                 {"statement": "We married in 1997.", "topic": "family"},
             ]})
@@ -793,14 +807,14 @@ class BoundaryPersistenceInstructionTests(InterviewHarness):
     def test_the_tool_states_it_accepts_an_area_outcome_alone(self):
         from apps.ai.model_interface.constitution import all_tools
         tool = next(t["function"] for t in all_tools(writes_enabled=True)
-                    if t["function"]["name"] == "record_interview_knowledge")
+                    if t["function"]["name"] == "remember_about_user")
         self.assertIn("`area_outcome` ALONE", tool["description"])
         self.assertNotIn("facts", tool["parameters"].get("required", []),
                          "facts must stay optional or a boundary-only call is impossible")
 
     def test_an_area_outcome_with_no_facts_is_accepted_and_persisted(self):
         iv.start_or_resume(self.user, self.conv)
-        out = self._dispatch()("record_interview_knowledge",
+        out = self._dispatch()("remember_about_user",
                                {"area_outcome": {"area": "faith", "state": "declined"}})
         self.assertTrue(out.get("area_outcome_applied"))
         self.assertIn("faith", iv.read(self._fresh(), self.conv)["declined_areas"])

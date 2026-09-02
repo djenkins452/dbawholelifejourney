@@ -5,6 +5,33 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-02 — fix(action-safety): three red safety contracts resolved at the settled baseline
+
+Reconciled against committed HEAD `9d42634f` after the concurrent session finished (tree clean, HEAD == remote, `seed_pa_tmp.py` already removed by that session, no migrations pending). The continuity fixes from `00c19be1` are preserved as its parent.
+
+**1 + 2. "Confirmation replayable" / "consumed confirmation authorized a second write" — the TESTS were wrong, not the code.** Proven empirically: a second `resolve_pending_action` returns `code: already_resolved`, an **identical `completed_at`**, and the **identical result text** — it REPLAYS the stored outcome and does not re-execute. That is the deliberate design: a retry, double-send or reconnect deserves to be told what actually happened, not handed a fabricated failure for an action that succeeded. Both tests asserted `status != "ok"`, which contradicts that design **while never checking the thing that matters** — whether the record changed twice.
+
+Rewritten to assert the real invariant, which is strictly stronger than what they replaced: canonical state unchanged after the replay (`completed_at` for the task path; a full `RoutineLog` id/status/timestamp fingerprint for the routine path, which catches a duplicate ROW that a boolean never could), plus `code == already_resolved`. **No production code changed** — there was no regression to fix.
+
+**3. `log_food` and `delete_record` were model-facing writes with no declared safety policy.** Both genuinely exposed via `all_tools(writes_enabled=True)`; `delete_record` entered through `08d6274b` without a declaration. Declared against their FINAL implementations, not silenced:
+
+- **`log_food`** — `authority: CANONICAL`, `confirmation: policy`. Routes the same `request_action → execute_action → handle_log_food` pipeline as every other named intent, inheriting `confirmation_required_for`, ownership and audit.
+- **`delete_record`** — `authority: CANONICAL`, **`confirmation: always`** (new, stricter value), `target_binding: mandatory` (no exact identity → fail closed), `reversible: True` (domain `soft_delete()`, row survives), `postcondition: verified`.
+
+Declaring `delete_record` surfaced a second contract: direct dispatches must consult the confirmation authority. It does not — it confirms **unconditionally**, which cannot under-confirm and is the right asymmetry for a removal. Rather than weaken that contract, added `always` as a declared policy plus a NEW check that an `always` write really does mint a confirmation with no preference gate in front of it. A write that claims the stronger promise must keep it.
+
+**Proactive preference vs cost gate — precedence proven, not asserted.** `9d42634f` split "may it read my life" from "may it interrupt me". The governing rule holds:
+
+> **User preference** = whether the user WANTS proactive assistance. **Cost gate** = whether autonomous provider spend is ALLOWED. A preference is a request, not an authorization.
+
+Tests prove a user with *every* proactive preference ON still cannot buy autonomous spend while `WLJ_PROACTIVE_AI_ENABLED` is off, and — structurally — that the autonomous gate is evaluated **before** the production allow (if it were not, it could never fire in production). The two axes stay independent: with spend allowed, the user's own preference still governs.
+
+**Files:** `apps/core/tests/test_write_surface_safety_contract.py`, `test_confirmation_enforcement_contract.py`, `test_action_lifecycle_multiturn_contract.py`, `test_proactive_ai_gate_contract.py`.
+
+**Verification: ZERO provider calls.** 191 safety-contract tests green (write surface, confirmation enforcement, action lifecycle, proactive gate, continuity, LLM admission, executable identity, execution completion).
+
+---
+
 ## 2026-09-01 — Gates 2 & 3: card-payment semantics closed; the Finance analytical vocabulary wired
 
 ### Gate 2 — the canonical role gap, fixed at the authority (`roles.py`)

@@ -279,3 +279,55 @@ class SelfEnablementTests(TestCase):
     def test_enabling_requires_the_environment_not_the_codebase(self):
         """It is an env var read at startup — turning it on is a deployment decision."""
         self.assertIn(proactive_ai_enabled(), (True, False))
+
+
+@override_settings(WLJ_PROACTIVE_AI_ENABLED=False)
+class PreferenceNeverOverridesCostGateTests(ProactiveUserMixin):
+    """The governing precedence, after `proactive_assistance_enabled` was introduced.
+
+        USER PREFERENCE  = whether the user WANTS proactive assistance.
+        COST GATE        = whether autonomous provider spend is ALLOWED.
+
+    A preference is a request, not an authorization. Wanting check-ins cannot buy them.
+    """
+
+    def _want_everything(self):
+        p = self.user.preferences
+        for field in ("proactive_assistance_enabled", "assistant_proactive_checkins",
+                      "personal_assistant_enabled"):
+            if hasattr(p, field):
+                setattr(p, field, True)
+        p.save()
+        return User.objects.get(pk=self.user.pk)
+
+    def test_wanting_proactive_assistance_does_not_authorize_spend(self):
+        self._want_everything()
+        with _prod_env():
+            with autonomous_workload("scheduled"):
+                decision = may_real_llm_call()
+        self.assertFalse(decision.allowed,
+                         "a user preference bought autonomous provider spend")
+        self.assertEqual(decision.reason, "proactive_ai_disabled")
+
+    def test_the_cost_gate_is_evaluated_before_the_production_allow(self):
+        """Order matters: if production were admitted first, the gate could never fire."""
+        import ast
+        import pathlib
+        src = pathlib.Path("apps/ai/llm_admission.py").read_text(encoding="utf-8")
+        body = src[src.index("def may_real_llm_call"):]
+        self.assertLess(body.index("current_workload_is_autonomous"),
+                        body.index("production_runtime"),
+                        "the autonomous gate must be checked BEFORE production is admitted")
+
+    def test_the_preference_still_governs_whether_the_user_wants_it(self):
+        """The two axes are independent — the gate does not make the preference moot."""
+        p = self.user.preferences
+        if hasattr(p, "assistant_proactive_checkins"):
+            p.assistant_proactive_checkins = False
+            p.save()
+            from apps.ai.proactive_checkins import generate_daily_executive_brief_for_user
+            with override_settings(WLJ_PROACTIVE_AI_ENABLED=True):
+                self.assertIsNone(
+                    generate_daily_executive_brief_for_user(
+                        User.objects.get(pk=self.user.pk)),
+                    "the user's own preference stopped mattering once spend was allowed")

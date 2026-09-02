@@ -160,9 +160,25 @@ class WriteBoundaryEnforcementTests(TestCase):
             {"source_type": "task", "source_id": self.task.pk,
              "title": "Call the pharmacy"})
         cid = (gate.get("confirmation") or {}).get("confirmation_id")
-        resolve_pending_action(self.user, cid, confirm=True)
+        first = resolve_pending_action(self.user, cid, confirm=True)
+        self.task.refresh_from_db()
+        completed_at_after_first = self.task.completed_at
+
         replay = resolve_pending_action(self.user, cid, confirm=True)
-        self.assertNotEqual(replay.get("status"), "ok", "confirmation was replayable")
+        self.task.refresh_from_db()
+
+        # THE INVARIANT IS "NO SECOND MUTATION", NOT A STATUS STRING.
+        # A repeated confirm is a retry, a double-send or a reconnect, and the design
+        # answers it by REPLAYING the stored outcome — telling the client what actually
+        # happened rather than inventing a failure for an action that did succeed. This
+        # test previously asserted `status != "ok"`, which contradicted that design while
+        # never checking the thing that actually matters: whether the record changed twice.
+        self.assertEqual(self.task.completed_at, completed_at_after_first,
+                         "a repeated confirmation re-executed the write")
+        self.assertEqual(replay.get("code"), "already_resolved",
+                         "a consumed confirmation was not marked as already resolved")
+        self.assertEqual(replay.get("result"), first.get("result"),
+                         "the replay did not return the original outcome")
 
     def test_confirmation_carries_the_bound_identity_not_a_name_to_re_resolve(self):
         """A later 'yes' must execute the bound target, never re-resolve it."""

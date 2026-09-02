@@ -56,6 +56,12 @@ WRITE_SURFACE = {
     "save_verse":             {"authority": CANONICAL, "confirmation": "policy"},
     "create_journal_entry":   {"authority": CANONICAL, "confirmation": "policy"},
     "add_gratitude":          {"authority": CANONICAL, "confirmation": "policy"},
+    # Routes the SAME request_action -> execute_action -> handle_log_food pipeline as every
+    # other named intent, so it inherits confirmation_required_for (the user's "confirm
+    # before acting" preference), ownership scoping and audit uniformly. It was exposed to
+    # the model without ever being declared here — the gate existed and this write walked
+    # past it (found 2026-09-01).
+    "log_food":               {"authority": CANONICAL, "confirmation": "policy"},
 
     # --- direct model-interface dispatches (do NOT pass through request_action) ---
     "complete_execution_item": {
@@ -64,6 +70,21 @@ WRITE_SURFACE = {
         "target_binding": "mandatory",  # requested_target required on the identity path
         "reversible": True,             # explicit undo=true, separate semantics
         "postcondition": "verified",
+    },
+    "delete_record": {
+        # M4 exact-identity record correction. NOT a request_action intent — it is a direct
+        # model-interface dispatch, which is precisely why it needed declaring: entering
+        # through a newer path does not exempt a write from the safety contracts.
+        "authority": CANONICAL,        # the domain's own soft_delete(), never a raw delete
+        # STRICTER than "policy": it does not consult the user's preference at all, it
+        # ALWAYS mints a bound confirmation showing the record's current deterministic
+        # state. For a removal that is the right asymmetry — a write that can never
+        # under-confirm cannot be talked past by a preference.
+        "confirmation": "always",
+        "target_binding": "mandatory",  # no exact identity -> FAIL CLOSED, nothing removed
+        "reversible": True,             # soft_delete sets status='deleted' + deleted_at;
+                                        # the row survives and remains restorable
+        "postcondition": "verified",    # returns already_removed vs ok from canonical state
     },
     "resolve_pending_action": {
         "authority": EXEMPT, "confirmation": EXEMPT,
@@ -175,6 +196,26 @@ class ConfirmationCoverageTests(TestCase):
                 self.assertTrue(confirmation_required_for(user, name), (
                     f"{name} would execute without confirmation while the user's "
                     "'Ask me first' preference is ON"))
+
+    def test_always_confirm_writes_really_do_confirm_unconditionally(self):
+        """`always` is a STRONGER promise than `policy`, so prove it is kept.
+
+        A write declared `always` must mint a bound confirmation with no preference check
+        in front of it — otherwise the declaration overstates the protection.
+        """
+        src = (REPO / "apps/ai/model_interface/service.py").read_text(encoding="utf-8")
+        for name, spec in WRITE_SURFACE.items():
+            if spec.get("confirmation") != "always":
+                continue
+            marker = f'if name == "{name}":'
+            self.assertIn(marker, src, f"{name} declares 'always' but is not dispatched here")
+            block = src[src.index(marker):][:2500]
+            with self.subTest(tool=name):
+                self.assertIn("request_confirmation_for", block,
+                              f"{name} declares 'always' but never mints a confirmation")
+                self.assertNotIn("confirmation_required_for", block,
+                                 f"{name} declares 'always' but gates on the preference — "
+                                 "it is really 'policy', so declare that instead")
 
     def test_direct_dispatch_writes_consult_the_authority(self):
         """A direct Model Interface dispatch must not skip the confirmation spine."""

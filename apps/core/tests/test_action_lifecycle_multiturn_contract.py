@@ -63,6 +63,20 @@ class ActionLifecycleHarness(TestCase):
         sched = RoutineSchedule.objects.get(pk=self.item.pk)
         return bool(is_routine_item_complete(self._fresh_user(), sched, self.today))
 
+    def _completion_fingerprint(self):
+        """Every canonical completion row for this item today — count AND identity.
+
+        A second write could either flip a flag again or add a duplicate row; only
+        comparing the rows themselves catches both.
+        """
+        # RoutineLog IS the completion truth (completion_service.is_routine_item_complete).
+        from apps.life.models import RoutineLog
+        return sorted(
+            RoutineLog.objects.filter(
+                user=self._fresh_user(), schedule_id=self.item.pk,
+                scheduled_date=self.today,
+            ).values_list("id", "log_status", "completed_at"))
+
     def _say(self, text):
         """A user turn that hits the deterministic pre-parser, as the gateway does."""
         from apps.ai.cos_services.action_interface import resolve_typed_confirmation
@@ -169,9 +183,21 @@ class FullLifecycleTests(ActionLifecycleHarness):
         cid = (first.get("confirmation") or {}).get("confirmation_id")
         self._say("Yes")
         from apps.ai.cos_services.action_interface import resolve_pending_action
+        self.assertTrue(self._canonical_complete())
+        before = self._completion_fingerprint()
+
         replay = resolve_pending_action(self._fresh_user(), cid, confirm=True)
-        self.assertNotEqual(replay.get("status"), "ok",
-                            "a consumed confirmation authorized a second write")
+
+        # "Authorized a second write" means the CANONICAL RECORD CHANGED AGAIN — not that
+        # the response said "ok". A consumed confirmation replays its stored outcome
+        # (retry / double-send / reconnect) and is marked `already_resolved`; what it must
+        # never do is mutate a second time. Fingerprinting the completion rows catches a
+        # duplicate the boolean never could.
+        self.assertEqual(self._completion_fingerprint(), before,
+                         "a consumed confirmation authorized a second write")
+        self.assertTrue(self._canonical_complete())
+        self.assertEqual(replay.get("code"), "already_resolved",
+                         "a consumed confirmation was not marked as already resolved")
 
 
 class CurrentTruthOutranksHistoryTests(ActionLifecycleHarness):

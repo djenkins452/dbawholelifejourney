@@ -39,14 +39,15 @@ registry.register(DomainCapability(
     ],
     context_builders=['build_journey_context_block'],
     proactive_signals=[],
-    expected_signal_types=[
-        'journey.started',
-        'journey.day.completed',
-        'journey.arc.completed',
-        'journey.application.committed',
-        'journey.confusion.flagged',
-        'journey.resumed',
-    ],
+    # `expected_signal_types` means SIGNAL TAXONOMY types (SIGNAL_TYPE_DOMAIN keys in
+    # signal_aggregation.py) — the journal-extracted signals a domain produces. It used
+    # to list `journey.started`, `journey.day.completed` and friends, which are
+    # EVENT-BUS EVENTS declared in `apps/faith/journey/signals.py`: a different concept
+    # that happens to share the word "signal". Those events are real and unaffected;
+    # they were simply declared in the wrong field, and the taxonomy validator has been
+    # reporting all six as invalid ever since. This domain produces no journal-extracted
+    # taxonomy signals, which is what an empty list says.
+    expected_signal_types=[],
     related_domains=['faith'],
     feature_flag=None,
     url_namespace='journey',

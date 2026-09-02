@@ -354,4 +354,5 @@ class FollowUpRouterIntegrationTest(TestCase):
         result = classify_and_route(
             "What should I do next?", self.user, conversation=self.conversation,
         )
-        self.assertEqual(result.route_name, 'next_action')
+        # See 71876d0f — `next_action` became `next_action_canonical`.
+        self.assertEqual(result.route_name, 'next_action_canonical')

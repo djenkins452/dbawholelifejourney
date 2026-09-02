@@ -71,17 +71,12 @@ class SignalComputerCoverageTest(TestCase):
         """All base taxonomy signal types must have a computer method or stub."""
         from apps.core.ai_eae.pattern_taxonomy import PATTERN_TYPES
 
+        # Derived, like the production validator. This used to be a hand-written copy
+        # of the same facts and had gone stale — it omitted three computers that exist
+        # and run daily, so the contract reported them missing. Two lists of the same
+        # facts drift; one convention does not.
         computer_methods = {
-            'health_activity': '_compute_health_activity',
-            'health_biometrics': '_compute_health_biometrics',
-            'medication_adherence': '_compute_medication_adherence',
-            'nutrition_compliance': '_compute_nutrition_compliance',
-            'faith_practice': '_compute_faith_practice',
-            'mental_reflection': '_compute_mental_reflection',
-            'cognitive_fitness': '_compute_cognitive_fitness',
-            'productivity_progress': '_compute_productivity_progress',
-            'relational_engagement': '_compute_relational_engagement',
-            'financial_health': '_compute_financial_health',
+            signal_type: f'_compute_{signal_type}' for signal_type in SIGNAL_TYPE_DOMAIN
         }
 
         for signal_type in SIGNAL_TYPE_DOMAIN:
@@ -363,8 +358,13 @@ class SignalValidationTest(TestCase):
             summary['status'], 'healthy',
             f"Signal health drift detected: {summary}"
         )
-        # 10 base signal types + 3 emotional types + 5 Phase 5 pattern types = 18
-        self.assertEqual(summary['taxonomy_types'], 18)
+        # The invariant is that the summary COUNTS THE TAXONOMY, not that the taxonomy
+        # is a particular size. This was a frozen 18 ("10 base + 3 emotional + 5
+        # pattern") and the taxonomy has since grown to 23 as signals were added, so the
+        # assertion only ever recorded the size on the day it was written — while the
+        # thing worth guarding, that the summary neither over- nor under-reports, went
+        # unchecked.
+        self.assertEqual(summary['taxonomy_types'], len(SIGNAL_TYPE_DOMAIN))
         self.assertEqual(summary['computers_missing'], 0)
 
     def test_registry_health_includes_signal_health(self):

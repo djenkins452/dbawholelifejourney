@@ -59,6 +59,16 @@ def _enumerate_expected_doses(active_medicines, start_date, end_date, user_today
         day_of_week = day.weekday()  # 0=Mon, 6=Sun
         is_today = (day == user_today)
         for medicine, schedules in med_schedules:
+            # A dose is only EXPECTED while the medicine is actually being taken.
+            # Without this the walk enumerated every day in the window regardless of
+            # when the prescription started or stopped, so a medicine begun today was
+            # reported as having missed a week — and that feeds adherence, which is a
+            # health number people act on. `start_date` is required on Intake;
+            # `end_date` is optional and open-ended when unset.
+            if medicine.start_date and day < medicine.start_date:
+                continue
+            if medicine.end_date and day > medicine.end_date:
+                continue
             for schedule in schedules:
                 if schedule.applies_to_day(day_of_week):
                     if is_today and schedule.scheduled_time and schedule.scheduled_time > current_time:

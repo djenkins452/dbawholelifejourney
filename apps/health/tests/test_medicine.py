@@ -1221,9 +1221,21 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
         from apps.core.utils import get_user_today
         from apps.health.medicine_utils import calculate_medicine_adherence_rate
 
-        med = self.create_medicine(self.user)
-        schedule = self.create_schedule(med)
+        # Two things this fixture needs to actually test drift:
+        #
+        # 1. The prescription must COVER the window. `create_medicine` starts it today
+        #    while the doses below are logged for the three days before — days on which
+        #    nothing was expected, because the medicine did not exist yet.
+        # 2. It must BE a prescription. The dashboard measures prescription-only
+        #    adherence (trust contract 2026-06-30) and the default category is not
+        #    prescription, so the view had nothing to measure and reported None while
+        #    the comparison below asked a different question entirely — the test could
+        #    not have caught drift either way.
         today = get_user_today(self.user)
+        med = self.create_medicine(self.user,
+                                   category='prescription',
+                                   start_date=today - timedelta(days=7))
+        schedule = self.create_schedule(med)
         for i in range(1, 4):
             IntakeLog.objects.create(
                 user=self.user, intake=med, schedule=schedule,
@@ -1235,9 +1247,12 @@ class MedicineContextTest(MedicineTestMixin, TestCase):
         self.assertIn('medication_adherence_7d', response.context)
         self.assertIn('supplement_adherence_7d', response.context)
         # The dashboard value must equal the canonical author's value (no drift).
+        # The SAME filter the view uses. Asking the author a different question than
+        # the dashboard asked is not a no-drift check.
         expected = calculate_medicine_adherence_rate(
-            self.user, days=7, intake_type=Intake.INTAKE_TYPE_MEDICATION
+            self.user, days=7, classification="prescription"
         )
+        self.assertIsNotNone(expected, "the fixture must produce a measurable rate")
         self.assertEqual(response.context['medication_adherence_7d'], expected)
 
     def test_medicine_home_splits_meds_and_supplements(self):

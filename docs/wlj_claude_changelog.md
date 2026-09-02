@@ -61997,3 +61997,62 @@ lane claims, and each now asserts the loop actually ran — without that, the ne
 claim the prompt puts them right back to passing while testing nothing.
 
 `apps.core.ai_state` is green (317 tests).
+
+## 2026-09-02 — AI/Core cleanup, batch 2: two routing defects, a dose window, four stale maps
+
+**Two real routing defects, both the same shape: a direct ask losing to an orientation.**
+
+The first-of-day Daily Briefing gate runs before all other routing and is documented to
+yield to a specific question — "an orientation for an OPENER, not an answer to a direct
+ask". Its yield list covered weight, sleep, glucose, milestones and more, but not
+**"what did I miss?"** or **"what should I do next?"**, both of which have dedicated
+deterministic routes. Ask either as your first message of the day and you got a generic
+briefing instead of your answer. Both now yield.
+
+Worse, the **event follow-up** phase ran *after* the briefing, so "What date was that?" —
+a reference to something the CoS had just said — was answered with a daily briefing. The
+follow-up phase now runs first; it returns None whenever there is no stored context, so a
+genuine opener still reaches the briefing untouched.
+
+**Expected doses ignored the prescription window.** `_enumerate_expected_doses` — the
+single canonical author of "what was due" — walked every day in range checking only the
+day-of-week, never `Intake.start_date` or `end_date`. A medicine begun today was reported
+as having missed a week, and that number feeds **adherence**, which people act on. Now
+bounded by the prescription.
+
+**Four maps had gone stale, three of them duplicated.**
+
+* `training_load`, `supplement_adherence` and `faith_significance` were reported as
+  "missing signal computers" — all three have been implemented and wired into
+  `compute_daily_signals` since they were added. The hand-written method map in the
+  production validator, and a second copy of it in the governance test, simply never
+  learned. Both now derive from the taxonomy: computers are named `_compute_<type>`
+  without exception, so the drift is gone rather than corrected.
+* `faith.journey` declared six **event-bus event names** in `expected_signal_types`, a
+  field documented as signal-taxonomy keys. Different concept, same word. `sports`
+  declared `sports_event` the same way — it is a read-only context domain whose real
+  proactive signals are declared correctly in another field. Both corrected to `[]`;
+  the events themselves are untouched.
+* `faith.journey` had no module mapping, so registry alignment has been unhealthy since
+  the domain was created. It is a sub-domain of Faith by construction (migration `0097`).
+* the module catalog gained `legacy` and `sports`; the expected-entries test never
+  learned about either.
+* the signal-health summary asserted `taxonomy_types == 18` — frozen when it was written,
+  and the taxonomy has grown to 23. The invariant worth guarding is that the summary
+  COUNTS the taxonomy, which nothing was checking.
+
+**`apps/life/tests/test_models.py` had not run since July.** `Recipe` moved life → meals
+in 4deefc9b and the import was never updated, so the module failed to import and **30
+tests silently stopped running**. All 30 pass.
+
+**Fixtures that contradicted their own names.** `test_nothing_missed_returns_positive_message`
+left 29 unlogged scheduled doses; the adapter deliberately counts an unlogged expected
+dose as missed (matching the dashboard's adherence maths), so the router was right and the
+fixture was not. And `test_medicine_home_adherence_uses_canonical_util` — a *no-drift*
+test — asked the canonical author a different question than the dashboard asked
+(`intake_type='medication'` vs the view's prescription-only contract) against a fixture
+that was not a prescription. It could not have caught drift in either direction.
+
+Health suite: 18 failures, **17 pre-existing at HEAD**, and the one difference
+(`test_user_sees_only_own_glucose`) passes in isolation — a full-suite ordering artifact,
+not a regression.

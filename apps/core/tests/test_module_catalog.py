@@ -30,10 +30,14 @@ class ModuleCatalogDataIntegrityTest(TestCase):
 
     def test_catalog_has_expected_entries(self):
         """All canonical modules exist in the catalog."""
+        # `legacy` and `sports` are real modules that shipped after this list was
+        # written — legacy seeds itself in apps/legacy/migrations/0002, sports has a
+        # registered domain and capabilities — and neither was added here, so this has
+        # been red since. Both are canonical; the list was stale, not the catalog.
         expected = {
             'capture', 'documents', 'journal', 'health', 'faith',
             'life', 'purpose', 'meals', 'relationships', 'finance',
-            'travel', 'system',
+            'travel', 'system', 'legacy', 'sports',
         }
         actual = set(ModuleDefinition.objects.values_list('slug', flat=True))
         self.assertEqual(expected, actual)

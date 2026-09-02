@@ -94,7 +94,14 @@ class EventMissedRouteTest(EventRouterIntegrationTestBase):
     def test_nothing_missed_returns_positive_message(self):
         from apps.ai.deterministic_router import classify_and_route
 
-        # No missed doses — only taken
+        # NOTHING missed means nothing OUTSTANDING, not "one taken log exists". The
+        # adapter counts an expected dose with no log as missed — deliberately, matching
+        # the dashboard's adherence maths — and the shared fixture starts this medicine
+        # 30 days ago on a daily schedule. Logging today's dose while leaving the other
+        # 29 unlogged left seven missed doses inside the lookback window, so the router
+        # was right and the fixture was not.
+        self.medicine.start_date = date.today()
+        self.medicine.save(update_fields=["start_date"])
         IntakeLog.objects.create(
             user=self.user,
             intake=self.medicine,
@@ -163,7 +170,9 @@ class ExistingRoutesUnbrokenTest(EventRouterIntegrationTestBase):
         from apps.ai.deterministic_router import classify_and_route
 
         result = classify_and_route("What should I do next?", self.user)
-        self.assertEqual(result.route_name, 'next_action')
+        # Renamed by 71876d0f (unified next-action source, so the check-in and the
+        # next-step question can never disagree). Same route, current name.
+        self.assertEqual(result.route_name, 'next_action_canonical')
 
     def test_how_am_i_doing_falls_through(self):
         """General conversational messages should still fall through."""

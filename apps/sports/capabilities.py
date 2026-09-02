@@ -11,7 +11,10 @@ registry.register(DomainCapability(
     primary_models=['Sport', 'League', 'Team', 'GameEvent', 'UserTeamFollow'],
     context_builders=['_build_sports_context'],
     proactive_signals=['game_starting_soon', 'game_completed'],
-    expected_signal_types=['sports_event'],
+    # `sports_event` is not a signal-taxonomy type — this is a read-only CONTEXT
+    # domain that emits PROACTIVE signals (declared above, and correct) rather than
+    # journal-extracted taxonomy signals. Same category error as faith.journey.
+    expected_signal_types=[],
     related_domains=['life', 'relationships'],
     feature_flag='features.sports.enabled',
     url_namespace='sports',

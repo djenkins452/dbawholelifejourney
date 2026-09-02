@@ -601,6 +601,20 @@ def _briefing_should_yield(msg_lower):
                 return True
         except Exception:
             continue
+    # "What did I miss?" and "What should I do next?" are direct asks with dedicated
+    # deterministic routes, and they were not in the list — so asking either as the
+    # FIRST message of the day returned a generic orientation instead of the answer.
+    # Both are defined further down the module, hence the late lookup rather than
+    # adding them to `matchers` above.
+    for name in ("_match_event_missed_query", "_is_next_step_query"):
+        matcher = globals().get(name)
+        if matcher is None:
+            continue
+        try:
+            if matcher(msg_lower):
+                return True
+        except Exception:
+            continue
     try:
         if _cos_mode_for(msg_lower):
             return True
@@ -985,20 +999,26 @@ def classify_and_route(message, user, cos_context_cache=None, conversation=None)
                 _log_route_decision(result, user, message)
                 return result
 
-    # ── Phase -2: DAILY BRIEFING — first-of-day hard override ─────
-    # If this is the user's first interaction today, render a full
-    # Daily Briefing BEFORE any other routing. This is non-negotiable:
-    # the CoS must orient the user before reacting to their message.
-    if conversation is not None and user is not None:
-        result = _try_daily_briefing_gate(user, conversation, msg_lower)
+    # ── Phase -2: Event follow-up detection ────────────────────────
+    # BEFORE the briefing, deliberately. "What date was that?" refers to something the
+    # CoS said a moment ago in this conversation, so by the briefing gate's own rule
+    # ("an orientation for an OPENER, not an answer to a direct ask") it is not an
+    # opener. It used to run after, so the first follow-up of the day was answered with
+    # a daily briefing. This returns None whenever there is no stored context, so a
+    # genuine opener still reaches the briefing below untouched.
+    if conversation is not None:
+        result = _try_event_followup(msg_lower, conversation)
         if result is not None:
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)
             return result
 
-    # ── Phase -1: Event follow-up detection ────────────────────────
-    if conversation is not None:
-        result = _try_event_followup(msg_lower, conversation)
+    # ── Phase -1: DAILY BRIEFING — first-of-day hard override ─────
+    # If this is the user's first interaction today, render a full
+    # Daily Briefing BEFORE any other routing. This is non-negotiable:
+    # the CoS must orient the user before reacting to their message.
+    if conversation is not None and user is not None:
+        result = _try_daily_briefing_gate(user, conversation, msg_lower)
         if result is not None:
             result.elapsed_ms = (time.monotonic() - t_start) * 1000
             _log_route_decision(result, user, message)

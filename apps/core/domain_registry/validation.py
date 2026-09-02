@@ -293,18 +293,15 @@ def validate_signal_computer_coverage() -> Dict[str, List]:
         logger.warning("Cannot import signal aggregation for validation")
         return result
 
-    # Map method names to signal types
+    # Derived from the taxonomy, not hand-listed. Computers are named
+    # `_compute_<signal_type>` without exception, and the hand-written copy of this map
+    # had gone stale: `training_load`, `supplement_adherence` and `faith_significance`
+    # have had working computers wired into `compute_daily_signals` for as long as they
+    # have existed, and this reported all three as missing. A second copy in the
+    # governance test said the same thing, which is what two lists of the same facts
+    # always end up doing.
     computer_method_names = {
-        '_compute_health_activity': 'health_activity',
-        '_compute_health_biometrics': 'health_biometrics',
-        '_compute_medication_adherence': 'medication_adherence',
-        '_compute_nutrition_compliance': 'nutrition_compliance',
-        '_compute_faith_practice': 'faith_practice',
-        '_compute_mental_reflection': 'mental_reflection',
-        '_compute_cognitive_fitness': 'cognitive_fitness',
-        '_compute_productivity_progress': 'productivity_progress',
-        '_compute_relational_engagement': 'relational_engagement',
-        '_compute_financial_health': 'financial_health',
+        f'_compute_{signal_type}': signal_type for signal_type in SIGNAL_TYPE_DOMAIN
     }
 
     # Phase 5: Pattern types are computed by PatternEngine, not individual computers

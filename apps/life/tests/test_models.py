@@ -11,9 +11,11 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
-from apps.life.models import (
-    Project, Task, LifeEvent, Pet, Recipe
-)
+from apps.life.models import LifeEvent, Pet, Project, Task
+# Recipe moved life -> meals in 4deefc9b (Foundation 1B, Recipe Ownership Migration).
+# This import was never updated, so the whole module failed to import and every test in
+# it silently stopped running.
+from apps.meals.models import Recipe
 
 User = get_user_model()
 

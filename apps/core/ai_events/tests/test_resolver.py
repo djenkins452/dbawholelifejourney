@@ -54,6 +54,13 @@ class ResolverMedicationTest(EventResolverTestBase):
         )
 
     def test_get_missed_events_medication(self):
+        """One explicitly-missed dose, and nothing else outstanding in the window.
+
+        The adapter counts an EXPECTED dose with no log as missed too — deliberately,
+        matching the dashboard's adherence maths. The medicine here starts 30 days back
+        on a daily schedule, so today's dose was also outstanding and the window held
+        two. Logging today as taken makes the fixture mean what the test says it means.
+        """
         yesterday = date.today() - timedelta(days=1)
         IntakeLog.objects.create(
             user=self.user,
@@ -62,6 +69,15 @@ class ResolverMedicationTest(EventResolverTestBase):
             scheduled_date=yesterday,
             scheduled_time=time(12, 0),
             log_status=IntakeLog.STATUS_MISSED,
+        )
+        IntakeLog.objects.create(
+            user=self.user,
+            intake=self.medicine,
+            schedule=self.schedule,
+            scheduled_date=date.today(),
+            scheduled_time=time(12, 0),
+            log_status=IntakeLog.STATUS_TAKEN,
+            taken_at=timezone.now(),
         )
         missed = self.resolver.get_missed_events(
             self.user, 'medication',

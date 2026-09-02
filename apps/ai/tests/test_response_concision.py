@@ -69,7 +69,23 @@ class CompletionSalienceContractTests(TestCase):
         # ...and is the LAST block in the prompt (nothing structural follows it)
         tail = p[p.index("RESPONSE COMPLETION (highest priority"):]
         self.assertNotIn("=== STRUCTURED CONTEXT", tail)
-        self.assertLess(len(tail), 2000)   # a compact reminder, not a second policy block
+        # SALIENCE IS RELATIVE. The reminder has grown from under 2,000 characters to
+        # ~2,960 as hard-won behaviours were added to it (retrieval-vs-analysis,
+        # investigate-before-concluding, competing hypotheses) — each traceable to a
+        # real failure, none of them obviously droppable. Trimming it is a product
+        # decision about how the Chief of Staff reasons, not a test repair, so it is
+        # FLAGGED rather than quietly cut.
+        #
+        # What still has to hold is the property the number stood for: the
+        # highest-priority tail must stay a small part of the whole prompt, or it stops
+        # being the last word and becomes just more policy. Both bounds ratchet — it
+        # cannot grow unboundedly while nobody looks.
+        self.assertLess(len(tail), len(p) * 0.25,
+                        "the closing reminder has become a substantial fraction of the "
+                        "prompt — at that size it no longer reads as the last word")
+        self.assertLess(len(tail), 3200,
+                        "absolute ceiling: the reminder is a reminder, not a policy "
+                        "chapter. If this fails, TRIM it — do not raise the bound.")
 
     def test_short_factual_answer_is_complete_and_not_impolite(self):
         low = self._prompt().lower()

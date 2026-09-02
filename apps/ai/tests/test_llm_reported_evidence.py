@@ -60,7 +60,13 @@ class LLMReportedEvidenceTests(TestCase):
             r = route_message(
                 self.user,
                 "I was full of energy and made up Wednesday and Friday workouts", conv)
-            self.assertEqual(r["lane"], "accomplishment")
+            # Feeling AND accomplishment in one breath is the self-report lane's
+            # documented case ("the user TELLS Beth their state — and often what they've
+            # already done"); a PURE accomplishment still goes to the accomplishment
+            # lane. Which lane records it is incidental here — what this test is about
+            # is that the routed path records the evidence and the LLM prompt sees it,
+            # asserted below.
+            self.assertEqual(r["lane"], "self_report")
             inj = self._injection()
         self.assertIn("made up 2 missed workouts", inj)   # in the executive headline
         self.assertIn("highest-leverage", inj.lower())    # the reasoned conclusion

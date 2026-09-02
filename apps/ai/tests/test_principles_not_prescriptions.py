@@ -68,8 +68,5 @@ class PrinciplesNotPrescriptionsContractTests(TestCase):
 
     def test_no_deterministic_architecture_change_tool_set_unchanged(self):
         names = {t["function"]["name"] for t in truth_tools()}
-        self.assertEqual(names, {
-            "get_domain_state", "search_history", "get_history", "get_readings",
-            "get_event_frequency", "get_comparison", "get_adherence", "get_entity",
-            "get_analysis", "get_user_truth", "get_foundational_health_facts",
-        })
+        from apps.ai.tests.truth_tool_contract import APPROVED_TRUTH_TOOLS
+        self.assertEqual(names, APPROVED_TRUTH_TOOLS)

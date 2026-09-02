@@ -260,11 +260,8 @@ class ProtectedBehaviorsUnregressedTests(TestCase):
         self.assertEqual(resolve_tool_loop_budgets("model_interface"), (3500, 7))
         self.assertEqual(get_timeout_for_endpoint("model_interface"), 45)
 
-    def test_truth_tool_set_is_the_expected_seven(self):
+    def test_truth_tool_set_is_the_approved_set(self):
         from apps.ai.model_interface.constitution import truth_tools
         names = {t["function"]["name"] for t in truth_tools()}
-        self.assertEqual(names, {
-            "get_domain_state", "search_history", "get_history", "get_readings",
-            "get_event_frequency", "get_comparison", "get_adherence", "get_entity",
-            "get_analysis", "get_user_truth", "get_foundational_health_facts",
-        })
+        from apps.ai.tests.truth_tool_contract import APPROVED_TRUTH_TOOLS
+        self.assertEqual(names, APPROVED_TRUTH_TOOLS)

@@ -189,6 +189,13 @@ def _self_report_lane(user, message, conversation=None):
     from apps.ai.chatgpt_cos.conversation_planner import _looks_like_question
     if _looks_like_question(message):
         return None
+    # A GREETING is not a self-report. The docstring above says so ("without a greeting")
+    # but nothing enforced it, and `classify_subjective_energy("Good morning")` reads
+    # "good" as positive energy — so every morning greeting was claimed here and
+    # answered with a self-report synthesis instead of reaching the briefing lane. It is
+    # the first thing the person says all day; it should get their day.
+    if _is_greeting((message or "").strip().lower()):
+        return None
     try:
         from apps.ai.chatgpt_cos.executive_interpretation import classify_subjective_energy
         subjective = classify_subjective_energy(message)

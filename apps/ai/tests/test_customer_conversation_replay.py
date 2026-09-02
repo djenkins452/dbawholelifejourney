@@ -47,6 +47,18 @@ class CustomerConversationReplayTests(TestCase):
         self.assertIsNotNone(key, f"unrouted: {question}")
         with mock.patch(_CALL_API, return_value=None):       # force deterministic floor
             if health_state is not None:
+                # Seed the REAL reading the canonical accessor reads. Injecting
+                # `latest_glucose` into the SAE snapshot stopped working when
+                # `_latest_glucose_fact` moved to `glucose_queries` — the fact then had
+                # no value at all.
+                _glucose = (health_state or {}).get("latest_glucose")
+                if _glucose is not None:
+                    from apps.health.models import GlucoseEntry
+                    GlucoseEntry.objects.filter(user=self.user).delete()
+                    GlucoseEntry.objects.create(
+                        user=self.user, value=_glucose,
+                        unit=(health_state.get("latest_glucose_unit") or "mg/dL"),
+                        recorded_at=timezone.now() - timedelta(hours=1))
                 with mock.patch(_GMS, return_value=health_state):
                     res = answer_foundational_fact(self.user, question)
             else:

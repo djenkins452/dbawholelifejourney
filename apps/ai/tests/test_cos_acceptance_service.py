@@ -44,6 +44,39 @@ _GOOD = {
     "How's my weight trending?":
         "Your weight is trending down toward your goal weight; as of your last entry "
         "you're at 285 lb — you haven't logged in a few days.",
+    # Scenarios added to COS_SCENARIOS after this fixture was written. Without an answer
+    # here `_ask_good` returned "ok" for each, so a first-class assistant graded YELLOW
+    # on five questions it was never given a chance to answer.
+    # Temporal validation: the stored timestamp is in the future, so the reading is
+    # reported WITHOUT pretending the time is real.
+    "What's my latest glucose reading?":
+        "Your latest glucose reading is 112 mg/dL, but its recorded time is unconfirmed "
+        "— the timestamp is in the future, which usually means a sensor clock or sync "
+        "issue. The value stands; I'd verify the timing before reading anything into "
+        "when it happened.",
+    # Clinical interpretation: a 43 is surfaced as dangerous and sent for verification,
+    # never reassured away.
+    "What was my last glucose reading?":
+        "Your last glucose reading was 43 mg/dL — that is dangerously low and needs "
+        "your attention now. Verify it with a fingerstick, and if it confirms, treat it "
+        "straight away and let your care team know.",
+    "What did I eat yesterday?":
+        "Yesterday you had oatmeal and coffee in the morning, a chicken salad at lunch "
+        "and salmon with rice for dinner — about 1,800 calories across the day.",
+    "Should I be concerned?":
+        "A 45 right after a big meal doesn't fit the pattern I'd expect, so I'd verify "
+        "it with a finger stick before acting on it. If a finger stick agrees, treat it "
+        "and let your care team know — that number deserves attention rather than a "
+        "reassurance from me.",
+    "Why do you say that?":
+        "Because of the reading itself: 45 mg/dL right after a large carbohydrate meal "
+        "is the opposite of what the food would do, which is why I'd treat the sensor "
+        "value as suspect and confirm it before acting.",
+    "How am I doing?":
+        "Overall you're holding steady. Your weight is trending down toward your goal "
+        "and you've kept your training going; sleep is the one that's slipped — a few "
+        "short nights this week. A concrete next step: protect your bedtime tonight, "
+        "since that's the thing most likely to move everything else.",
 }
 # A chatbot that ignores intent and presents stale data.
 _BAD = {q: "You slept 6.9 hours last night." for q in _GOOD}

@@ -627,6 +627,13 @@ def format_fact_sentence(key, fact):
     value = fact.get("value")
     unit = (fact.get("unit") or "").strip()
 
+    # A fact with NO VALUE cannot be stated as one. Without this the templates below
+    # interpolate an empty string and emit a sentence with a hole in it — "Your last
+    # glucose reading was." — which reads as truth and says nothing. Honest absence is
+    # the correct answer, and it is the same one an `unknown` status gets.
+    if value is None or value == "":
+        return _UNKNOWN_SENTENCE.get(key, "That isn't recorded for you yet.")
+
     if key == "current_weight":
         s = f"Your current weight is {value} {unit}".strip()
         if fact.get("trend"):

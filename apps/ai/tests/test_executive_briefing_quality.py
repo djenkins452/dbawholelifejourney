@@ -14,6 +14,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 
 from apps.ai.model_interface.constitution import CONSTITUTION, truth_tools
+from apps.ai.tests.truth_tool_contract import APPROVED_TRUTH_TOOLS
 
 
 class TimeAwareReasoningTests(TestCase):
@@ -103,11 +104,7 @@ class UnchangedSurfaceTests(TestCase):
     def test_truth_resolution_tool_set_unchanged(self):
         # Prompt-only polish: no truth surface added/removed.
         names = {t["function"]["name"] for t in truth_tools()}
-        self.assertEqual(names, {
-            "get_domain_state", "search_history", "get_history", "get_readings",
-            "get_event_frequency", "get_comparison", "get_adherence", "get_entity",
-            "get_analysis", "get_user_truth", "get_foundational_health_facts",
-        })
+        self.assertEqual(names, APPROVED_TRUTH_TOOLS)
 
     def test_polish_reaches_the_assembled_prompt(self):
         user = get_user_model().objects.create_user(email="ebq@test.com", password="x")

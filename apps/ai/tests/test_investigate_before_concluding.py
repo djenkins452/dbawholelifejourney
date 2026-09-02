@@ -16,6 +16,7 @@ from django.contrib.auth import get_user_model
 from apps.ai.model_interface.constitution import (
     CONSTITUTION, RESPONSE_COMPLETION_REMINDER, truth_tools,
 )
+from apps.ai.tests.truth_tool_contract import APPROVED_TRUTH_TOOLS
 
 
 class InvestigateBeforeConcludingContractTests(TestCase):
@@ -105,8 +106,4 @@ class InvestigateBeforeConcludingContractTests(TestCase):
     def test_truth_resolution_tool_set_is_the_expected_six(self):
         # Analysis added as a first-class truth surface (state/history/entity/analysis).
         names = {t["function"]["name"] for t in truth_tools()}
-        self.assertEqual(names, {
-            "get_domain_state", "search_history", "get_history", "get_readings",
-            "get_event_frequency", "get_comparison", "get_adherence", "get_entity",
-            "get_analysis", "get_user_truth", "get_foundational_health_facts",
-        })
+        self.assertEqual(names, APPROVED_TRUTH_TOOLS)

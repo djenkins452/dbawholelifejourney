@@ -615,8 +615,16 @@ class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
     @patch('apps.ai.executive_briefing.auto_complete_wakeup')
     @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')
     @patch('apps.core.utils.get_user_today')
-    def test_second_call_is_noop(self, mock_today, mock_ensure, mock_wake):
-        """Subsequent calls the same day are instant no-ops."""
+    def test_second_call_skips_the_expensive_init_but_still_wakes(self, mock_today,
+                                                                  mock_ensure, mock_wake):
+        """The once-a-day INIT is cached; wake-up deliberately is not.
+
+        This asserted that the whole call was a no-op. Wake-up was ungated in the
+        2026-05-28 defect fix, and the comment on it says why: gated behind the same
+        flag, a single early no-op (the routine instance not existing yet, or a check-in
+        path setting the flag) permanently disabled wake-up for the rest of the day —
+        the dashboard showed "Wake Up" incomplete while the CoS believed otherwise.
+        """
         from apps.ai.executive_briefing import handle_day_start
         from django.core.cache import cache
 
@@ -634,10 +642,12 @@ class TestHandleDayStart(ExecutiveBriefingTestMixin, TestCase):
         mock_wake.reset_mock()
 
         result2 = handle_day_start(self.user)
+        # The expensive part is skipped...
         self.assertFalse(result2['initialized'])
-        self.assertFalse(result2['wake_completed'])
         mock_ensure.assert_not_called()
-        mock_wake.assert_not_called()
+        # ...and wake-up still runs, every call, on purpose.
+        self.assertTrue(result2['wake_completed'])
+        mock_wake.assert_called_once()
 
     @patch('apps.ai.executive_briefing.auto_complete_wakeup')
     @patch('apps.ai.executive_briefing._ensure_routine_tasks_for_today')

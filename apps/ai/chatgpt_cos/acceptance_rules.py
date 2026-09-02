@@ -79,10 +79,19 @@ _MOMENTUM = ("momentum", "trending", "thriving", "steady", "stalled", "drifting"
 _EVIDENCE = _MOMENTUM + ("phase", "milestone", "workout", "weight", "glucose",
                          "sleep", "protein", "nutrition", "habit", "blood sugar",
                          "streak", "calorie", "%", "pace")
-_ACTION = ("complete", "log ", "walk", "write", "read ", "journal", "schedule",
-           "define", "reschedule", "protein", "workout", "bedtime", "wind down",
-           "prepare for tomorrow", "spend ", "milestone", "hit your", "block ",
-           "reach out", "lever", "meal", "15 ", "20 ", "30 ")
+_ACTION = (
+    # The composers STATE their action under this heading. Matching the marker is a
+    # stronger signal than guessing at verbs: the plateau answer offers "take a short
+    # diet break or add an extra training day" — plainly a concrete step, and rejected
+    # as unactionable because neither phrase happened to be in the vocabulary below.
+    "a concrete next step",
+    "complete", "log ", "walk", "write", "read ", "journal", "schedule",
+    "define", "reschedule", "protein", "workout", "bedtime", "wind down",
+    "prepare for tomorrow", "spend ", "milestone", "hit your", "block ",
+    "reach out", "lever", "meal", "15 ", "20 ", "30 ",
+    # Vocabulary the health fallbacks actually use.
+    "diet break", "training day", "rest day", "step count",
+)
 _SYNTH_GROUPS = (
     ("momentum", "trending", "steady", "strong", "stalled", "drifting", "thriving",
      "pace"),

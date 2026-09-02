@@ -36,6 +36,12 @@ from apps.core.ai_weekly_report.report_ranker import rank_report_items
 from apps.core.ai_weekly_report.report_selector import select_report_items
 from apps.users.models import TermsAcceptance
 
+
+#: The dashboard moved from /v2/ to /dashboard/; /v2/ is now a permanent
+#: redirect (config/urls.py), so asking for it returns 301, not the page.
+DASHBOARD_URL = "/dashboard/"
+
+
 User = get_user_model()
 
 
@@ -562,7 +568,7 @@ class DashboardTileTest(TestCase):
 
     def test_dashboard_loads_without_report(self):
         """Dashboard renders without a weekly report (empty state)."""
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
     def test_dashboard_shows_report_summary(self):
@@ -573,7 +579,7 @@ class DashboardTileTest(TestCase):
             week_end_date=date(2026, 2, 15),
             summary="Great week overall!",
         )
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
     def test_dashboard_has_history_link(self):
@@ -584,7 +590,7 @@ class DashboardTileTest(TestCase):
             week_end_date=date(2026, 2, 15),
             summary="Test",
         )
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
 

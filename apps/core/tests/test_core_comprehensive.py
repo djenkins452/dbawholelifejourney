@@ -485,11 +485,31 @@ class CoreEdgeCaseTest(CoreTestMixin, TestCase):
             # If it fails, that's also acceptable
             pass
 
-    def test_very_long_tag_name(self):
-        """Tag handles long names."""
-        long_name = 'A' * 100
-        tag = self.create_tag(self.user, name=long_name)
-        self.assertTrue(len(tag.name) > 0)
+    def test_a_tag_name_at_the_limit_is_accepted(self):
+        """The boundary the column actually has."""
+        limit = Tag._meta.get_field('name').max_length
+        tag = self.create_tag(self.user, name='A' * limit)
+        self.assertEqual(len(tag.name), limit)
+
+    def test_a_tag_name_past_the_limit_is_refused(self):
+        """This replaces a test that asked for 100 characters into a 50-character
+        column and called the result "handles long names".
+
+        On SQLite the write silently succeeded and the assertion (`len(name) > 0`)
+        could not fail. On Postgres — which is production — it raises DataError, so the
+        test was reporting a pass for behaviour that does not exist.
+
+        Nothing between the caller and the database enforces the length: a 100-character
+        tag from a form would surface as a 500, not a validation message. That is worth
+        fixing in the product, but it is a product decision, not something to paper over
+        here — so this states what really happens today.
+        """
+        from django.db import DataError, transaction
+
+        limit = Tag._meta.get_field('name').max_length
+        with self.assertRaises(DataError):
+            with transaction.atomic():
+                self.create_tag(self.user, name='A' * (limit + 1))
 
     def test_special_characters_in_tag(self):
         """Tag handles special characters."""

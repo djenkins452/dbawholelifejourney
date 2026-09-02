@@ -28,6 +28,12 @@ from apps.core.ai_briefing.briefing_selector import select_briefing_items
 from apps.core.ai_briefing.models import DailyBriefing
 from apps.users.models import TermsAcceptance
 
+
+#: The dashboard moved from /v2/ to /dashboard/; /v2/ is now a permanent
+#: redirect (config/urls.py), so asking for it returns 301, not the page.
+DASHBOARD_URL = "/dashboard/"
+
+
 User = get_user_model()
 
 
@@ -384,7 +390,7 @@ class DailyBriefingTileTest(TestCase):
 
     def test_tile_renders_empty_state(self):
         """V2 dashboard loads successfully without a briefing."""
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
     def test_tile_shows_briefing_when_exists(self):
@@ -394,17 +400,17 @@ class DailyBriefingTileTest(TestCase):
             briefing_date=timezone.now().date(),
             summary="Your weight trend is improving. You have one goal approaching its deadline.",
         )
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
     def test_context_has_daily_briefing(self):
         """V2 dashboard loads successfully (briefing context is V1-specific)."""
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)
 
     def test_tile_hidden_when_ai_disabled(self):
         """Dashboard loads without errors when AI is disabled."""
         self.user.preferences.ai_enabled = False
         self.user.preferences.save()
-        response = self.client.get("/v2/")
+        response = self.client.get(DASHBOARD_URL)
         self.assertEqual(response.status_code, 200)

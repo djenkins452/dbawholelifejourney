@@ -61862,3 +61862,58 @@ number and the person and storing only the email domain. The result reports
 
 Checked every other `api/claude/*` operator endpoint: `cos-run` was the only one that can
 reach a provider. The rest are read-only aggregates and stay that way.
+
+## 2026-09-02 — the AI/Core baseline, classified and partly fixed
+
+Authoritative measurement on a clean worktree at HEAD, private Postgres test DB:
+**`apps.ai` + `apps.core` = 10,338 tests, 102 failures.**
+
+| Root cause | Count | Verdict |
+|---|---|---|
+| Assertion drift in the CoS conversation lanes | 82 | **Not mine to touch** — see below |
+| Stale URL: dashboard moved `/v2/` → `/dashboard/` | 7 | **FIXED** |
+| Prompt f-string raises `ValueError` | 3 | **FIXED — real product defect** |
+| Signal taxonomy drift (declared types with no computers) | 3 | **Genuine product gap, reported** |
+| Isolated one-offs (DataError, TypeError, KeyError, transaction) | 6 | 1 fixed, 5 open |
+| Environmental (missing table under narrow app selection) | 1 | Not a defect |
+
+Outside that scope, 8 more in `apps.journal`.
+
+**The one that mattered.** `apps/ai/intent_service.py:477` put a JSON example inside an
+f-string: `log_body_measurements(measurements=[{"metric":"neck",...}])`. Python read
+`{"metric"` as a replacement field, `:` as the start of a format spec, and the rest as
+the spec — `ValueError: Invalid format specifier`. **The intent prompt could not be built
+at all.** `recognize_intents` catches broadly and logs "Intent recognition error", so
+nothing crashed and nothing complained: intent recognition simply returned nothing, from
+2026-07-19 to today, and the only evidence was a log line nobody read.
+
+Braces escaped; the model still sees single-brace JSON. `test_prompt_templates_build.py`
+now builds every prompt — a prompt that raises is a feature that silently does not run —
+and scans the prompt builders for the same shape, because it is always this bug.
+
+**The journal collision.** `0003_load_journal_prompts` seeds prompts with explicit primary
+keys, which does not advance the Postgres sequence, so `nextval` still returned 1 while
+rows 1..N existed. Eight tests hit `duplicate key ... journal_journalprompt_pkey` — but
+they were the symptom: the same collision would meet any code creating a prompt in
+production, on the first insert. Migration `0018` runs Django's own `sequence_reset_sql`;
+idempotent, and a no-op off Postgres.
+
+**The moved dashboard.** `/v2/` is a deliberate permanent redirect to `/dashboard/`, so
+seven tests asserting 200 got 301. Repointed at the real URL with every assertion intact.
+
+**The tag test that could not fail.** `test_very_long_tag_name` wrote 100 characters into
+a `max_length=50` column and asserted `len(name) > 0`. SQLite allowed it; Postgres — which
+is production — raises. Replaced with two tests that state the real boundary. Worth
+noting: nothing between a caller and the database enforces that length, so a long tag from
+a form is a 500 rather than a validation message. That is a product decision, recorded in
+the test rather than papered over.
+
+**The 82 I did not touch.** They share a signature — many return the *same* fallback
+answer ("Looking back, today's basically done…") whatever was asked, which is the mock
+no-longer-on-the-path class. That is the conversation-lane/continuity area another session
+is actively working in (`00c19be1`, `4de08a20`, and uncommitted work while I measured).
+Rewriting 82 assertions there would collide with live work and is not something to guess
+at. Classified and handed over.
+
+Verified against the clean baseline: **102 → 91 in `apps.ai`+`apps.core`, and the diff of
+the two failure lists shows zero new failures.** Nothing was deleted, skipped or weakened.

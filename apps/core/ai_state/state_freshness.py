@@ -96,6 +96,10 @@ _DATE_BOUND_MODULES = {
     "routine": "day_state_date",
     "life_events": "day_state_date",
     "health": "day_state_date",
+    # Execution is TODAY's plan (`is_today`, today-scoped completion). It projected
+    # calendar-day claims without recording which day they belonged to, which is the
+    # exact condition this registry exists to prevent.
+    "execution": "day_state_date",
 }
 
 

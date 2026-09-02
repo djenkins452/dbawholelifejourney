@@ -1017,7 +1017,7 @@ any in-flight stream survive a focus-mode toggle untouched.
 
         // CURRENT CONTEXT CONTRACT — the page declares its focused canonical object via
         // <meta name="wlj-context">. Send the REFERENCE (server resolves the truth). This
-        // MUST mirror chat_widget.html so BOTH Beth surfaces are Current-Context-aware —
+        // MUST mirror chat_widget.html so BOTH Chief-of-Staff surfaces are Current-Context-aware —
         // the docked panel was previously blind to the meta, so focus_ref never reached the
         // server and every request read as "no focused object". See
         // docs/WLJ_CURRENT_CONTEXT_CONTRACT.md.
@@ -1882,7 +1882,7 @@ any in-flight stream survive a focus-mode toggle untouched.
         var btnsDiv = btn.parentElement;
         btnsDiv.querySelectorAll('.ap-quick-reply-btn').forEach(function(b) { b.disabled = true; });
 
-        // 'chat' actions ("Tell me more", "How to use this") ask Beth the card's
+        // 'chat' actions ("Tell me more", "How to use this") ask the Chief of Staff the card's
         // pre-written question — send it through the normal chat path so she expands
         // the observation / explains how to use it. Handled client-side; no endpoint.
         if (replyAction === 'chat') {

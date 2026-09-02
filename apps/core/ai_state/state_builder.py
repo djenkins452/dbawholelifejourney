@@ -6140,13 +6140,23 @@ MODULE_BUILDERS = {
 
 
 def _build_execution_state(user):
-    """SAE wrapper for the authoritative execution contract."""
+    """SAE wrapper for the authoritative execution contract.
+
+    Stamped with the day it represents. Execution state is TODAY's plan — it carries
+    `is_today` and today-scoped completion — so like every other calendar-bound module
+    it must record WHICH day, or a snapshot built yesterday reads as today's truth.
+    """
+    from apps.core.truth import calendar_day as _cal
+
     try:
         from apps.core.execution.today_execution import build_today_execution
-        return build_today_execution(user)
+        state = build_today_execution(user)
     except Exception:
         logger.warning("Execution contract build failed", exc_info=True)
-        return {'items': [], 'summaries': {}}
+        state = {'items': [], 'summaries': {}}
+    if isinstance(state, dict):
+        state['day_state_date'] = _cal.today(user).isoformat()
+    return state
 
 
 # Register execution after function definition (forward reference workaround)

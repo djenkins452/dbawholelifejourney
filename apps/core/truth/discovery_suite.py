@@ -14,6 +14,16 @@ only — never shown to the model). `must_surface` is plain language on purpose.
 """
 
 DISCOVERY_PROMPTS = [
+    # ================= UPLOADS =================
+    {"id": "artifacts.latest_upload", "domain": "artifacts",
+     "object": "most recent uploaded artifact",
+     "prompt": "Tell me everything you know about the last thing I uploaded.",
+     "anchor": "most recent Artifact",
+     "surface": "artifacts.entity(artifact)",
+     "must_surface": ["what kind of file it is", "when it arrived", "its title or name",
+                      "what WLJ perceived in it", "what it was filed against",
+                      "confidence", "any note"]},
+
     # ================= BODY & VITALS =================
     {"id": "body.weigh_in", "domain": "health", "object": "latest weigh-in",
      "prompt": "Tell me everything you know about my latest weigh-in.",

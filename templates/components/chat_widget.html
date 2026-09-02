@@ -1263,7 +1263,7 @@
         // CURRENT CONTEXT CONTRACT — the page declares its focused canonical object via
         // <meta name="wlj-context">. Send the REFERENCE (not scraped truth); the server
         // resolves the content from the canonical model, user-scoped. Any page becomes
-        // Beth-aware by adding CurrentContextMixin to its view — no widget code needed.
+        // Chief-of-Staff-aware by adding CurrentContextMixin to its view — no widget code needed.
         var ctxMeta = document.querySelector('meta[name="wlj-context"]');
         if (ctxMeta) {
             context.focus_ref = ctxMeta.getAttribute('content') || '';
@@ -2751,7 +2751,7 @@
     }
 
     // Active-session completion toast (global — chat_widget is on every page).
-    // While a Beth request is pending (either chat surface), watch for the
+    // While a Chief-of-Staff request is pending (either chat surface), watch for the
     // persisted answer and show a clickable toast on completion. The durable
     // bell notification (created server-side) covers the closed-tab case.
     function showBethToast(msgId) {
@@ -2769,7 +2769,10 @@
             icon.textContent = '\u{1F9E0}'; icon.style.fontSize = '18px';
             var body = document.createElement('div');
             var title = document.createElement('strong');
-            title.textContent = 'Beth finished your response';
+            // The person's OWN name for their Chief of Staff — a display name is
+            // chosen per user and is never a system identity, so it is read from
+            // context here rather than written into the template.
+            title.textContent = '{{ cos_display_name|default:"Chief of Staff"|escapejs }} finished your response';
             var sub = document.createElement('div');
             sub.textContent = 'Click to view'; sub.style.opacity = '.85';
             body.appendChild(title); body.appendChild(sub);
@@ -3181,7 +3184,7 @@
                 console.warn('CoS streaming failed; offering retry (no non-streaming fallback):', error);
                 addErrorWithRetry(savedMessage, sentImages, sendContext, sentAttachmentIds);
             } else {
-                // Fallback to non-streaming (legacy Beth users only)
+                // Fallback to non-streaming (legacy assistant users only)
                 console.warn('Streaming failed, falling back:', error);
                 showTyping();
                 await sendMessageNonStreaming(message, sendContext, null, savedMessage);

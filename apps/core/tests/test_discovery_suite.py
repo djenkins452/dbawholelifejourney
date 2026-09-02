@@ -12,7 +12,14 @@ from apps.core.truth.discovery_suite import DISCOVERY_PROMPTS, prompts_by_domain
 from apps.core.truth.domain import registered_domains
 
 _REQUIRED_KEYS = ("id", "domain", "object", "prompt", "anchor", "surface", "must_surface")
-_OUT_OF_SCOPE = {"finance"}
+_OUT_OF_SCOPE = {
+    "finance",
+    # IMPERSONAL truth: `medication_reference` answers "what does the approved labelling
+    # say about this drug", with no user FK and no user-owned object. Object discovery
+    # asks "tell me everything about MY <thing>", which has no meaning here — the
+    # personal counterpart is the `medicine` domain, which is covered.
+    "medication_reference",
+}
 
 
 class DiscoverySuiteIntegrityTests(TestCase):

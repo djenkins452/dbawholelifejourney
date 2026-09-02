@@ -224,9 +224,17 @@ class ExecuteTaskTest(TestCase):
         )
         now = timezone.now()
 
+        # `_execute_task` DISPATCHES to Celery now; the engine runs in the worker, so a
+        # crash there is invisible here and the dispatch itself succeeds. The failure
+        # handling this test is about lives on the documented fallback path — taken when
+        # Celery is unavailable — so make the dispatch fail and let the engine crash
+        # where `_execute_task` can actually see it.
         with patch(
             "apps.core.ai_scheduler.scheduler_engine.get_task_function"
-        ) as mock_get:
+        ) as mock_get, patch(
+            "apps.core.tasks.run_ise_engine_task.delay",
+            side_effect=RuntimeError("Celery unavailable"),
+        ):
             mock_func = MagicMock(side_effect=RuntimeError("Engine crashed"))
             mock_get.return_value = mock_func
 

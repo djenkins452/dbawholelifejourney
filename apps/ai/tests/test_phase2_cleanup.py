@@ -40,8 +40,17 @@ class Phase2CleanupIdentityTests(TestCase):
         from apps.ai.models import AssistantConversation, ConversationFollowUp
         from apps.life.models import Task
 
+        # The migration is bounded to the CERTIFICATION WINDOW (17-18 Aug 2026) as well
+        # as the title — that pairing is the whole point, so a real "Call the pharmacy"
+        # written any other day survives. `created_at` is auto_now_add, so the fixture
+        # has to place both tasks inside the window explicitly; creating them at "now"
+        # meant neither could ever match and the test could not fail for the right
+        # reason.
         artifact = Task.objects.create(user=self.user, title="Call the pharmacy")
         legit = Task.objects.create(user=self.user, title="Prepare board deck")
+        inside_window = _MIG.CERT_START + timezone.timedelta(hours=6)
+        Task.objects.filter(pk__in=[artifact.pk, legit.pk]).update(
+            created_at=inside_window)
         conv = AssistantConversation.get_or_create_active(self.user)
         fu = ConversationFollowUp.objects.create(
             user=self.user, conversation=conv,

@@ -497,8 +497,20 @@ class PGEIntegrationTests(TestCase):
         self.user = _create_test_user("pge@test.com")
 
     @patch("apps.core.ai_persona.persona_engine.render_with_persona")
-    def test_pge_guidance_logger_calls_pil(self, mock_render):
-        """Verify PIL is called in _upsert_guidance."""
+    def test_pge_guidance_is_stored_neutrally_without_persona(self, mock_render):
+        """Guidance is stored NEUTRAL — the persona layer must not touch it.
+
+        This test used to assert the opposite. `_apply_persona` was removed from the
+        guidance logger in the 2026-06-01 trust fix, and the note left in its place
+        explains why: it prepended a greeting at STORAGE time, so guidance written in
+        the morning still said "Good morning!" when the dashboard rendered it at 8 PM.
+        The helper was deleted rather than unwired, specifically to stop it coming back
+        — and a test demanding it be called is an invitation to do exactly that.
+
+        Accountability cards are signal → recommendation → action surfaces. If persona
+        flavour is ever wanted it belongs at the RENDER layer, against the user's
+        current local time, never persisted.
+        """
         mock_render.return_value = "Persona-rendered message."
 
         from apps.core.ai_guidance.guidance_logger import log_guidance
@@ -516,14 +528,11 @@ class PGEIntegrationTests(TestCase):
         ]
         stored = log_guidance(self.user, candidates)
 
-        # PIL should have been called
-        mock_render.assert_called_once()
-        call_kwargs = mock_render.call_args
-        self.assertEqual(call_kwargs[1].get("message_type") or call_kwargs[0][2], "guidance")
-
-        # The stored item should have the rendered message
-        if stored:
-            self.assertEqual(stored[0].message, "Persona-rendered message.")
+        mock_render.assert_not_called()
+        self.assertTrue(stored)
+        self.assertEqual(stored[0].message, "Original guidance message.")
+        for greeting in ("Good morning", "Good afternoon", "Good evening"):
+            self.assertNotIn(greeting, stored[0].message)
 
 
 class DBEIntegrationTests(TestCase):

@@ -120,17 +120,22 @@ class OvertrainingRiskRuleTest(CrossDomainRuleTestBase):
 
 
 class ComplianceRiskRuleTest(CrossDomainRuleTestBase):
-    """Tests for Weight ↑ + Medication Missed → Compliance Risk."""
+    """Tests for Weight ↑ + Medication Missed → Compliance Risk.
+
+    Adherence is read from `medicine.adherence_7d`. These fixtures used
+    `health.medication_adherence_pct`, which the rule's own comment records as a DEAD
+    key — the state builder never writes it, only `cos_context` derives it as a view —
+    so the rule saw no adherence at all and returned nothing. The "compliant" case
+    passed for the wrong reason and the risk case could not fire.
+    """
 
     def test_no_insight_when_compliant(self):
         rule = ComplianceRiskRule()
         event = {
             **self.base_event,
             "user_state": {
-                "health": {
-                    "weight_trend": "increasing",
-                    "medication_adherence_pct": 95,
-                },
+                "health": {"weight_trend": "increasing"},
+                "medicine": {"adherence_7d": 95},
             },
         }
         insights = rule.evaluate(self.user, event)
@@ -141,10 +146,8 @@ class ComplianceRiskRuleTest(CrossDomainRuleTestBase):
         event = {
             **self.base_event,
             "user_state": {
-                "health": {
-                    "weight_trend": "increasing",
-                    "medication_adherence_pct": 40,
-                },
+                "health": {"weight_trend": "increasing"},
+                "medicine": {"adherence_7d": 40},
             },
         }
         insights = rule.evaluate(self.user, event)

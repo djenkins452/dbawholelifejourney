@@ -238,7 +238,10 @@ class ObjectCenteredTests(TestCase):
 
         try:
             with _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.run_planner", side_effect=_cap_planner), \
-                 _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.preroute_named_goal", return_value=None), \
+                 _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.preroute_named_goal",
+                             # returns (forced_intent, focal_goal) — a bare None
+                             # unpacks to a TypeError, not a decline
+                             return_value=(None, None)), \
                  _mock.patch("apps.ai.chatgpt_cos.reasoning.engine.deterministic_health_intent", return_value=None):
                 engine.answer_reasoning_question(u, "Am I making progress?")
             self.assertIsNotNone(seen.get("focus"))

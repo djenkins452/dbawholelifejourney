@@ -94,4 +94,8 @@ class BethConsumesDomainTruthTests(TestCase):
         StepsEntry.objects.create(user=self.user, count=4200, logged_date=self.today)
         fact = get_foundational_health_facts(self.user, ["steps_today"])["steps_today"]
         self.assertEqual(fact["value"], 4200)
-        self.assertEqual(fact["source"], "DailyHealthQueries")
+        # THROUGH domain truth, which is what this test is named for. The source used
+        # to be `DailyHealthQueries` — the direct query — and reads now delegate to the
+        # domain-history surface, so the old expectation asserted the very thing the
+        # test exists to prevent.
+        self.assertEqual(fact["source"], "get_domain_history:health.steps")

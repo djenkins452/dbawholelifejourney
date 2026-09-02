@@ -1297,6 +1297,19 @@ class ModelInterfaceService:
                     except Exception as exc:
                         rejected.append({"statement": new_text, "reason": str(exc)})
 
+                # STILL TRUE — renew in place rather than duplicating the sentence.
+                reaffirmed = []
+                for fid in (args.get("reaffirm") or [])[:8]:
+                    fact = _pk.get_fact(user, fid)
+                    if fact is None:
+                        rejected.append({"statement": str(fid),
+                                         "reason": "no such fact to confirm"})
+                        continue
+                    try:
+                        reaffirmed.append(_pk.reaffirm_fact(fact).statement)
+                    except Exception as exc:
+                        rejected.append({"statement": str(fid), "reason": str(exc)})
+
                 area_applied = False
                 if session is not None:
                     recorded, rej = _iv.record_facts(session, args.get("facts"))
@@ -1321,6 +1334,8 @@ class ModelInterfaceService:
                                 user, statement,
                                 topic=(item.get("topic") or "other").strip().lower(),
                                 subject_label=(item.get("subject") or "").strip(),
+                                situational=bool(item.get("situational")),
+                                revisit_weeks=item.get("revisit_weeks"),
                                 # The frozen design reserved this value for exactly this
                                 # path ("Accepted from conversation"). USER_AUTHORED because
                                 # these are HIS OWN WORDS, not a WLJ guess — holding them
@@ -1338,8 +1353,10 @@ class ModelInterfaceService:
                             rejected.append({"statement": statement, "reason": str(exc)})
 
                 out = {
-                    "status": ("recorded" if (recorded or superseded or area_applied)
+                    "status": ("recorded" if (recorded or superseded or reaffirmed
+                                              or area_applied)
                                else "nothing_recorded"),
+                    "confirmed_still_true": reaffirmed,
                     # The boundary outcome must still be reported — an interview turn that
                     # only rules a subject out records nothing else, and the caller has to
                     # be able to tell that it landed.
@@ -1362,6 +1379,7 @@ class ModelInterfaceService:
                     result_digest={"status": out.get("status"),
                                    "recorded": len(recorded),
                                    "superseded": len(superseded),
+                                   "reaffirmed": len(reaffirmed),
                                    "rejected": len(rejected),
                                    "in_interview": session is not None},
                 )

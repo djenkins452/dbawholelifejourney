@@ -1898,6 +1898,16 @@ def _remember_about_user_tool():
             "statements in his own framing. NEVER record an interpretation, diagnosis, "
             "personality read or psychological conclusion — that is editorialising about a "
             "person and is forbidden.\n"
+            "MARK SITUATIONAL CONTEXT AS SUCH: set `situational: true`, and optionally "
+            "`revisit_weeks` for roughly how long it is likely to matter (a few weeks for "
+            "an injury, longer for a season of life). Do not pretend to precision you do "
+            "not have — WLJ owns the actual bounds. After that window it stops being "
+            "treated as settled fact and comes back to you marked `needs_revalidation`, "
+            "which is your cue to ask naturally when it is relevant ('last I knew you were "
+            "still recovering — how are the ribs now?'). It is NOT deleted and it did NOT "
+            "become false; nobody has confirmed it lately.\n"
+            "WHEN HE CONFIRMS SOMETHING IS STILL TRUE, use `reaffirm` with its id — that "
+            "renews it in place. Do NOT store the same sentence again.\n"
             "WHEN SOMETHING HAS CHANGED, use `supersedes` with the id of the fact you "
             "already hold and the corrected statement — his ribs healing should replace "
             "'recovering from a cracked rib', not sit beside it forever. Only supersede "
@@ -1934,7 +1944,23 @@ def _remember_about_user_tool():
                                 "description": "Who it is about, if a person (optional)."},
                     "sensitive": {"type": "boolean",
                                   "description": "True for genuinely private material."},
+                    "situational": {
+                        "type": "boolean",
+                        "description": ("True for context true for a season rather than "
+                                        "indefinitely (a recovery, a trip, a temporary "
+                                        "arrangement).")},
+                    "revisit_weeks": {
+                        "type": "integer",
+                        "description": ("Situational only: roughly how many weeks this is "
+                                        "likely to still matter. Coarse is fine; WLJ "
+                                        "bounds it.")},
                 }, "required": ["statement"]},
+            },
+            "reaffirm": {
+                "type": "array",
+                "description": ("Ids of facts he has just confirmed are STILL TRUE. Renews "
+                                "them in place — never store the sentence again."),
+                "items": {"type": "integer"},
             },
             "supersedes": {
                 "type": "array",

@@ -5,6 +5,30 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-02 — feat(cos): situational memory gets a revalidation horizon
+
+Natural learning shipped the ability to remember "recovering from a rib injury and easing back into exercise". This is the other half: **that must stop being unquestioned current truth after a while — without anyone deleting it, and without WLJ ever deciding it stopped being true.**
+
+**The horizon is not an expiry.** Time only ever means *"this may need checking again"*. A date passing never makes a fact false, never deletes it, and never removes it from view — only the person can say a situation has ended. The model docstring and a contract test both pin that, because it is the one way this feature could quietly become destructive.
+
+**Lifecycle:** CURRENT → horizon reached → **NEEDS REVALIDATION** → the model sees it marked `needs_revalidation` / `confidence: unconfirmed` with a note to treat it as background rather than settled fact and ask naturally when relevant → the user confirms, supersedes, corrects or deletes.
+
+**Schema:** two nullable fields on the existing `PersonalKnowledgeFact` — `revalidate_after` (NULL = durable, no horizon) and `last_confirmed_at`. **No new store, no new lineage**; supersession is still M2's.
+
+**Horizon assignment is coarse on purpose.** The model may mark a fact `situational` and suggest `revisit_weeks`; **WLJ owns the bounds and the default** (1–26 weeks, default 4) and clamps anything outside them, including nonsense. A person does not know they will be "recovering for 37 days", and pretending otherwise is fake precision. Durable facts get no horizon at all.
+
+**Standing context:** a stale situational fact **stays visible** — it is probably still useful — but is marked unconfirmed and **sorts below confirmed truth**, so within the bounded 25-fact tier an unconfirmed situation can never crowd out something the person actually confirmed. Superseded facts remain structurally incapable of returning.
+
+**Confirming renews in place.** `reaffirm` pushes the horizon forward and stamps `last_confirmed_at` — it does **not** create a second copy of the sentence, which is what would otherwise fill About Me with "still recovering" a dozen times.
+
+**Natural learning is unchanged:** ordinary conversation still records without per-fact approval, and About Me remains the correction surface. No review queue was reintroduced.
+
+**Files:** `apps/core/personal_knowledge/models.py` + migration `0138_pk_revalidation_horizon`, `service.py` (`needs_revalidation`, `facts_needing_revalidation`, `reaffirm_fact`, horizon policy, sort key, serialization), `apps/ai/model_interface/constitution.py`, `service.py`, `apps/core/tests/test_personal_context_loop.py`.
+
+**Verification: ZERO provider calls.** 50 loop tests (19 new) + 236 PK/safety tests green. Proven end to end: durable facts get no horizon · a situation is ordinary truth while current · past the horizon it is flagged, still visible, still ACTIVE · confirmed truth outranks it · confirming renews without duplicating · superseding uses the existing lineage and the old row cannot return · deletion still propagates immediately.
+
+---
+
 ## 2026-09-02 — feat(cos): the personal-context loop — current context, capability truth, natural memory
 
 **Production.** Danny said he was recovering from injured ribs and easing back into exercise. Minutes later the CoS criticised his reduced workout frequency without reference to the injury, then told him it could not remember temporary information. **Two independent defects**, and only one of them was ever about memory.

@@ -203,6 +203,21 @@ class PersonalKnowledgeFact(UserOwnedModel):
                   "a precision the user did not give.",
     )
 
+    # ── revalidation horizon (situational knowledge) ──────────────────────────
+    revalidate_after = models.DateField(
+        null=True, blank=True, db_index=True,
+        help_text="Situational facts only. NOT an expiry date and never a deletion "
+                  "trigger: past this date the fact stops being treated as unquestioned "
+                  "current truth and becomes something to CHECK. WLJ never decides a fact "
+                  "stopped being true because time passed — only the person can say that. "
+                  "NULL means durable: no horizon, no revalidation.",
+    )
+    last_confirmed_at = models.DateTimeField(
+        null=True, blank=True,
+        help_text="When the user last confirmed this is still true. Confirming pushes the "
+                  "horizon forward rather than creating a duplicate fact.",
+    )
+
     class Meta:
         app_label = "core"
         db_table = "core_personal_knowledge_fact"

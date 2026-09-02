@@ -306,3 +306,185 @@ class SituationalKnowledgeTests(TestCase):
         tool = next(t["function"] for t in all_tools(writes_enabled=True)
                     if t["function"]["name"] == "remember_about_user")
         self.assertIn("a WLJ domain already owns", tool["description"])
+
+
+class SituationalHorizonTests(TestCase):
+    """A situation must be able to stop being current WITHOUT anyone deleting it.
+
+    "Recovering from a rib injury" should shape guidance for weeks and then quietly become
+    something to CHECK — not a permanent property of the person, and not something WLJ
+    silently decided had ended because a date passed.
+    """
+
+    def setUp(self):
+        from apps.ai.models import AssistantConversation
+        from apps.ai.model_interface.service import ModelInterfaceService
+        self.user = User.objects.create_user(email="horizon@contract.test", password="x")
+        self.conv = AssistantConversation.get_or_create_active(self.user)
+        self.svc = ModelInterfaceService(self.user)
+
+    def _dispatch(self, args):
+        return self.svc._make_dispatch(
+            turn_id="t", surface="test", tools_called=[],
+            conversation_id=self.conv.id, conversation=self.conv)("remember_about_user", args)
+
+    def _age(self, fact, days=1):
+        from django.utils import timezone
+        from apps.core.personal_knowledge.models import PersonalKnowledgeFact
+        PersonalKnowledgeFact.objects.filter(pk=fact.pk).update(
+            revalidate_after=timezone.localdate() - timezone.timedelta(days=days))
+        fact.refresh_from_db()
+        return fact
+
+    # -- assignment ----------------------------------------------------------
+    def test_durable_facts_get_no_horizon(self):
+        fact = pk.add_fact(self.user, "Heather is my wife.", topic="family")
+        self.assertIsNone(fact.revalidate_after)
+        self.assertFalse(pk.needs_revalidation(fact))
+
+    def test_situational_facts_get_a_coarse_horizon(self):
+        fact = pk.add_fact(self.user, "I am easing back into exercise.",
+                           topic="health_context", situational=True, revisit_weeks=4)
+        self.assertIsNotNone(fact.revalidate_after)
+
+    def test_the_horizon_is_bounded_against_fake_precision(self):
+        short = pk.add_fact(self.user, "A.", topic="other", situational=True,
+                            revisit_weeks=0)
+        long = pk.add_fact(self.user, "B.", topic="other", situational=True,
+                           revisit_weeks=9999)
+        from django.utils import timezone
+        today = timezone.localdate()
+        self.assertGreaterEqual((short.revalidate_after - today).days, 6)
+        self.assertLessEqual((long.revalidate_after - today).days, 26 * 7)
+
+    def test_a_nonsense_horizon_falls_back_to_the_default(self):
+        fact = pk.add_fact(self.user, "C.", topic="other", situational=True,
+                           revisit_weeks="soon-ish")
+        self.assertIsNotNone(fact.revalidate_after)
+
+    # -- while current -------------------------------------------------------
+    def test_while_current_it_is_ordinary_truth(self):
+        pk.add_fact(self.user, "MARKER-CUR I am easing back into exercise.",
+                    topic="health_context", situational=True)
+        block = pk.standing_context_block(self.user)
+        entry = next(f for f in block["facts"] if "MARKER-CUR" in f["statement"])
+        self.assertNotIn("needs_revalidation", entry)
+
+    # -- past the horizon ----------------------------------------------------
+    def test_past_the_horizon_it_is_no_longer_unquestioned_current_truth(self):
+        fact = self._age(pk.add_fact(
+            self.user, "MARKER-STALE I am easing back into exercise.",
+            topic="health_context", situational=True))
+        entry = next(f for f in pk.standing_context_block(self.user)["facts"]
+                     if "MARKER-STALE" in f["statement"])
+        self.assertTrue(entry["needs_revalidation"])
+        self.assertEqual(entry["confidence"], "unconfirmed")
+
+    def test_it_is_NOT_deleted_and_NOT_declared_false(self):
+        fact = self._age(pk.add_fact(self.user, "MARKER-KEPT still around.",
+                                     topic="other", situational=True))
+        fact.refresh_from_db()
+        self.assertEqual(fact.fact_status, FactStatus.ACTIVE)
+        standing = "\n".join(f.statement for f in pk.standing_facts(self.user))
+        self.assertIn("MARKER-KEPT", standing,
+                      "a stale situation was hidden rather than flagged")
+
+    def test_wlj_never_concludes_it_became_false(self):
+        """Time means 'check this', never 'this ended'."""
+        import pathlib
+        src = pathlib.Path("apps/core/personal_knowledge/models.py").read_text(
+            encoding="utf-8")
+        self.assertIn("NOT an expiry date", src)
+        self.assertIn("only the person can say that", src)
+
+    def test_confirmed_truth_outranks_stale_situational_knowledge(self):
+        stale = self._age(pk.add_fact(self.user, "STALE one.", topic="other",
+                                      situational=True))
+        fresh = pk.add_fact(self.user, "FRESH one.", topic="other")
+        ordered = pk.standing_facts(self.user)
+        self.assertLess([f.id for f in ordered].index(fresh.id),
+                        [f.id for f in ordered].index(stale.id),
+                        "unconfirmed situational knowledge outranked confirmed truth")
+
+    def test_durable_facts_are_unaffected_by_any_of_this(self):
+        durable = pk.add_fact(self.user, "MARKER-DURABLE Heather is my wife.",
+                              topic="family")
+        self._age(pk.add_fact(self.user, "Situational.", topic="other", situational=True))
+        entry = next(f for f in pk.standing_context_block(self.user)["facts"]
+                     if "MARKER-DURABLE" in f["statement"])
+        self.assertNotIn("needs_revalidation", entry)
+
+    def test_the_revalidation_queue_is_queryable(self):
+        self._age(pk.add_fact(self.user, "Needs checking.", topic="other",
+                              situational=True))
+        pk.add_fact(self.user, "Durable.", topic="family")
+        self.assertEqual(pk.facts_needing_revalidation(self.user).count(), 1)
+
+    # -- resolution ----------------------------------------------------------
+    def test_confirming_renews_it_in_place_without_duplicating(self):
+        fact = self._age(pk.add_fact(self.user, "Still true.", topic="other",
+                                     situational=True))
+        before = pk.active_facts(self.user).count()
+        out = self._dispatch({"reaffirm": [fact.id]})
+        fact.refresh_from_db()
+        self.assertEqual(out["status"], "recorded")
+        self.assertEqual(out["confirmed_still_true"], ["Still true."])
+        self.assertFalse(pk.needs_revalidation(fact))
+        self.assertIsNotNone(fact.last_confirmed_at)
+        self.assertEqual(pk.active_facts(self.user).count(), before,
+                         "confirming created a duplicate instead of renewing")
+
+    def test_superseding_a_stale_situation_uses_the_existing_lineage(self):
+        fact = self._age(pk.add_fact(
+            self.user, "MARKER-OLD I am recovering.", topic="health_context",
+            situational=True))
+        self._dispatch({"supersedes": [
+            {"fact_id": fact.id, "statement": "MARKER-NEW I have fully recovered."}]})
+        fact.refresh_from_db()
+        self.assertEqual(fact.fact_status, FactStatus.SUPERSEDED)
+        standing = "\n".join(f.statement for f in pk.standing_facts(self.user))
+        self.assertIn("MARKER-NEW", standing)
+        self.assertNotIn("MARKER-OLD", standing)
+
+    def test_a_superseded_situation_cannot_return_as_current(self):
+        fact = self._age(pk.add_fact(self.user, "MARKER-OLD recovering.", topic="other",
+                                     situational=True))
+        self._dispatch({"supersedes": [
+            {"fact_id": fact.id, "statement": "MARKER-NEW recovered."}]})
+        self._dispatch({"reaffirm": [fact.id]})       # try to revive the old row
+        fact.refresh_from_db()
+        self.assertEqual(fact.fact_status, FactStatus.SUPERSEDED)
+        standing = "\n".join(f.statement for f in pk.standing_facts(self.user))
+        self.assertNotIn("MARKER-OLD", standing)
+
+    def test_deleting_a_stale_situation_still_propagates_immediately(self):
+        fact = self._age(pk.add_fact(self.user, "MARKER-GONE recovering.", topic="other",
+                                     situational=True))
+        pk.delete_fact(fact)
+        standing = "\n".join(f.statement for f in pk.standing_facts(self.user))
+        self.assertNotIn("MARKER-GONE", standing)
+
+    def test_confirming_a_fact_that_does_not_exist_is_reported(self):
+        out = self._dispatch({"reaffirm": [99999999]})
+        self.assertTrue(out["not_remembered"])
+
+    def test_another_users_fact_cannot_be_confirmed(self):
+        other = User.objects.create_user(email="other3@contract.test", password="x")
+        theirs = pk.add_fact(other, "Theirs.", topic="other", situational=True)
+        self._dispatch({"reaffirm": [theirs.id]})
+        theirs.refresh_from_db()
+        self.assertIsNone(theirs.last_confirmed_at)
+
+    # -- the model is told how to use it -------------------------------------
+    def test_the_tool_explains_the_horizon_is_a_cue_to_ask_not_an_expiry(self):
+        tool = next(t["function"] for t in all_tools(writes_enabled=True)
+                    if t["function"]["name"] == "remember_about_user")
+        desc = tool["description"]
+        self.assertIn("needs_revalidation", desc)
+        self.assertIn("It is NOT deleted and it did NOT", desc)
+        self.assertIn("ask naturally", desc)
+
+    def test_the_model_is_told_to_renew_rather_than_restore(self):
+        tool = next(t["function"] for t in all_tools(writes_enabled=True)
+                    if t["function"]["name"] == "remember_about_user")
+        self.assertIn("Do NOT store the same sentence again", tool["description"])

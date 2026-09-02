@@ -56,6 +56,13 @@ def _invalidate_projection(user):
 # simple, stable policy, not weight tuning. Ordering is fully deterministic so the same
 # user always produces the same standing block (which also keeps the prompt prefix stable
 # and therefore prompt-cacheable — see Contract 15).
+# Situational horizons: coarse on purpose. A person does not know they will be "recovering
+# for 37 days", and pretending otherwise is fake precision. WLJ owns the bounds and the
+# default; the model may only suggest roughly how long, in weeks.
+SITUATIONAL_DEFAULT_WEEKS = 4
+SITUATIONAL_MIN_WEEKS = 1
+SITUATIONAL_MAX_WEEKS = 26
+# Confirming a situational fact grants it the same coarse window again.
 STANDING_TIER_MAX_FACTS = 25
 STANDING_TIER_MAX_CHARS = 2000
 
@@ -161,7 +168,8 @@ def _existing_identical_fact(user, topic, text):
 def add_fact(user, statement, *, topic=Topic.OTHER, subject_person=None,
              subject_label="", attributes=None, provenance=Provenance.ABOUT_ME_ENTRY,
              sensitivity=Sensitivity.NORMAL, review_state=None,
-             source_conversation=None, confidence=1.0, as_of=None, pinned=False):
+             source_conversation=None, confidence=1.0, as_of=None, pinned=False,
+             situational=False, revisit_weeks=None):
     """Create one validated Personal Knowledge fact. Returns the row.
 
     `statement` is DATA in the user's own words — never a WLJ-authored interpretation.
@@ -188,8 +196,19 @@ def add_fact(user, statement, *, topic=Topic.OTHER, subject_person=None,
                         if provenance == Provenance.LEGACY_EXTRACTION
                         else ReviewState.USER_AUTHORED)
 
+    revalidate_after = None
+    if situational:
+        try:
+            weeks = int(revisit_weeks) if revisit_weeks else SITUATIONAL_DEFAULT_WEEKS
+        except (TypeError, ValueError):
+            weeks = SITUATIONAL_DEFAULT_WEEKS
+        weeks = max(SITUATIONAL_MIN_WEEKS, min(SITUATIONAL_MAX_WEEKS, weeks))
+        from django.utils import timezone as _tz
+        revalidate_after = _tz.localdate() + _tz.timedelta(weeks=weeks)
+
     fact = PersonalKnowledgeFact(
         user=user, topic=str(topic), subject_person=subject_person,
+        revalidate_after=revalidate_after,
         subject_label=(subject_label or "").strip(), attributes=attributes,
         provenance=str(provenance), sensitivity=str(sensitivity),
         review_state=str(review_state), source_conversation=source_conversation,
@@ -281,6 +300,45 @@ def set_sensitivity(fact, sensitivity):
     return fact
 
 
+def needs_revalidation(fact, today=None):
+    """Has this situational fact reached its horizon? Facts only — never a verdict that it
+    stopped being true."""
+    if not getattr(fact, "revalidate_after", None):
+        return False
+    from django.utils import timezone as _tz
+    return fact.revalidate_after <= (today or _tz.localdate())
+
+
+def facts_needing_revalidation(user, today=None):
+    """Active situational facts past their horizon — the ones worth checking."""
+    from django.utils import timezone as _tz
+    return active_facts(user).filter(
+        revalidate_after__isnull=False,
+        revalidate_after__lte=(today or _tz.localdate()))
+
+
+@transaction.atomic
+def reaffirm_fact(fact, revisit_weeks=None):
+    """The user says it is STILL TRUE. Push the horizon forward; create nothing.
+
+    Confirming is not a new fact — duplicating the statement every time someone says "yes,
+    still" would fill About Me with the same sentence. The row simply becomes current again.
+    """
+    from django.utils import timezone as _tz
+    try:
+        weeks = int(revisit_weeks) if revisit_weeks else SITUATIONAL_DEFAULT_WEEKS
+    except (TypeError, ValueError):
+        weeks = SITUATIONAL_DEFAULT_WEEKS
+    weeks = max(SITUATIONAL_MIN_WEEKS, min(SITUATIONAL_MAX_WEEKS, weeks))
+    fact.last_confirmed_at = _tz.now()
+    fact.revalidate_after = _tz.localdate() + _tz.timedelta(weeks=weeks)
+    fact.save(update_fields=["last_confirmed_at", "revalidate_after", "updated_at"])
+    _invalidate_projection(fact.user)
+    logger.info("PK: fact reaffirmed user=%s fact=%s",
+                getattr(fact.user, "id", "?"), fact.id)
+    return fact
+
+
 def mark_reviewed(fact):
     """Mark a fact (typically a legacy import) as reviewed by the user — M3 uses this."""
     fact.review_state = ReviewState.REVIEWED
@@ -358,6 +416,10 @@ def _standing_sort_key(fact):
     """
     return (
         0 if fact.pinned else 1,
+        # CONFIRMED CURRENT TRUTH OUTRANKS STALE SITUATIONAL KNOWLEDGE. Both may appear;
+        # what must never happen is an unconfirmed situation crowding out something the
+        # person has actually confirmed, when the bounded tier can only carry so much.
+        1 if needs_revalidation(fact) else 0,
         _TOPIC_PRIORITY.get(fact.topic, _TOPIC_PRIORITY_DEFAULT),
         -(fact.created_at.timestamp() if fact.created_at else 0),
         fact.id or 0,
@@ -388,6 +450,15 @@ def _serialize(fact, *, include_provenance=True):
         "topic": fact.topic,
         "statement": fact.statement,
     }
+    # A situational fact past its horizon is NOT presented as settled truth. It stays
+    # visible — it is probably still useful — but marked as something to check, so the
+    # model can ask rather than assert. WLJ never concludes it became false.
+    if needs_revalidation(fact):
+        out["confidence"] = "unconfirmed"
+        out["needs_revalidation"] = True
+        out["last_known"] = ("This was true when he told you; it has not been confirmed "
+                             "since. Treat it as background, not settled fact, and ask "
+                             "naturally if it matters to what he is asking.")
     subject = fact.subject_display
     if subject:
         out["subject"] = subject

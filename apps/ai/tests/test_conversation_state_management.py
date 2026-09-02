@@ -153,6 +153,14 @@ class ConversationStateManagementE2ETests(TestCase):
         self._route("Good morning")
         self._route("Who was Jezebel?")                  # pivot abandons check-in
         self.assertEqual(cp.read_state(self.conv), {})
-        r = self._route("Good morning")                   # a clean new check-in
-        self.assertEqual(r["lane"], "conversation_checkin")
-        self.assertEqual(cp.read_state(self.conv).get("state"), "check_in")
+        r = self._route("Good morning")
+        # The SECOND greeting today is day continuity, not a replayed check-in — the CoS
+        # has already oriented Danny and nothing material has changed, so it continues
+        # the day rather than waking up fresh. That is the whole point of
+        # `day_continuity`, and it postdates this test. What this test is about — that
+        # the ABANDONED check-in does not contaminate what comes next — is asserted
+        # directly below.
+        self.assertEqual(r["lane"], "day_continuity")
+        self.assertNotEqual(r["lane"], "conversation_brief",
+                            "the abandoned check-in must not be briefed as if answered")
+        self.assertNotIn("Jezebel", str(r.get("answer") or ""))

@@ -152,7 +152,17 @@ _EXEC_DOMAIN_WORDS = (
 _MANAGING_QUALIFIERS = ("but okay", "but ok", "but fine", "but good", "but alright",
                         "but managing", "but hanging in", "but doing okay", "not too bad",
                         "could be worse", "ill be fine", "im fine", "im okay", "im ok",
-                        "still good", "nothing i cant handle", "nothing i can't handle")
+                        "still good", "nothing i cant handle", "nothing i can't handle",
+                        # "I'm DOING ok, a bit tired" is the same self-qualified coping
+                        # reply as "tired but okay", and it was missed: the list only had
+                        # the bare "im ok" form, so the energy fallback below read
+                        # "tired" as negative and opened a problem-solving intervention.
+                        # The module's own rule is that the signal is being BEHIND or
+                        # OVERWHELMED, "not merely tired" — someone who says they are
+                        # doing fine should get the briefing they asked for.
+                        "doing ok", "doing okay", "doing fine", "doing alright",
+                        "doing well", "doing good", "im alright", "im well",
+                        "im hanging in", "hanging in there", "im good")
 
 
 def classify_need(message):

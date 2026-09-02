@@ -76,8 +76,13 @@ _FALLBACKS = {
 # FAILURE #2 — six distinct goal intents route correctly and answer distinctly
 # ===========================================================================
 class GoalIntentRoutingAcceptance(SimpleTestCase):
+    # A progress question about a NAMED goal is a per-goal TRAJECTORY read
+    # (`goal_on_track`), not the portfolio summary (`goals_progress`). That split is
+    # deliberate — `_infer_named_goal_intent` routes the everyday phrasings ("how is it
+    # going", "progressing", "coming along") to the trajectory intent precisely because
+    # the question is already scoped to one goal. These two expectations predate it.
     QUESTIONS = {
-        f"How is my {MISSION} progressing?": "goals_progress",
+        f"How is my {MISSION} progressing?": "goal_on_track",
         f"Am I still on track for my {MISSION}?": "goal_on_track",
         f"Why is the {MISSION} my highest priority goal?": "goal_why_priority",
         f"What is the next milestone for my {MISSION}?": "goal_next_milestone",
@@ -92,7 +97,7 @@ class GoalIntentRoutingAcceptance(SimpleTestCase):
 
     def test_deictic_variants_route_too(self):
         cases = {
-            "how is my mission going": "goals_progress",
+            "how is my mission going": "goal_on_track",
             "am i on track with this goal": "goal_on_track",
             "why is this goal my priority": "goal_why_priority",
             "what's the next milestone for this goal": "goal_next_milestone",

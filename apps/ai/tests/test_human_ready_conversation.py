@@ -57,6 +57,16 @@ class GlucoseConversationTests(TestCase):
         self.user.preferences.save()
         self.conv = AssistantConversation.objects.create(user=self.user)
         ts = (timezone.now() - timedelta(hours=2)).isoformat()
+        # A REAL reading. `_latest_glucose_fact` reads `glucose_queries`, the canonical
+        # Layer-1 accessor, not the SAE snapshot — it was moved there so "my glucose"
+        # and "my previous glucose" could never be answered by two producers. Injecting
+        # 43 into the snapshot alone left the fact with no value at all, which is why
+        # the answer came back as "Your last glucose reading was." and carried no danger
+        # flag on a reading of 43.
+        from apps.health.models import GlucoseEntry
+        from datetime import datetime as _dt
+        GlucoseEntry.objects.create(user=self.user, value=43, unit="mg/dL",
+                                    recorded_at=_dt.fromisoformat(ts))
         self.state = {"latest_glucose": 43, "latest_glucose_unit": "mg/dL",
                       "last_glucose_entry": ts}
 

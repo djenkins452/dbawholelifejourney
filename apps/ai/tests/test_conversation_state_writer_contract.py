@@ -38,13 +38,32 @@ _FORBIDDEN_WRITER_PARAMS = {
 }
 
 
+def _strip_comments(source):
+    """Source with COMMENTS removed — a mention is not a write.
+
+    `action_interface.py` explains, in a comment, that the confirm endpoint runs on a
+    turn "which never calls record_turn()". The scan matched that sentence and reported
+    the file as an unauthorised writer, so documenting the rule was enough to violate
+    it. Tokenising is exact: no guessing about `#` inside strings.
+    """
+    import io
+    import tokenize
+
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(source).readline))
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        return source                      # unparseable: scan it as-is rather than skip
+    return tokenize.untokenize(
+        [t[:2] for t in tokens if t[0] != tokenize.COMMENT])
+
+
 def _scan_files():
     for path in _APPS.rglob("*.py"):
         rel = path.relative_to(settings.BASE_DIR).as_posix()
         if (rel.startswith(_AUTHORITY) or "/tests/" in rel or "/migrations/" in rel
                 or path.name.startswith("test_")):
             continue
-        yield rel, path.read_text(encoding="utf-8", errors="ignore")
+        yield rel, _strip_comments(path.read_text(encoding="utf-8", errors="ignore"))
 
 
 class ConversationStateWriterContractTests(SimpleTestCase):

@@ -15,6 +15,18 @@ from apps.core.ai_briefing.models import DailyBriefing
 logger = logging.getLogger(__name__)
 
 
+def _json_safe(value):
+    """A structure the JSONField will accept, with anything exotic rendered as text."""
+    import json
+
+    try:
+        return json.loads(json.dumps(value, default=str))
+    except (TypeError, ValueError):
+        logger.warning("briefing: state snapshot not serialisable; storing empty",
+                       exc_info=True)
+        return {}
+
+
 def store_briefing(user, summary, ranked_items, state, guidance_items, insights, predictions):
     """
     Store a daily briefing record.
@@ -52,7 +64,12 @@ def store_briefing(user, summary, ranked_items, state, guidance_items, insights,
             user=user,
             briefing_date=today,
             summary=summary,
-            state_snapshot=state or {},
+            # The SAE state carries `date`/`datetime`/`Decimal` values, none of which the
+            # JSON encoder accepts — one of them raised "Object of type date is not JSON
+            # serializable" and took the WHOLE briefing down, for a snapshot that is
+            # diagnostic context rather than the briefing itself. Coerced to text here so
+            # an unserialisable value costs its own fidelity and nothing else.
+            state_snapshot=_json_safe(state or {}),
             guidance_snapshot=guidance_snapshot,
             insight_snapshot=insight_snapshot,
             prediction_snapshot=prediction_snapshot,

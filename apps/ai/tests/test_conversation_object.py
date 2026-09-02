@@ -56,9 +56,16 @@ class ComparisonAcrossDomainsTests(TestCase):
         self.assertIn("3923", out["answer"])
 
     def test_calories_compared_to_yesterday(self):
+        # BOTH days are real entries. Today's total used to be injected through the SAE
+        # state (`daily_calories: 2000`), which the calorie fact no longer reads — it is
+        # computed from FoodEntry — so today came back as 0 and the comparison reported
+        # "down 1800" instead of "up 200".
         FoodEntry.objects.create(user=self.user, food_name="x", meal_type="lunch",
                                  logged_date=self.today - timedelta(days=1),
                                  serving_size=1, quantity=1, total_calories=1800)
+        FoodEntry.objects.create(user=self.user, food_name="y", meal_type="lunch",
+                                 logged_date=self.today,
+                                 serving_size=1, quantity=1, total_calories=2000)
         self._ask("How many calories today?", state={"daily_calories": 2000})
         out = _why_explainer_lane(self.user, "Compared to yesterday?", self.conv)
         self.assertIn("up", out["answer"].lower())

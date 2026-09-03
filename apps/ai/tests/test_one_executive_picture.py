@@ -6,12 +6,14 @@
 #   evolving picture WITHOUT independently reading caches. Proves the architectural
 #   correction: Beth remembered it, not Decision Support.
 # ==============================================================================
-from datetime import date, datetime, timezone as _tz
+from datetime import date
 from unittest import mock
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
 from django.test import TestCase
+
+from apps.core.tests.clock import morning
 
 from apps.ai.chatgpt_cos import decision_support as ds
 from apps.ai.chatgpt_cos import executive_evidence as ev
@@ -39,21 +41,24 @@ class OneExecutivePictureTests(TestCase):
 
     # interpret() is the single merge point — it carries reported evidence.
     def test_interpret_merges_accomplishments(self):
-        with mock.patch(_TODAY, return_value=TODAY), mock.patch(_GDS, side_effect=_state(7.5)):
+        with morning(self.user, on=TODAY), mock.patch(_GDS, side_effect=_state(7.5)):
             ev.record_accomplishment(self.user, ACC)
             sig = interpret(self.user)
         self.assertIn(ACC, sig.accomplishments)
         self.assertTrue(sig.ease_load)          # ahead of plan → recovery latitude
 
     def test_interpret_merges_subjective_without_a_param(self):
-        with mock.patch(_TODAY, return_value=TODAY), mock.patch(_GDS, side_effect=_state(6.4)):
+        with morning(self.user, on=TODAY), mock.patch(_GDS, side_effect=_state(6.4)):
             ev.record_subjective(self.user, "positive")
             sig = interpret(self.user)          # NO subjective param — read from the store
         self.assertEqual(sig.reconciliation, "positive_over_debt")
 
     # The Morning Brief reflects accomplishments with NO consumer-specific wiring.
     def test_morning_brief_reflects_accomplishments(self):
-        with mock.patch(_TODAY, return_value=TODAY), mock.patch(_GDS, side_effect=_state(7.5)):
+        # This test named the class of bug: it froze the DATE (_TODAY) and left the
+        # TIME on the wall clock, so the "morning brief" it asserts became the 8 PM
+        # wind-down brief after dark. One seam pins both halves from one instant.
+        with morning(self.user, on=TODAY), mock.patch(_GDS, side_effect=_state(7.5)):
             ev.record_accomplishment(self.user, ACC)
             brief = compose_executive_brief(self.user).lower()
         self.assertIn("made up 2 missed workouts", brief)
@@ -63,7 +68,7 @@ class OneExecutivePictureTests(TestCase):
     def test_decision_support_reads_the_picture_not_the_cache(self):
         # Store HAS the accomplishment, but interpret returns a sig WITHOUT it → Decision
         # Support must NOT invent 'ahead of plan'. Proves it reads ExecutiveSignals.
-        with mock.patch(_TODAY, return_value=TODAY):
+        with morning(self.user, on=TODAY):
             ev.record_accomplishment(self.user, ACC)
             with mock.patch.object(ds, "_safe_interpret", return_value=ExecutiveSignals()):
                 out = ds.respond(self.user, "I won't be doing the bike ride tonight")
@@ -74,10 +79,7 @@ class OneExecutivePictureTests(TestCase):
         from apps.ai.models import AssistantConversation
         from apps.ai.chatgpt_cos.lanes import route_message
         conv = AssistantConversation.objects.create(user=self.user)
-        clock = datetime(2026, 7, 4, 18, 0, tzinfo=_tz.utc)
-        with mock.patch(_TODAY, return_value=TODAY), \
-                mock.patch("apps.core.utils.get_user_now", return_value=clock), \
-                mock.patch(_GDS, side_effect=_state(6.4)):
+        with morning(self.user, on=TODAY), mock.patch(_GDS, side_effect=_state(6.4)):
             route_message(self.user, "Good morning", conv)
             route_message(self.user, "I feel refreshed, 6.4 is good for me", conv)     # → subjective
             r3 = route_message(self.user, "I made up my workouts from Wednesday and Friday", conv)

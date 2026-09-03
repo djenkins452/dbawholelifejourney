@@ -14,6 +14,8 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from apps.core.tests.clock import morning
+
 from apps.ai.chatgpt_cos.executive_interpretation import interpret, _health_critical_actions
 from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
 
@@ -49,7 +51,8 @@ class HealthCriticalPriorityTests(TestCase):
         self.assertIn("overdue", sig.executive_picture.lower())
 
     def test_brief_leads_with_the_action_not_the_agenda(self):
-        with mock.patch(_DOSES, return_value=OVERDUE), mock.patch(_GDS, side_effect=_empty):
+        with morning(self.user), mock.patch(_DOSES, return_value=OVERDUE), \
+                mock.patch(_GDS, side_effect=_empty):
             brief = compose_executive_brief(self.user, lead="Got it. ", subjective="positive")
         low = brief.lower()
         self.assertIn("before anything else", low)
@@ -60,7 +63,8 @@ class HealthCriticalPriorityTests(TestCase):
 
     def test_does_not_fire_when_nothing_is_health_critical(self):
         pending = [{"medication": "Metformin", "time": "8:00 PM", "status": "pending"}]
-        with mock.patch(_DOSES, return_value=pending), mock.patch(_GDS, side_effect=_empty):
+        with morning(self.user), mock.patch(_DOSES, return_value=pending), \
+                mock.patch(_GDS, side_effect=_empty):
             sig = interpret(self.user, subjective="positive")
             brief = compose_executive_brief(self.user, subjective="positive")
         self.assertFalse(sig.health_critical)

@@ -11,6 +11,8 @@ from unittest.mock import patch
 from django.conf import settings
 from django.test import TestCase
 
+from apps.core.tests.clock import pin_clock
+
 from apps.core.ai_eae.models import SignalSnapshot
 from apps.core.ai_eae.signal_aggregation import SignalAggregationService
 from apps.users.models import User
@@ -61,7 +63,7 @@ class TestExpectedMap(TestCase):
 
     def setUp(self):
         self.user = _create_test_user()
-        self.today = datetime.date.today()
+        self.today = pin_clock(self, self.user).today
 
     @patch('apps.core.execution.execution_truth_engine.get_execution_truth')
     def test_expected_map_parses_ete_output(self, mock_ete):
@@ -114,7 +116,7 @@ class TestNoSignalWithoutData(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('integrity-test@test.com')
-        self.today = datetime.date.today()
+        self.today = pin_clock(self, self.user).today
 
     def test_no_data_produces_no_signals(self):
         """User with no data at all gets zero signals (no zero-fill)."""
@@ -180,7 +182,7 @@ class TestSignalSnapshotState(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('state-test@test.com')
-        self.today = datetime.date.today()
+        self.today = pin_clock(self, self.user).today
 
     def test_completed_workout(self):
         """Workout with activity → state=completed or partial."""
@@ -366,7 +368,7 @@ class TestSkippedState(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('skip-test@test.com')
-        self.today = datetime.date.today()
+        self.today = pin_clock(self, self.user).today
 
     def test_skipped_medication_all_doses(self):
         """All medication doses explicitly skipped → state=skipped."""
@@ -442,7 +444,7 @@ class TestConfidenceInSnapshots(TestCase):
 
     def setUp(self):
         self.user = _create_test_user('conf-test@test.com')
-        self.today = datetime.date.today()
+        self.today = pin_clock(self, self.user).today
 
     def test_completed_workout_has_explicit_confidence(self):
         """Completed workout with full duration → CONFIDENCE_EXPLICIT (1.0)."""

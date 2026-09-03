@@ -19,6 +19,8 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from apps.core.tests.clock import morning
+
 from apps.ai.chatgpt_cos.lanes import (
     AMBIGUITY_TYPES,
     LANE_REGISTRY,
@@ -444,7 +446,10 @@ class DailyCheckinResolutionTests(TestCase):
         for p in ps:
             p.start()
         try:
-            out = route_message(self.user, "1", self.conv)
+            # The synthesized agenda is the DAYTIME agenda; after 8 PM the composer
+            # pivots to wind-down and never names the upcoming item.
+            with morning(self.user):
+                out = route_message(self.user, "1", self.conv)
         finally:
             for p in ps:
                 p.stop()

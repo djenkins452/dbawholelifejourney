@@ -33,6 +33,8 @@ import json
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from apps.core.tests.clock import pin_clock
+
 User = get_user_model()
 
 
@@ -52,51 +54,45 @@ class ExecutableIdentityIntegrityTests(TestCase):
         prefs.use_model_interface_writes = True
         prefs.save()
         self.user = User.objects.get(pk=self.user.pk)
-        self.today = datetime.date.today()
+        # The clock is PINNED to 08:00 in the user's timezone, and every time below is
+        # derived from it. Three earlier attempts scaled the fixture off
+        # `datetime.datetime.now()` instead — the OS clock — while the execution
+        # projection asks `get_user_now(user)`, the USER's clock. Those are different
+        # hours whenever the two zones differ (always, for a UTC test user on an
+        # Eastern machine), so the fixture placed items relative to one clock and the
+        # projection judged them against another. Late in the user's day every item
+        # aged out of the actionable buckets and the suite lost its subject entirely:
+        # "no non-current executable item is visible".
+        clock = pin_clock(self, self.user, hour=8)
+        self.today = clock.today
+        now = clock.now
 
         # The ROUTINE's block drives recovery eligibility, so it must match the times
-        # below or the whole block ages out and the fixture silently loses its subject.
-        # Both derived from `now`, keeping this suite wall-clock independent.
-        _blocks = ["morning", "mid_morning", "lunch", "afternoon", "evening", "nightly"]
-        _hour = datetime.datetime.now().hour
-        _current = ("morning" if _hour < 9 else "mid_morning" if _hour < 11
-                    else "lunch" if _hour < 14 else "afternoon" if _hour < 17
-                    else "evening" if _hour < 21 else "nightly")
-        _later = _blocks[min(_blocks.index(_current) + 1, len(_blocks) - 1)]
+        # below or the whole block ages out. At a pinned 8 AM both are simply known.
         morning = Routine.objects.create(
-            user=self.user, name="Morning Routine", time_of_day=_current)
+            user=self.user, name="Morning Routine", time_of_day="morning")
         nightly = Routine.objects.create(
-            user=self.user, name="Nightly Routine", time_of_day=_later)
+            user=self.user, name="Nightly Routine", time_of_day="mid_morning")
 
         def mk(routine, name, t):
             return RoutineSchedule.objects.create(
                 routine=routine, name=name, scheduled_time=t, is_active=True,
                 days_of_week="0,1,2,3,4,5,6")
 
-        # Times are RELATIVE TO NOW, clamped inside the day. Fixed clock times made this
-        # suite wall-clock dependent: morning items stop being recoverable late in the
-        # day (correct Recovery-Contract behaviour), so they legitimately leave the
-        # actionable buckets and the fixture silently lost its subject.
-        # Offsets are SCALED to the time actually left in the day. A fixed clamp broke
-        # late at night: at 23:40 a "+90 minutes" item clamped back to 22:xx, landing in
-        # the PAST and leaving no upcoming item for the test to act on.
-        now = datetime.datetime.now()
-        _minutes_left = max((23 * 60 + 55) - (now.hour * 60 + now.minute), 10)
         def offset(step):
-            """`step` is 1..5 — position in the sequence, not a literal minute count."""
-            delta = max(int(_minutes_left * step / 6), step)
-            t = now + datetime.timedelta(minutes=delta)
-            return datetime.time(t.hour, t.minute) if t.day == now.day \
-                else datetime.time(23, 59)
+            """`step` is 1..5 — position in the sequence, not a literal minute count.
+
+            All five land later the same morning, so every item is UPCOMING. Overdue
+            items are subject to the Recovery Contract's recoverability window, which
+            correctly drops them late in a block; identity, confirmation, execution and
+            verification are what this suite exercises, not overdue-ness.
+            """
+            t = now + datetime.timedelta(minutes=15 * step)
+            return datetime.time(t.hour, t.minute)
 
         # Order here deliberately differs from time order, so a positional/index merge
         # would produce a visible mismatch.
         self.items = {
-            # All UPCOMING. Overdue items are subject to the Recovery Contract's
-            # recoverability window, which legitimately drops them from the actionable
-            # buckets late in a block — correct product behaviour, but it makes a
-            # fixture wall-clock dependent. Identity/confirmation/execution/verification
-            # are what this suite exercises; overdue-ness is not.
             "Wake up": mk(morning, "Wake up", offset(1)),
             "Shower": mk(morning, "Shower", offset(2)),
             "THORNE Creatine": mk(morning, "THORNE Creatine", offset(3)),

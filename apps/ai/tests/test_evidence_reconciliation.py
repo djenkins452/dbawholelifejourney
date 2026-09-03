@@ -12,6 +12,8 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase
 
+from apps.core.tests.clock import morning
+
 from apps.ai.chatgpt_cos.executive_interpretation import (
     classify_subjective_energy, interpret)
 from apps.ai.chatgpt_cos.executive_brief import compose_executive_brief
@@ -80,7 +82,9 @@ class ReconciliationBriefTests(TestCase):
         self.user = User.objects.create_user(email="reconbrief@test.com", password="x")
 
     def _brief(self, hours, subjective):
-        with mock.patch(_GDS, side_effect=_state(hours)):
+        # Reconciliation is a daytime composer concern; after 8 PM the brief pivots
+        # to wind-down and never reaches it. Pin the daypart, don't inherit it.
+        with morning(self.user), mock.patch(_GDS, side_effect=_state(hours)):
             return compose_executive_brief(self.user, lead="Got it. ",
                                            subjective=subjective).lower()
 
@@ -105,11 +109,10 @@ class RoutedReconciliationTests(TestCase):
         self.conv = AssistantConversation.objects.create(user=self.user)
 
     def test_greeting_then_positive_feeling_reconciles(self):
-        from datetime import datetime, timezone as tz
         from apps.ai.chatgpt_cos.lanes import route_message
-        with mock.patch("apps.core.utils.get_user_now",
-                        return_value=datetime(2026, 7, 4, 7, 30, tzinfo=tz.utc)), \
-                mock.patch(_GDS, side_effect=_state(6.4)):
+        # Was the mirror-image half-freeze: get_user_now pinned, get_user_today left
+        # on the wall clock. One seam pins both from a single instant.
+        with morning(self.user), mock.patch(_GDS, side_effect=_state(6.4)):
             route_message(self.user, "Good morning", self.conv)
             out = route_message(
                 self.user,

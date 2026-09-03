@@ -13,6 +13,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, SimpleTestCase
 
+from apps.core.tests.clock import morning
+
 from apps.ai.chatgpt_cos import executive_interpretation as ei
 from apps.ai.chatgpt_cos import executive_brief as eb
 
@@ -83,7 +85,10 @@ class ComposerNarratesJudgmentTests(TestCase):
 
     def test_brief_concludes_manageable_not_overload(self):
         prod = {"today": 1, "overdue": 0, "soon": 4, "backlog": 18, "total": 22}
-        with mock.patch(_HZN, return_value=prod), mock.patch(_ES, return_value={}):
+        # compose_executive_brief pivots to wind-down at 8 PM and stops narrating
+        # workload, so the daypart is pinned rather than inherited from the runner.
+        with morning(self.u), mock.patch(_HZN, return_value=prod), \
+                mock.patch(_ES, return_value={}):
             brief = eb.compose_executive_brief(self.u)
         low = brief.lower()
         # the success criterion, demonstrated:

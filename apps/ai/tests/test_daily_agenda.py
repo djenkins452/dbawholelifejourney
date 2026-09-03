@@ -13,6 +13,8 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 
+from apps.core.tests.clock import evening, morning
+
 User = get_user_model()
 
 _CALL_API = "apps.ai.services.ai_service._call_api"
@@ -46,13 +48,21 @@ class DailyAgendaTests(TestCase):
     def setUpTestData(cls):
         cls.user = User.objects.create_user(email="agenda@example.com", password="x")
 
-    def _agenda(self, **kw):
+    def _agenda(self, daypart=morning, **kw):
+        """Build the agenda at a PINNED daypart.
+
+        build_daily_agenda pivots at 8 PM to wind-down. These assertions describe the
+        daytime agenda, so the daypart is stated rather than inherited from whatever
+        hour the suite happens to start — the same tests passed all afternoon and
+        failed at night before this.
+        """
         from apps.core.cos_briefing.daily_agenda import build_daily_agenda
         ps = _patches(**kw)
         for p in ps:
             p.start()
         try:
-            return build_daily_agenda(self.user)
+            with daypart(self.user):
+                return build_daily_agenda(self.user)
         finally:
             for p in ps:
                 p.stop()
@@ -77,6 +87,26 @@ class DailyAgendaTests(TestCase):
         with mock.patch(_CALL_API, side_effect=AssertionError("no openai allowed")):
             a = self._agenda()
         self.assertTrue(a.strip())
+
+    def test_evening_pivots_to_wind_down(self):
+        """After 8 PM the agenda stops starting things and wraps the day.
+
+        The counterpart to every daytime assertion above: the pivot is intended
+        product behaviour, so it is asserted at a pinned evening hour rather than
+        being something the other tests trip over by accident.
+        """
+        a = self._agenda(daypart=evening).lower()
+        self.assertIn("wrapping up the day", a)
+        self.assertIn("wind down", a)
+        self.assertNotIn("best next step", a)
+
+    def test_daypart_is_the_only_difference(self):
+        """Same inputs, two dayparts, two intended answers — and both are stable."""
+        day = self._agenda(daypart=morning).lower()
+        night = self._agenda(daypart=evening).lower()
+        self.assertNotEqual(day, night)
+        self.assertIn("coming up today", day)
+        self.assertIn("wrapping up the day", night)
 
     def test_agenda_has_no_deflection_or_implementation_language(self):
         a = self._agenda().lower()

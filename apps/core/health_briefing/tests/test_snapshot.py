@@ -8,6 +8,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import TestCase
+from django.utils.timezone import now as django_now  # the authority is_expired reads
 
 from apps.core.health_briefing.models import HealthBriefingSnapshot
 from apps.users.models import TermsAcceptance
@@ -121,25 +122,25 @@ class SnapshotExpiryTests(TestCase):
         )
 
     def test_is_expired_false_when_future(self):
-        future = datetime.now(timezone.utc) + timedelta(hours=1)
+        future = django_now() + timedelta(hours=1)
         snap = self._create(future)
         self.assertFalse(snap.is_expired)
 
     def test_is_expired_true_when_past(self):
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        past = django_now() - timedelta(hours=1)
         snap = self._create(past)
         self.assertTrue(snap.is_expired)
 
     def test_expired_snapshots_still_queryable(self):
         # Snapshots are NOT auto-deleted on expiry; cleanup is a
         # separate concern. is_expired is a flag, not a filter.
-        past = datetime.now(timezone.utc) - timedelta(hours=1)
+        past = django_now() - timedelta(hours=1)
         self._create(past)
         self.assertEqual(HealthBriefingSnapshot.objects.count(), 1)
         # Filter by expires_at to find candidates for cleanup.
         self.assertEqual(
             HealthBriefingSnapshot.objects.filter(
-                expires_at__lt=datetime.now(timezone.utc)
+                expires_at__lt=django_now()
             ).count(),
             1,
         )

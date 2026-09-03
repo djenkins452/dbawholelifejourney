@@ -62290,3 +62290,90 @@ New contracts: `test_workout_completion_authority_contract.py`,
 `test_threshold_met_completes_routine` (threshold raised 10 → 20 minutes),
 `test_overlapping_manual_entry_merged` (HealthKit merge later required a matching
 `workout_type`). None involve the completion predicate.
+
+## 2026-09-02 — The suite's own clock: one seam instead of eight half-freezes
+
+Eight `apps.ai` tests passed all afternoon and failed after 8 PM. Proven not to be a
+product regression before touching anything: the identical eight fail at the deployed
+commit `78491f5e` with no changes.
+
+**Root cause: a half-frozen clock.** `apps.core.utils.get_user_now` and `get_user_today`
+are two halves of ONE authority, and both derive from `django.utils.timezone.now()`.
+The CoS composers pivot at 8 PM (`if hour >= 20:` in `daily_agenda.py` and
+`executive_brief.py`) from "here's your day" to "let's wrap up". Tests froze the DATE
+half and left the TIME half on the wall clock, so a fixture asserting a *morning* brief
+got the evening composer after dark. `test_morning_brief_reflects_accomplishments` named
+the bug precisely: it patched `get_user_today` and nothing else. One test in
+`test_evidence_reconciliation` had the mirror-image half-freeze — `get_user_now` pinned,
+`get_user_today` free.
+
+**One seam: `apps/core/tests/clock.py`.** `user_clock(user, hour=…)` plus `morning()` /
+`midday()` / `evening()`. Two decisions worth recording:
+- It freezes **`django.utils.timezone.now`**, not the two helpers. Dozens of modules bind
+  `get_user_now` / `get_user_today` at import time, so patching those names reaches only
+  the modules that import them inside a function. Freezing the source reaches everything
+  whatever its import style — and the date and hour cannot drift apart, because both are
+  derived from one instant.
+- The hour is the **user-local** hour, because that is what the product branches on. The
+  seam asserts `get_user_now(user).hour` and `get_user_today(user)` actually agree with
+  what it was asked for, so a seam that stops working fails loudly instead of silently
+  handing back the wall clock.
+- `REFERENCE_DAY` (a Wednesday) means no test depends on the real current date either;
+  tests with a date of their own pass `on=`.
+
+**Product behaviour unchanged** — nothing in the evening pivot was touched. It is now
+asserted deliberately rather than tripped over: `test_evening_pivots_to_wind_down` and
+`test_daypart_is_the_only_difference` run the same inputs through both dayparts and check
+each gives its own intended answer.
+
+**Determinism proved**, not assumed. The harness SHIFTS `timezone.now` by a constant
+offset so the process believes it started at a given hour while time still advances — a
+first attempt froze it to a constant and produced 97 spurious failures across ordering,
+expiry, `updated_at` and dedup-cache tests, which need the clock to move. That harness
+reproduces the bug exactly: at `d2428c22`, the seven modules are **OK at 07:00 UTC and
+fail with the same 8 at 22:00 UTC**. With the seam, both dayparts are green, and the full
+`apps.ai` + `apps.core` suite was run at both to confirm the same result either way.
+
+**A ninth member of the class, found by the determinism runs.**
+`apps/core/ai_eae/tests/test_signal_state.py` set `self.today = datetime.date.today()` in
+five fixtures — the SYSTEM-local date — while the pipeline computes for
+`get_user_today(user)`, the USER's date. Test users default to UTC, so after 8 PM Eastern
+those are different days: the fixture seeded one date and the pipeline wrote a snapshot for
+another, and `test_skipped_medication_all_doses` raised `SignalSnapshot.DoesNotExist`. Same
+authority mismatch, wearing different clothes. `pin_clock(self, user)` pins the hour and
+hands back the user's date.
+
+**WLJ has TWO time authorities, and the seam had to learn that.**
+`apps/core/time/system_clock.py :: get_current_time` calls Python's `datetime.now(tz)`, not
+`django.utils.timezone.now()` — and 42 non-test modules use it, including
+`GuidanceItem.is_snoozed`, `HealthBriefingSnapshot.is_expired` and `build_fitness_state`.
+Both report the same real instant, so nothing fails in production, but a test freezing only
+Django's clock got an unfrozen answer from all of them. The seam now freezes both, and
+`apps/core/tests/test_clock_seam.py` asserts they agree — a seam that silently stops
+working would otherwise take every test relying on it down with it.
+
+**A tenth, and the most-patched of them.**
+`test_executable_identity_integrity_contract.py` had been rewritten three times to chase
+this — its comments record each attempt ("keeping this suite wall-clock independent",
+"Offsets are SCALED to the time actually left in the day", "at 23:40 a +90 minutes item
+clamped back to 22:xx"). All three scaled the fixture off `datetime.datetime.now()`, the
+OS clock, while the execution projection asks `get_user_now(user)`, the USER's clock —
+different hours whenever the zones differ, which for a UTC test user on an Eastern machine
+is always. Late in the user's day every seeded item aged out of the actionable buckets and
+the suite lost its subject: *"no non-current executable item is visible"*. Pinned to 08:00
+with every time derived from that one instant, the elaborate scaling arithmetic is simply
+deleted.
+
+Two more fixtures read a clock nothing else reads: `test_snapshot.py` built expiry times
+from `datetime.now(timezone.utc)` — the OS clock — while `HealthBriefingSnapshot.is_expired`
+reads `django.utils.timezone.now()`. They agree in production, so it never failed; they now
+read the same authority the model does.
+
+**No production bug found.** This was test-determinism debt end to end; no production file
+changed, so there is no deploy for this work. The two-authority split is an architectural
+smell worth a decision later, but it is not a defect today and was not in this scope.
+
+**Files:** new `apps/core/tests/clock.py`; `test_daily_agenda.py`,
+`test_p33_executive_interpretation.py`, `test_health_critical_priority.py`,
+`test_evidence_reconciliation.py`, `test_one_executive_picture.py`,
+`test_conversation_lanes.py`, `test_conversation_posture.py`.

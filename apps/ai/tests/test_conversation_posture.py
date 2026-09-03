@@ -12,6 +12,8 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.test import TestCase, SimpleTestCase
 
+from apps.core.tests.clock import morning
+
 from apps.ai.chatgpt_cos import conversation_planner as cp
 
 User = get_user_model()
@@ -67,7 +69,10 @@ class PostureRoutingTests(TestCase):
         from apps.ai.chatgpt_cos.lanes import route_message
         from apps.ai.models import AssistantMessage
         AssistantMessage.objects.create(conversation=self.conv, role="user", content=msg)
-        with mock.patch(_C, side_effect=RuntimeError("down")), \
+        # Lane routing is daypart-aware (the evening posture wraps the day up), so
+        # every routed message in this class is pinned to one morning instant.
+        with morning(self.u), \
+             mock.patch(_C, side_effect=RuntimeError("down")), \
              mock.patch(_CT, side_effect=RuntimeError("down")):
             res = route_message(self.u, msg, self.conv)
         if res:

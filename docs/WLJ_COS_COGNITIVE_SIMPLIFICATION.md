@@ -136,3 +136,65 @@ guidance may be marked as a historical patch — safety boundaries do not retire
 Phase 2 remains. No tool was pruned or consolidated. No constitution guidance was removed.
 Legacy runtimes remain. `deterministic_understanding` is untouched. No Action Safety
 boundary was weakened, and none will be by this migration.
+
+---
+
+## Evidence for the migration: present is not relevant (2026-09-03)
+
+The attachment incident had two halves, and the second is the one that matters to this
+migration.
+
+**First half — WLJ's fault, fixed.** Prior uploads were delivered inside `current_context`,
+which means what is true right now. Stale data presented as current. WLJ must deliver
+context accurately, and it was not.
+
+**Second half — not WLJ's to fix.** Even with an image attached to the *current* turn,
+"Mark Charge Watch complete" should not draw an image disclaimer. The image is present; it
+is not relevant. That is an ordinary relevance judgment, and it belongs to the model.
+
+### The invariant
+
+> **EXPLICIT CURRENT USER INTENT > unrelated available context.**
+> Context may be present without being relevant.
+
+### What this rules out
+
+No image-specific suppression rule. No deterministic task-versus-image router. No procedural
+instruction telling the model when a file matters. Building any of those would be WLJ
+growing a mind — the exact thing this migration exists to reverse — and it would make the
+prompt longer to compensate for reasoning the model already does well.
+
+The division of labour:
+
+| | Responsibility |
+|---|---|
+| **WLJ** | Deliver context accurately, and say honestly what each piece IS — this turn's upload, a file from eleven days ago, an unresolved question |
+| **OpenAI** | Decide what, of everything present, bears on what was actually asked |
+| **Neither** | A rule that decides relevance in advance |
+
+### The one thing WLJ owed here, and paid
+
+A rule that *compels* commentary about context, keyed on that context existing, is WLJ
+overriding the model's relevance judgment procedurally. One instance existed and has been
+removed:
+
+* `_attachment_lead` rendered a processing attachment as *"still being read — **tell the
+  user** it's being read and to ask again in a moment"*. That is a script, triggered by a
+  file's state, regardless of whether the user's request had anything to do with the file.
+  It now reads *"still being read — contents not available yet"*: state, not speech.
+* The Constitution's equivalent clauses are now scoped — *"WHEN THE USER'S REQUEST DEPENDS
+  ON THAT ATTACHMENT, tell them it is still being read"*, and for an unreadable or truncated
+  file, *"WHEN YOU ARE ANSWERING FROM IT, say what you can and note the limit"*. The
+  protection is intact (never guess unread contents); only the compulsion is gone.
+
+`PresentIsNotRelevantTests` in `apps/core/tests/test_attachment_lifecycle_contract.py`
+certifies the absence of that coercion — asserting on a file's own state line, since the
+block legitimately *forbids* one wrong statement ("never tell the user to upload a document
+that is listed here") and a prohibition is not a compulsion.
+
+### Carried into Stage 2
+
+This is direct evidence for the migration's thesis and for the ranking of its candidates:
+when the assistant answers badly with accurate context in front of it, the first question is
+whether WLJ mislabelled the context — not which procedural rule to add. Every rule that
+tells the model *when* something matters is a Stage-2 candidate on exactly these grounds.

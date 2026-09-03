@@ -202,6 +202,67 @@ class Phase2Tests(Harness):
                          synthesis.build_orientation(self._context()))
 
 
+class PresentIsNotRelevantTests(Harness):
+    """The second half of the same incident, and the more general half.
+
+    Even with an image attached to the CURRENT turn, "Mark Charge Watch complete" should
+    not draw an image disclaimer — the image is present, not relevant. Relevance is the
+    model's judgment, so WLJ's job is to state what is attached and stop. What WLJ must
+    NOT do is oblige commentary merely because a file exists; that is a procedural rule
+    standing in for ordinary reasoning.
+
+    These tests certify the ABSENCE of that coercion. They deliberately do not test any
+    routing between tasks and images — there is none, and there must not be.
+    """
+
+    def _lead(self, attachments):
+        ctx = self._context(attachments=attachments)
+        return self._svc()._attachment_lead(ctx)
+
+    def test_the_attachment_block_states_what_is_attached(self):
+        art = _artifact(self.user, self.conv, filename="photo.jpg")
+        lead = self._lead([{"artifact_id": art.id, "kind": "image",
+                            "filename": "photo.jpg"}])
+        self.assertIn("photo.jpg", lead)
+
+    def test_it_never_requires_the_model_to_talk_about_the_file(self):
+        art = _artifact(self.user, self.conv, filename="photo.jpg")
+        lead = self._lead([{"artifact_id": art.id, "kind": "image",
+                            "filename": "photo.jpg"}]).lower()
+        for coercion in ("tell the user it", "describe the image", "acknowledge the",
+                         "mention the attachment", "always comment", "be sure to note"):
+            self.assertNotIn(coercion, lead,
+                             f"the attachment block compels speech about the file: {coercion!r}")
+
+    def test_a_file_still_being_read_is_reported_as_state_not_as_a_script(self):
+        """The one directive that WAS unconditional: a processing attachment used to
+        instruct the model to tell the user it was being read — triggered by the file's
+        state, never by whether the request needed it."""
+        art = _artifact(self.user, self.conv, filename="scan.pdf", kind="document")
+        lead = self._lead([{"artifact_id": art.id, "kind": "document",
+                            "filename": "scan.pdf", "perception": "processing"}])
+        # Assert on the FILE'S OWN LINE, not on the whole block: the block legitimately
+        # forbids one wrong statement ("never tell the user to upload a document that is
+        # listed here"), and a prohibition is not a compulsion. What must be gone is a
+        # directive to SPEAK, attached to the file's state.
+        line = next(ln for ln in lead.splitlines() if "scan.pdf" in ln).lower()
+        self.assertIn("still being read", line)
+        self.assertIn("contents not available", line)
+        for compelled in ("tell the user", "let them know", "say that", "inform"):
+            self.assertNotIn(compelled, line,
+                             "a file's state line dictates what the model must say")
+
+    def test_the_constitution_scopes_that_wording_to_a_dependent_request(self):
+        """Removing the coercion must not lose the protection: when the answer DOES depend
+        on a file that is still being read, saying so is still required."""
+        from apps.ai.model_interface.constitution import CONSTITUTION
+        idx = CONSTITUTION.find("perception:'processing'")
+        self.assertGreater(idx, 0)
+        clause = CONSTITUTION[idx:idx + 400]
+        self.assertIn("DEPENDS ON THAT ATTACHMENT", clause)
+        self.assertIn("never guess", clause.lower())
+
+
 class TelemetryShapeTests(SimpleTestCase):
     """The counters that make this class visible in one line, forever."""
 

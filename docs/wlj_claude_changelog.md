@@ -62519,3 +62519,51 @@ current-context, continuity, telemetry and synthesis suites.
 
 Zero provider calls throughout — the forensics were the truth probe, `ToolCallLog`
 telemetry, and the code path.
+
+---
+
+## 2026-09-03 — Present is not relevant: removing a rule that made WLJ talk about files
+
+**The correction.** The stale-context fix earlier today was real but incomplete as an
+explanation. Even had an image been attached to the *current* turn, "Mark Charge Watch
+complete" should not have drawn an image disclaimer. The image would have been present, not
+relevant — and telling those apart is ordinary reasoning, not something WLJ should legislate.
+
+**Recorded invariant:** *EXPLICIT CURRENT USER INTENT > unrelated available context. Context
+may be present without being relevant.* WLJ delivers context accurately and says honestly
+what each piece IS; OpenAI decides what bears on the ask; neither builds a rule that decides
+relevance in advance. No image-suppression rule and no task-versus-image router were built,
+and none should be.
+
+**The one thing WLJ owed here — found and removed.** A rule that *compels* commentary about
+context, keyed on that context merely existing, is WLJ overriding relevance judgment
+procedurally. One such rule existed in two places:
+
+- `_attachment_lead` rendered a processing attachment as *"still being read — **tell the
+  user** it's being read and to ask again in a moment"*. A script, triggered by a file's
+  state, regardless of whether the request had anything to do with the file — and rendered
+  into CURRENT SITUATION, the highest-salience surface. It now reads *"still being read —
+  contents not available yet"*: state, not speech.
+- The Constitution's equivalent clauses are now scoped rather than unconditional: *"WHEN THE
+  USER'S REQUEST DEPENDS ON THAT ATTACHMENT, tell them it is still being read"*, and *"WHEN
+  YOU ARE ANSWERING FROM IT, say what you can and note the limit"*. The protection is
+  untouched — never guess the contents of a file you have not read — only the compulsion is
+  gone. Net effect is fewer procedural words, not more.
+
+**Tests.** `PresentIsNotRelevantTests` (5) in
+`apps/core/tests/test_attachment_lifecycle_contract.py` certifies the absence of the
+coercion. It asserts on a file's own state line rather than the whole block, because the
+block legitimately *forbids* one wrong statement ("never tell the user to upload a document
+that is listed here") — a prohibition is not a compulsion, and a blanket string check
+conflated the two on the first run. A companion test pins the Constitution's scoping clause
+so removing the compulsion cannot quietly remove the protection with it. 105 tests green.
+
+**Carried into the migration** as evidence for its thesis: when the assistant answers badly
+with accurate context in front of it, the first question is whether WLJ mislabelled the
+context — never which procedural rule to add. Recorded in
+`docs/WLJ_COS_COGNITIVE_SIMPLIFICATION.md`; every rule that tells the model *when* something
+matters is now a Stage-2 candidate on those grounds.
+
+**Files.** `apps/ai/model_interface/service.py`, `apps/ai/model_interface/constitution.py`,
+`apps/core/tests/test_attachment_lifecycle_contract.py`,
+`docs/WLJ_COS_COGNITIVE_SIMPLIFICATION.md`. Zero provider calls.

@@ -590,7 +590,14 @@ class ModelInterfaceService:
     @staticmethod
     def _attachment_lead(standing_context: dict) -> str:
         """Raise the salience of file(s) the user attached THIS turn so the model can never
-        overlook them. They already reach the model as `current_context.attachments` — but as
+        overlook them — WITHOUT obliging it to talk about them.
+
+        Present is not the same as relevant. An attachment being available is a fact about
+        the turn; whether it bears on what the user actually asked is a judgment, and the
+        judgment belongs to the model (2026-09-03: "Mark Charge Watch complete" was answered
+        with an image disclaimer). This block therefore lists what is attached and what state
+        each file is in, and stops there. It contains no directive to mention, describe,
+        acknowledge or narrate any of it. They already reach the model as `current_context.attachments` — but as
         one small entry deep in a ~60k-char JSON the model asked the user to 'upload the journal
         document' that was ALREADY attached (prod defect 2026-07-20). Same inline-salience fix
         as _focus_lead/_profile_lead: single source (the SAME attachments), named + up front,
@@ -608,8 +615,13 @@ class ModelInterfaceService:
             if a.get("text"):
                 state = "readable — its extracted text is in current_context.attachments"
             elif a.get("perception") == "processing":
-                state = ("still being read (perception in progress) — tell the user it's being "
-                         "read and to ask again in a moment")
+                # STATE, not required speech. This used to say "tell the user it's being
+                # read" — an instruction to talk about the file, triggered by the file's
+                # existence rather than by whether the user's request needs it. CURRENT
+                # SITUATION states what is true; whether it is worth mentioning is the
+                # model's relevance judgment, and the Constitution scopes the wording to
+                # the case where the request actually depends on the attachment.
+                state = "still being read (perception in progress) — contents not available yet"
             elif a.get("perception") == "unreadable":
                 state = "could not be read"
             else:

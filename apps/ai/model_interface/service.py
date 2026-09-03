@@ -173,6 +173,37 @@ class ModelInterfaceService:
             ),
         }
 
+        # ARTIFACT HISTORY — files uploaded on EARLIER turns of this conversation.
+        #
+        # This is a SEPARATE envelope section, and that separation is the whole point.
+        # It used to live at `current_context.conversation_artifacts`, inside the section
+        # whose entire meaning is "what is true right now". WLJ conversations do not roll
+        # over — Danny's has been one conversation since July — so a photo from a previous
+        # day sat permanently in the present tense with nothing marking it as past. On
+        # 2026-09-03 he asked the assistant to complete a task, attached nothing, and it
+        # opened by apologising that it could not identify people in images.
+        #
+        # The rule the class needs is structural, not another instruction: NOTHING under
+        # `current_context` may describe a prior turn. What is genuinely historical says so
+        # — in its own section, with each file's own age — and stays fully retrievable.
+        try:
+            from apps.ai.multimodal import conversation_artifacts_context
+            _this_turn_ids = [a.get("artifact_id") for a in (attachments or [])
+                              if isinstance(a, dict) and a.get("artifact_id")]
+            prior = conversation_artifacts_context(
+                self.user, getattr(conversation, "id", None),
+                exclude_ids=_this_turn_ids) if conversation is not None else []
+            if prior:
+                ctx["artifact_history"] = {
+                    "status": "historical",
+                    "attached_to_current_turn": False,
+                    "count": len(prior),
+                    "retrieve_with": "get_entity(domain='artifacts', name=<filename>)",
+                    "files": prior,
+                }
+        except Exception:  # pragma: no cover - defensive; envelope must never hard-fail
+            logger.warning("mi: artifact history skipped", exc_info=True)
+
         # CONVERSATION STATE — "what are we talking about / doing / waiting on" (a DIFFERENT
         # deterministic truth from Current Context's "what PAGE is the user on"). It is an
         # OWNED INTERFACE carried INSIDE this Executive Context Envelope — a peer FIELD to
@@ -1757,6 +1788,7 @@ class ModelInterfaceService:
                 answer_change=(_tel.answer_delta(phase1_answer, phase2_answer)
                                if phase2_answer is not None else None),
                 coverage=_synth2.orientation_coverage(standing_context),
+                standing_context=standing_context,
                 truncations=synth_metrics.get("truncations") or 0,
                 evidence_chars=synth_metrics.get("evidence_chars"),
             )

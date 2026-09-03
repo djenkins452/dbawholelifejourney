@@ -332,6 +332,12 @@ INTENTIONALLY_OMITTED = {
     "interview": (
         "Getting to Know You orchestration state. Phase 2 is an executive synthesis of a "
         "question, never an interview turn; the interview never reaches synthesis."),
+    "artifact_history": (
+        "Files uploaded on EARLIER turns. Phase 2 judges the evidence Phase 1 actually "
+        "gathered; a list of past uploads is neither evidence nor part of what is "
+        "happening now. Carrying it is how a stale image reaches an answer it has "
+        "nothing to do with (production 2026-09-03). Retrievable on request; never "
+        "orientation."),
 }
 
 # Per-key budgets keep the synthesis prompt small and fast. A key with no entry gets the

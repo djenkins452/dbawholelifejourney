@@ -299,16 +299,28 @@ def link_artifacts_to_conversation(conversation_id, artifact_ids):
         logger.warning("multimodal.link_artifacts_to_conversation failed", exc_info=True)
 
 
-def conversation_artifacts_context(user, conversation_id, *, exclude_ids=(), limit=10):
+def conversation_artifacts_context(user, conversation_id, *, exclude_ids=(), limit=10,
+                                   now=None):
     """Compact list of artifacts uploaded EARLIER in this conversation (excluding
     this turn's), so the model always knows what it can retrieve for a follow-up.
     Each item is lightweight (id, filename, kind, readable, short preview) — the
-    model calls get_entity(domain='artifacts') for the full content. Never raises."""
+    model calls get_entity(domain='artifacts') for the full content. Never raises.
+
+    Every entry states its OWN age (`uploaded_on`, `days_ago`) and carries
+    `attached_to_current_turn: False`. A WLJ conversation never rolls over — Danny's has
+    run since July — so without an age this list reads as "files that are here", and on
+    2026-09-03 an image from the previous day was answered as if it had just been sent.
+    The age is a FACT the model weighs; WLJ renders no verdict about relevance and
+    discards nothing that is still retrievable.
+    """
     if not conversation_id:
         return []
     out = []
     try:
+        from django.utils import timezone
+
         from apps.capture.models import MultimodalArtifact
+        now = now or timezone.now()
         rows = (MultimodalArtifact.objects
                 .filter(user=user, source_conversation_id=conversation_id)
                 .exclude(id__in=list(exclude_ids) or [])
@@ -321,6 +333,9 @@ def conversation_artifacts_context(user, conversation_id, *, exclude_ids=(), lim
                 "kind": a.kind or "artifact",
                 "content_type": a.content_type,
                 "uploaded_at": a.created_at.isoformat(),
+                "uploaded_on": a.created_at.date().isoformat(),
+                "days_ago": max(0, (now.date() - a.created_at.date()).days),
+                "attached_to_current_turn": False,
                 "readable": bool(a.has_perception),
             }
             if a.has_perception and a.extracted_text:

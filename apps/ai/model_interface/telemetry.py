@@ -149,10 +149,43 @@ def _compact_coverage(coverage):
     }
 
 
+# Current Context means WHAT IS TRUE RIGHT NOW. `attachments` is the only key under it
+# that may describe a file, and only files sent with THIS message. Any other artifact-
+# bearing key there is a prior turn wearing the present tense — the 2026-09-03 defect.
+_CURRENT_CONTEXT_FILE_KEYS = ("attachments",)
+_ARTIFACT_WORDS = ("artifact", "attachment", "upload", "image", "photo", "file")
+
+
+def attachment_state(standing_context):
+    """Is anything actually attached to this turn — and does the envelope say so honestly?
+
+    The counters that would have caught the production failure in one line: nothing was
+    attached, no subject was active, and yet the model was carrying a list of images.
+    Counts and key NAMES only; no filename, no preview, no pixel ever reaches this record.
+    """
+    ctx = standing_context or {}
+    current = ctx.get("current_context") or {}
+    history = ctx.get("artifact_history") or {}
+    subject = ((ctx.get("conversation_state") or {}).get("active_subject") or {})
+    stray = sorted(
+        key for key in current
+        if key not in _CURRENT_CONTEXT_FILE_KEYS
+        and any(word in key.lower() for word in _ARTIFACT_WORDS)
+    )
+    return {
+        "attached_this_turn": len(current.get("attachments") or []),
+        "historical_files": int(history.get("count") or 0),
+        "history_is_marked_historical": history.get("status") == "historical",
+        "active_subject_is_artifact": bool(subject.get("artifact")),
+        # MUST stay empty. A name here means a past upload is being presented as present.
+        "stray_current_context_file_keys": stray,
+    }
+
+
 def build_turn_telemetry(*, sections, tools, tools_called, loop_metrics=None,
                          synthesis_eligible=False, synthesis_used=False,
                          answer_change=None, coverage=None, truncations=0,
-                         evidence_chars=None):
+                         evidence_chars=None, standing_context=None):
     """Assemble one turn's record. Bounded, flat, and free of user content."""
     loop_metrics = loop_metrics or {}
     called = [str(t)[:64] for t in (tools_called or [])]
@@ -184,6 +217,7 @@ def build_turn_telemetry(*, sections, tools, tools_called, loop_metrics=None,
             **(answer_change or {}),
         },
         "coverage": _compact_coverage(coverage),
+        "attachments": attachment_state(standing_context),
         "truncations": int(truncations or 0),
     }
     record["tools"]["tools_unused"] = max(

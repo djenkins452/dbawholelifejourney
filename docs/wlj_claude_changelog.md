@@ -62449,3 +62449,73 @@ described the eight leads consolidated in `f435f5bc`).
 
 **Not user-facing** — instrumentation and classification only, so no release note or help
 topic. Zero provider calls at any point. No Action Safety boundary touched.
+
+---
+
+## 2026-09-03 — "I'm unable to identify individuals in images" — to a turn with no image
+
+**The turn.** Danny: *"Mark Charge Watch complete."* The Chief of Staff opened with an
+apology about not being able to identify people in images, then offered to mark the task
+complete — and called no tool at all. Nothing was attached. The image was from the day
+before.
+
+**What the telemetry said** (turn `55089bf1`, 22:10 UTC, conversation 14 — the first
+production failure the Stage-0 instrumentation was live for): `phase2.eligible: False`,
+`phase2.used: False`, `tools_called: []`, `coverage.silently_lost: []`, structured context
+51,908 chars. So the answer came from **Phase 1**; Phase 2 neither introduced nor retained
+it, and no context was lost across the boundary. That eliminated three suspects in one
+read, which is exactly what Stage 0 was built for.
+
+**Root cause — stale DATA presented as current, not stale instruction.** Prior uploads were
+assembled into **`current_context.conversation_artifacts`**. Current Context is, by its own
+definition and by the constitution's, what is true RIGHT NOW: the clock, the screen, this
+turn's files. And a WLJ conversation never rolls over — Danny's has been conversation 14
+since July — so `conversation_artifacts_context()` returned the last ten artifacts across
+*weeks* (production holds 21 images going back to 2026-07-20) and dropped them into the
+present tense, unlabelled, on every single turn. Given a list of images described as part
+of what is happening now, an image disclaimer is a reasonable thing for the model to say.
+
+Three suspects cleared by the same trace: `conversation_state` behaved **correctly** — its
+30-minute TTL had expired the prior day's state and `active_subject` was absent, so the
+completed-action supersession from `00c19be1` was never in play. `_attachment_lead`
+contributed **0 characters** — CURRENT SITUATION carried no attachment block. The
+constitution's ATTACHMENTS section (4,781 chars, present-tense throughout) was an
+amplifier, not the cause.
+
+**Structural fix — the condition removed, not the symptom detected.** Nothing under
+`current_context` may describe a prior turn. Prior uploads moved out of Current Context
+into their own envelope section, `artifact_history`, which states `status: "historical"`,
+`attached_to_current_turn: False`, and — per file — `uploaded_on` and `days_ago`. The list
+itself is unchanged and stays fully retrievable: not-current is not the same as hidden, and
+WLJ renders no verdict about whether an old file still matters. `artifact_history` is also
+declared in `INTENTIONALLY_OMITTED`, because Phase 2 judges the evidence Phase 1 gathered
+and a list of past uploads is not evidence.
+
+No rule was added telling the model to ignore old images, and nothing is special-cased by
+file type, task, or wording. The one constitution edit is a **pointer** — the field it
+names moved, so the sentence naming it moved with it.
+
+**Telemetry, before and after.** `telemetry.attachment_state()` now records
+`attached_this_turn`, `historical_files`, `history_is_marked_historical`,
+`active_subject_is_artifact`, and `stray_current_context_file_keys` — which must always be
+empty. Against the shipped envelope it reports
+`stray_current_context_file_keys: ['conversation_artifacts']`; against the fixed one, `[]`
+with `historical_files: 1, history_is_marked_historical: True`. The stray-key check matches
+on meaning, not on that one name, so a future `recent_images` or `last_upload` under Current
+Context fails the same test.
+
+**Tests.** `apps/core/tests/test_attachment_lifecycle_contract.py` (15) certifies the class,
+including the required lifecycle regression end to end: image-assisted interaction →
+lifecycle completed → later unrelated turn → CURRENT SITUATION contains no active
+attachment → nothing model-facing represents the old file as current — while the same test
+proves the file is still findable. 183 tests green across the attachment, multimodal,
+current-context, continuity, telemetry and synthesis suites.
+
+**Files.** `apps/ai/cos_services/current_context.py`, `apps/ai/multimodal.py`,
+`apps/ai/model_interface/service.py`, `.../synthesis.py`, `.../telemetry.py`,
+`.../constitution.py` (pointer only), `apps/ai/tests/test_artifact_conversation_link.py`,
+`docs/WLJ_CONVERSATION_STATE_ARCHITECTURE.md`, `docs/ENGINE_COS_REFERENCE.md`. New:
+`apps/core/tests/test_attachment_lifecycle_contract.py`.
+
+Zero provider calls throughout — the forensics were the truth probe, `ToolCallLog`
+telemetry, and the code path.

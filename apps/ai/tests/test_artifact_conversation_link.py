@@ -75,12 +75,23 @@ class CurrentContextSurfacingTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="cc@ex.com", password="x")
 
-    def test_baseline_includes_conversation_artifacts(self):
+    def test_prior_uploads_are_surfaced_as_HISTORY_not_as_current_context(self):
+        """Moved deliberately (production 2026-09-03). Current Context means what is true
+        RIGHT NOW; a WLJ conversation never rolls over, so a file from a previous day kept
+        arriving in the present tense. The list is unchanged and still reaches the model —
+        as its own historical envelope section, in `artifact_history.files`."""
         from apps.ai.cos_services.current_context import get_current_context_baseline
+        from apps.ai.model_interface.service import ModelInterfaceService
         from apps.ai.models import AssistantConversation
         conv = AssistantConversation.objects.create(user=self.user)
         _artifact(self.user, sha="a" * 64, original_filename="policy.pdf",
                   source_conversation_id=conv.id)
+
         baseline = get_current_context_baseline(self.user, conversation=conv)
-        self.assertIn("conversation_artifacts", baseline)
-        self.assertEqual(baseline["conversation_artifacts"][0]["filename"], "policy.pdf")
+        self.assertNotIn("conversation_artifacts", baseline)
+
+        history = (ModelInterfaceService(self.user)
+                   .build_standing_context(conversation=conv)
+                   .get("artifact_history") or {})
+        self.assertEqual(history["status"], "historical")
+        self.assertEqual(history["files"][0]["filename"], "policy.pdf")

@@ -505,20 +505,15 @@ def get_current_context_baseline(user, *, page_context=None, conversation=None,
     if attachments:
         baseline["attachments"] = list(attachments)
 
-    # Artifacts uploaded EARLIER in this conversation (not this turn). Surfacing them
-    # lets the model answer follow-ups ("what's the deductible?", "does it cover
-    # emergency care?") by RETRIEVING the right artifact via get_entity(domain=
-    # 'artifacts') — deterministic, not fragile transcript memory. Request-path-safe
-    # (one bounded query); never fatal.
-    if conversation is not None:
-        try:
-            from apps.ai.multimodal import conversation_artifacts_context
-            this_turn_ids = [a.get("artifact_id") for a in (attachments or [])
-                             if isinstance(a, dict) and a.get("artifact_id")]
-            prior = conversation_artifacts_context(
-                user, getattr(conversation, "id", None), exclude_ids=this_turn_ids)
-            if prior:
-                baseline["conversation_artifacts"] = prior
-        except Exception:  # pragma: no cover - defensive; context must never hard-fail
-            pass
+    # Artifacts uploaded EARLIER in this conversation used to be attached HERE, as
+    # `current_context.conversation_artifacts`. That was the defect (production
+    # 2026-09-03): Current Context means WHAT IS TRUE RIGHT NOW — the clock, the screen,
+    # this turn's uploads — and WLJ's own conversations never roll over, so a photo from
+    # a previous DAY was still being presented, unlabelled, as part of the present. Asked
+    # to complete a task with nothing attached, the assistant opened with an apology about
+    # not being able to identify people in images.
+    #
+    # The list itself is a real capability and is unchanged; it is now assembled by the
+    # envelope as its OWN historical section (`artifact_history`), never under Current
+    # Context. Nothing under Current Context may describe a prior turn.
     return baseline

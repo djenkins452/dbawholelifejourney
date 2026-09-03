@@ -713,6 +713,7 @@ class AIService:
         max_tool_rounds: int = None,
         skip_current_context: bool = False,
         images: list = None,
+        metrics: dict = None,
     ):
         """
         Bounded agentic completion (ChatGPT CoS — Phase 3).
@@ -728,6 +729,12 @@ class AIService:
         Vision is not supported here (callers route image turns to ``_call_api``).
 
         Returns the final assistant text (str), or None on total failure.
+
+        `metrics`: an OPTIONAL caller-owned dict the loop fills with structural counters
+        (rounds used, round cap, tool-output size, whether history was trimmed). It is an
+        out-parameter rather than a changed return type because the return value is the
+        answer and forty call sites depend on that; passing None (the default) leaves the
+        loop byte-identical. Counts only — no prompt, no evidence, no answer text.
 
         Budgets: `max_tokens` (final-answer budget) and `max_tool_rounds` resolve
         per-endpoint (see resolve_tool_loop_budgets) when not passed explicitly — the
@@ -770,7 +777,10 @@ class AIService:
         # the setting; protect_recent guarantees the immediate turns are never trimmed.
         try:
             from apps.ai.conversation.token_governor import govern_prompt
+            _pre_govern = len(messages)
             messages, _ = govern_prompt(messages, max_budget=TOOL_LOOP_GOVERN_BUDGET)
+            if metrics is not None:
+                metrics["history_trimmed"] = max(0, _pre_govern - len(messages))
         except ImportError:
             pass
         except Exception as _gov_err:
@@ -949,6 +959,14 @@ class AIService:
                 # tool-output size, prompt/completion tokens, finish reason, and whether the
                 # synthesis retry was needed. Distinguishes tool composition vs token
                 # starvation vs context growth after deployment.
+                if metrics is not None:
+                    metrics.update({
+                        "rounds_used": _rounds_used,
+                        "max_rounds": max_tool_rounds,
+                        "tool_calls": _total_tool_calls,
+                        "tool_output_chars": _total_tool_output_chars,
+                        "synthesis_retry_used": _synthesis_retry_used,
+                    })
                 _med_calls = sum(1 for n in _all_tool_names
                                  if "medication" in n or "health" in n or "foundational" in n)
                 logger.warning(

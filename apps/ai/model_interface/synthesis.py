@@ -468,19 +468,29 @@ def render_conversation_context(conversation_history):
 
 
 def run_executive_synthesis(ai_service, *, message, evidence, standing_context,
-                            conversation_history=None, user=None, temperature=0.5):
+                            conversation_history=None, user=None, temperature=0.5,
+                            metrics=None):
     """Run the bounded Phase-2 synthesis: ONE completion, NO tools, NO retries, over the
     already-gathered evidence + standing orientation. The prompt is self-contained (question +
     evidence + orientation), so conversation history is not needed here — cross-turn continuity
     is preserved because the FINAL answer persists as the turn and the NEXT turn re-enters
     Phase 1 with full history. Returns the answer, or "" on any failure/timeout (the caller
-    keeps the grounded Phase-1 answer as the justified safe fallback). Never raises."""
+    keeps the grounded Phase-1 answer as the justified safe fallback). Never raises.
+
+    `metrics`: an optional caller-owned dict filled with structural counters for Stage-0
+    telemetry — how large the rendered evidence was and how many values the renderer had to
+    truncate to fit it. Truncation is worth counting because a cap once landed exactly on
+    the decisive sentence of a retrieval, and Phase 2 sees ONLY what render_evidence
+    emits. Counts only; the evidence itself never leaves this function."""
     import time as _time
     client = getattr(ai_service, "client", None)
     if client is None:
         return ""
     try:
         evidence_block = render_evidence(evidence)
+        if metrics is not None:
+            metrics["evidence_chars"] = len(evidence_block)
+            metrics["truncations"] = evidence_block.count(_TRUNCATION_MARK)
         orientation = build_orientation(standing_context)
         recent = render_conversation_context(conversation_history)
         context_block = (

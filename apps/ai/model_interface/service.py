@@ -855,20 +855,31 @@ class ModelInterfaceService:
         return ("\n\n=== CURRENT SITUATION (what is true right now — read this BEFORE "
                 "page context when interpreting a follow-up or a short reply) ===" + body)
 
-    def _system_prompt(self, standing_context: dict) -> str:
-        # The completion reminder is placed LAST — the highest-salience position, the final
-        # instruction the model reads before the user's turn — so it is not out-weighted by
-        # the standing supportive/question-frequency relationship signals in the context above.
-        return (
-            CONSTITUTION
-            + self._current_situation(standing_context)
-            + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
-            + json.dumps(standing_context, ensure_ascii=False)
+    def _prompt_sections(self, standing_context: dict) -> dict:
+        """The system prompt as NAMED, ORDERED sections.
+
+        Same text, same order, same result — the prompt is simply assembled from a dict
+        instead of a concatenation so Stage-0 telemetry can say how many characters each
+        part contributes without re-deriving anything or parsing the finished string.
+        Insertion order is the prompt order; joining the values reproduces it exactly.
+        """
+        return {
+            "constitution": CONSTITUTION,
+            "current_situation": self._current_situation(standing_context),
+            "structured_context": (
+                "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
+                + json.dumps(standing_context, ensure_ascii=False)),
             # AFTER the structured context, so the answer rules are the last thing read
             # before the user's turn (the same placement RESPONSE_COMPLETION_REMINDER uses).
-            + self._grounding_lead()
-            + "\n\n" + RESPONSE_COMPLETION_REMINDER
-        )
+            "grounding": self._grounding_lead(),
+            # The completion reminder is placed LAST — the highest-salience position, the
+            # final instruction the model reads before the user's turn — so it is not
+            # out-weighted by the standing relationship signals in the context above.
+            "completion_reminder": "\n\n" + RESPONSE_COMPLETION_REMINDER,
+        }
+
+    def _system_prompt(self, standing_context: dict) -> str:
+        return "".join(self._prompt_sections(standing_context).values())
 
     # Truth tools whose successful result deterministically establishes what the
     # conversation is now ABOUT. Anchoring only get_entity left every factual answer
@@ -1621,7 +1632,9 @@ class ModelInterfaceService:
             page_context=page_context, conversation=conversation,
             writes_enabled=writes_enabled, attachments=attachments,
         )
-        system_prompt = self._system_prompt(standing_context)
+        prompt_sections = self._prompt_sections(standing_context)
+        system_prompt = "".join(prompt_sections.values())
+        loop_metrics = {}
         turn_capture = {}
         # Reveal Target: expose the CURRENT workspace URL to the dispatch so
         # navigate_to_workspace can detect "already here" and skip pointless navigation.
@@ -1637,12 +1650,15 @@ class ModelInterfaceService:
             conversation_id=conversation_id, conversation=conversation,
         )
 
+        exposed_tools = all_tools(writes_enabled=writes_enabled)
         answer = self.ai._call_api_with_tools(
-            system_prompt, message or "", tools=all_tools(writes_enabled=writes_enabled),
+            system_prompt, message or "", tools=exposed_tools,
             dispatch=dispatch, user=self.user, endpoint="model_interface",
             conversation_history=conversation_history, images=images,
+            metrics=loop_metrics,
         )
         answer = answer or ""
+        phase1_answer = answer
 
         # ============================================================
         # PHASE 2 — BOUNDED EXECUTIVE SYNTHESIS. Phase 1 (above) INVESTIGATED and gathered
@@ -1653,17 +1669,23 @@ class ModelInterfaceService:
         # over the EVIDENCE. On failure/empty, keep the grounded Phase-1 answer as the
         # justified safe fallback (the durable turn is never lost). Never breaks the turn.
         synthesis_used = False
+        synthesis_eligible = False
+        phase2_answer = None
+        synth_metrics = {}
         try:
             from apps.ai.model_interface import synthesis as _synth
             _evidence = turn_capture.get("evidence") or []
-            if answer and _synth.synthesis_eligible(_evidence):
+            synthesis_eligible = bool(answer) and _synth.synthesis_eligible(_evidence)
+            if synthesis_eligible:
                 _synth_answer = _synth.run_executive_synthesis(
                     self.ai, message=message or "", evidence=_evidence,
                     standing_context=standing_context,
                     conversation_history=conversation_history, user=self.user,
+                    metrics=synth_metrics,
                 )
                 if _synth_answer:
                     answer, synthesis_used = _synth_answer, True
+                    phase2_answer = _synth_answer
                     logger.info("MI_SYNTHESIS used turn=%s surfaces=%s phase1_discarded",
                                 turn_id, len(_evidence))
                 else:
@@ -1714,13 +1736,41 @@ class ModelInterfaceService:
             except Exception:  # pragma: no cover - defensive
                 logger.warning("mi: conversation_state.record_turn skipped", exc_info=True)
 
+        # ============================================================
+        # STAGE-0 TELEMETRY — structural measurement of this turn: prompt size by section,
+        # tools exposed vs actually called, tool-loop rounds, and whether Phase 2 earned its
+        # second billable request. Sizes, counts and WLJ's own tool names only — never
+        # conversation text, never a value from the user's life. It rides the audit row the
+        # turn already writes, so it costs one dict and no extra query, and it can never
+        # break a turn.
+        telemetry = {}
+        try:
+            from apps.ai.model_interface import telemetry as _tel
+            from apps.ai.model_interface import synthesis as _synth2
+            telemetry = _tel.build_turn_telemetry(
+                sections=prompt_sections,
+                tools=exposed_tools,
+                tools_called=tools_called,
+                loop_metrics=loop_metrics,
+                synthesis_eligible=synthesis_eligible,
+                synthesis_used=synthesis_used,
+                answer_change=(_tel.answer_delta(phase1_answer, phase2_answer)
+                               if phase2_answer is not None else None),
+                coverage=_synth2.orientation_coverage(standing_context),
+                truncations=synth_metrics.get("truncations") or 0,
+                evidence_chars=synth_metrics.get("evidence_chars"),
+            )
+        except Exception:  # pragma: no cover - measurement is never load-bearing
+            logger.warning("MI_TELEMETRY skipped (non-fatal)", exc_info=True)
+
         _audit.record_tool_call(
             self.user, kind="response", turn_id=turn_id, surface=surface,
             conversation_id=conversation_id,
             result_status="ok" if answer else "empty",
             result_digest={"answer_len": len(answer),
                            "tools_called": list(tools_called),
-                           "synthesis_used": synthesis_used},
+                           "synthesis_used": synthesis_used,
+                           "telemetry": telemetry},
         )
         return {"answer": answer, "tools_called": tools_called,
                 "standing_context": standing_context, "turn_id": turn_id,

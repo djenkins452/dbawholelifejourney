@@ -62377,3 +62377,75 @@ smell worth a decision later, but it is not a defect today and was not in this s
 `test_p33_executive_interpretation.py`, `test_health_critical_priority.py`,
 `test_evidence_reconciliation.py`, `test_one_executive_picture.py`,
 `test_conversation_lanes.py`, `test_conversation_posture.py`.
+
+---
+
+## 2026-09-03 — CoS Cognitive Simplification, Stages 0 and 1: measure it, then draw the line
+
+**Why.** The certified runtime grew by accretion: every production trust failure was
+answered with more prompt, until the Chief of Staff reads 203,319 characters before it says
+anything — and inside that, a rule protecting the user's money sits in the same
+undifferentiated wall of text as advice on phrasing a follow-up. The accepted architecture
+report recommended shortening it, and recommended equally firmly **not starting there**:
+three confident hypotheses about this runtime have already been overturned by measurement.
+So Stage 0 measures and Stage 1 draws the boundary. Nothing was removed.
+
+**Stage 0 — instrumentation.** New `apps/ai/model_interface/telemetry.py`, recorded on the
+`response` audit row each turn already writes (one dict, no extra query, never breaks a
+turn). It records prompt characters by section, the constitution's invariant/guidance
+split, tools exposed vs the tools actually called, tool-loop rounds and cap hits, history
+trimming, Phase-2 eligibility and whether Phase 2 *materially changed* the answer, and
+Phase-1 → Phase-2 context coverage. It records **no** conversation text, user message,
+answer, Personal Knowledge statement, health or finance value, or raw prompt — the Phase-2
+comparison builds word sets in memory and keeps only the ratio.
+
+`_system_prompt` now assembles from `_prompt_sections` (a named, ordered dict) rather than
+a concatenation. Same text, same order, byte-identical — proven by test, and the reason
+section sizes are attributable at all. `AIService._call_api_with_tools` gained an optional
+caller-owned `metrics` out-parameter for loop counters; the default `None` leaves the loop
+unchanged, and the return type stays the answer because forty call sites depend on it.
+
+**Stage 1 — constitution separation.** New `apps/ai/model_interface/constitution_map.py`
+classifies all 34 paragraphs as INVARIANT (15 blocks, 24,246 chars — canonical truth,
+grounding, authorization, confirmation, exact-target integrity, privacy, Personal Knowledge
+authority, write/postcondition integrity) or GUIDANCE (19 blocks, 44,634 chars — 64.7%).
+**Not one character moved.** Prompt position is semantics here; physically reordering the
+constitution would be a behavioural change wearing the costume of a refactor. The split is
+a classification *over* the text, and the contract proves the classified blocks re-join
+byte for byte.
+
+Blocks are keyed by a stable text anchor, never an index, which is what makes the
+completeness guarantee real: a paragraph added without classification fails the test, a
+paragraph deleted orphans its entry and fails the test, and any rewording fails
+reconstruction. An invariant must name the boundary it defends; guidance may not claim one;
+only guidance may be marked a historical patch — safety boundaries do not retire.
+
+**Four historical patches identified, none removed** — each now names the mechanism that
+holds its responsibility: the retrieval-opening block (→ `finance_claim_guard` at the
+dispatch boundary), EXECUTIVE ASSESSMENT (→ two-phase execution), CONVERSATION STATE (→
+`record_completed_action` / `set_pending_clarification` in the CURRENT SITUATION block), and
+SELF-CONSISTENCY (→ `render_conversation_context`). They are Stage-2 candidates, and a
+candidate without a named replacement is not a candidate.
+
+**Findings.** "(governing)" in the prose is not the same as an invariant — COMPLETION says
+it but governs response shape, not data. The medical block is 9,096 characters, the largest
+in the constitution, and is a real authority boundary wrapped around a great deal of
+answering guidance. No constitution text defends the audit/cost boundary — that lives in
+code, which is correct, and is recorded so nobody later "fixes" it with prose.
+
+**Baseline (measured):** constitution 68,946 · structured context 52,966 · current
+situation 4,773 · completion reminder 2,966 · grounding 1,771 = 131,422 system prompt, plus
+71,897 chars of schema across 40 tools. 229 duplicated instruction mentions.
+
+**Files.** New: `apps/ai/model_interface/telemetry.py`,
+`apps/ai/model_interface/constitution_map.py`,
+`apps/ai/management/commands/cos_prompt_baseline.py`,
+`apps/core/tests/test_cos_telemetry_contract.py` (24 tests),
+`apps/core/tests/test_constitution_structure_contract.py` (16 tests),
+`docs/WLJ_COS_COGNITIVE_SIMPLIFICATION.md`. Modified:
+`apps/ai/model_interface/service.py`, `apps/ai/services.py`,
+`docs/ENGINE_COS_REFERENCE.md` (also corrected a stale 11-layer prompt diagram that still
+described the eight leads consolidated in `f435f5bc`).
+
+**Not user-facing** — instrumentation and classification only, so no release note or help
+topic. Zero provider calls at any point. No Action Safety boundary touched.

@@ -314,25 +314,74 @@ def _strip_verdicts(obj):
     return obj
 
 
+# ── Phase-1 → Phase-2 context continuity ──────────────────────────────────────
+# Phase 2 used to RECONSTRUCT a partial prompt from a hand-listed subset of the envelope,
+# so every new context type had to remember to opt in — and anything that forgot simply
+# vanished at the boundary. Measured before this change: 5 of 8 envelope keys were lost,
+# including the user's own persona and any pending confirmation.
+#
+# It now carries the WHOLE current situation forward, and an omission must be DECLARED
+# here with its reason. `test_phase2_context_continuity` fails if a key disappears
+# silently, so the default for anything new is "it survives".
+INTENTIONALLY_OMITTED = {
+    "deterministic_understanding": (
+        "WLJ's own heuristic assessment (biggest_risk, primary_challenge, momentum band, "
+        "strategic summary). Handed a pre-decided verdict the model narrates it as its own "
+        "with no evidence lineage to defend on challenge — the whole judgment is the "
+        "model's to form from evidence + facts (Constitution I.3->I.4)."),
+    "interview": (
+        "Getting to Know You orchestration state. Phase 2 is an executive synthesis of a "
+        "question, never an interview turn; the interview never reaches synthesis."),
+}
+
+# Per-key budgets keep the synthesis prompt small and fast. A key with no entry gets the
+# default; nothing is dropped for lack of a budget.
+_ORIENTATION_BUDGETS = {
+    "missions": 800,
+    "current_action": 400,
+    "personal_truth": 900,
+    "execution_state": 500,
+    "current_context": 400,
+    "conversation_state": 500,
+    "pending_confirmations": 400,
+    "ai_relationship": 400,
+}
+_ORIENTATION_DEFAULT_BUDGET = 300
+
+
 def build_orientation(standing_context):
-    """The standing ORIENTATION for Phase 2 — FACTS ONLY: who Danny is and what he is working
-    toward (missions with their concrete progress facts, the deterministic current action, a
-    capped personal-truth summary). It deliberately carries NO pre-decided executive verdict —
-    WLJ's heuristic assessment (biggest_risk, primary_challenge, momentum score/band, strategic
-    summary) is NOT forwarded. The whole progress/drift/risk/priority judgment is OpenAI's to
-    form from the gathered evidence + these facts (Blueprint §4, the I.3→I.4 line): handed a
-    pre-decided verdict, the model narrated it as its own with no evidence lineage to defend on
-    challenge. Capped so the synthesis prompt stays small and fast."""
+    """The standing ORIENTATION for Phase 2 — FACTS ONLY, and now the WHOLE situation.
+
+    Carries every envelope key except those declared in `INTENTIONALLY_OMITTED`, with
+    verdicts stripped: WLJ states what IS, the model decides what it MEANS. Capped per key
+    so the synthesis prompt stays small.
+    """
     if not isinstance(standing_context, dict):
         return "{}"
     keep = {}
-    if standing_context.get("missions"):
-        keep["missions"] = _compact(_strip_verdicts(standing_context["missions"]), 800)
-    if standing_context.get("current_action"):
-        keep["current_action"] = _compact(_strip_verdicts(standing_context["current_action"]), 400)
-    if standing_context.get("personal_truth"):
-        keep["personal_truth"] = _compact(standing_context["personal_truth"], 900)
+    for key, value in standing_context.items():
+        if key in INTENTIONALLY_OMITTED or not value:
+            continue
+        budget = _ORIENTATION_BUDGETS.get(key, _ORIENTATION_DEFAULT_BUDGET)
+        keep[key] = _compact(_strip_verdicts(value), budget)
     return json.dumps(keep, default=str, ensure_ascii=False)
+
+
+def orientation_coverage(standing_context):
+    """What survived the boundary, what was declared away, and what leaked. Used by the
+    continuity contract and available for instrumentation. Read-only."""
+    present = {k for k, v in (standing_context or {}).items() if v}
+    omitted = present & set(INTENTIONALLY_OMITTED)
+    try:
+        carried = set(json.loads(build_orientation(standing_context)))
+    except Exception:
+        carried = set()
+    return {
+        "phase1_keys": sorted(present),
+        "carried": sorted(carried),
+        "intentionally_omitted": sorted(omitted),
+        "silently_lost": sorted(present - carried - omitted),
+    }
 
 
 SYNTHESIS_SYSTEM = (

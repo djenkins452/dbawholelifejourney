@@ -283,7 +283,7 @@ class ModelInterfaceService:
         body = f"\nHere is exactly what is on screen:\n{content[:2500]}" if content else ""
         if focus.get("authority") == "current_request":
             return (
-                "\n\n=== ON SCREEN RIGHT NOW (your FIRST source of truth) ===\n"
+                "\n\n-- ON SCREEN RIGHT NOW (your FIRST source of truth)\n"
                 f"The user is currently viewing {label}. If their question is about what "
                 "they are looking at (\"what am I looking at\", \"summarize this page\", "
                 "\"what's most important here\"), answer from THIS and do NOT retrieve — the "
@@ -291,7 +291,7 @@ class ModelInterfaceService:
             )
         # conversation_fallback — last-seen, not confirmed current; name it but stay cautious.
         return (
-            "\n\n=== LAST SEEN (unconfirmed — client reported no focus this turn) ===\n"
+            "\n\n-- LAST SEEN (unconfirmed — client reported no focus this turn)\n"
             f"The last object seen in this conversation was {label}. Check its freshness "
             f"before treating it as what they mean now.{body}"
         )
@@ -363,7 +363,7 @@ class ModelInterfaceService:
         tail = f" Coaching style: {coaching}." if coaching else ""
         body = "\n".join(f"• {ln}" for ln in lines)
         return (
-            "\n\n=== THE USER'S STANDING PROFILE (deterministic WLJ truth — these are "
+            "\n\n-- THE USER'S STANDING PROFILE (deterministic WLJ truth — these are "
             "CONSTRAINTS on your recommendations, not background) ===\n"
             f"{body}{tail}\n"
             "Reason FROM these facts. A recommendation that contradicts a stored target or "
@@ -400,8 +400,8 @@ class ModelInterfaceService:
         if (not pend and not subj.get("ref") and not guided.get("current")
                 and not done and not clarify.get("tool")):
             return ""
-        parts = ["\n\n=== ACTIVE CONVERSATION STATE (what we're doing / waiting on — check "
-                 "BEFORE page context for follow-ups and short replies) ==="]
+        parts = ["\n\n-- ACTIVE CONVERSATION STATE (what we're doing / waiting on — check "
+                 "BEFORE page context for follow-ups and short replies)"]
         if pend:
             if len(pend) == 1:
                 p = pend[0]
@@ -589,7 +589,7 @@ class ModelInterfaceService:
         if not lines:
             return ""
         return (
-            "\n\n=== FILE(S) THE USER ATTACHED THIS TURN (already available — do NOT ask them "
+            "\n\n-- FILE(S) THE USER ATTACHED THIS TURN (already available — do NOT ask them "
             "to upload again) ===\n"
             "The user attached the following to THIS message. Never tell the user to upload a "
             "document that is listed here.\n"
@@ -672,7 +672,7 @@ class ModelInterfaceService:
                 "say so."
             )
         return (
-            "\n\n=== WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read) ===\n"
+            "\n\n-- WHAT MATTERS RIGHT NOW (WLJ's deterministic executive read)\n"
             f"{body}\n"
             "This is a deterministic FACT — WLJ's current top execution priority — NOT a verdict "
             "on the user's whole life, and NOT automatically the answer to their question. YOU "
@@ -714,7 +714,7 @@ class ModelInterfaceService:
             display = (rel.get("assistant") or {}).get("display_name") or "Chief of Staff"
             boundaries = ((rel.get("boundaries") or {}).get("sensitivity_topics")) or []
             out = (
-                f"\n\n=== YOUR VOICE ({name}) ===\n"
+                f"\n\n-- YOUR VOICE ({name})\n"
                 f"You are {display}. The user CHOSE this persona - speak in it, naturally and "
                 "consistently, from the first sentence. It is who you are to them, not a costume "
                 "you put on for greetings and drop when the content gets substantive.\n"
@@ -752,7 +752,7 @@ class ModelInterfaceService:
                 return ""
             declined = iv.get("declined_areas") or []
             out = (
-                "\n\n=== YOU ARE GETTING TO KNOW THIS PERSON ===\n"
+                "\n\n-- YOU ARE GETTING TO KNOW THIS PERSON\n"
                 "HARD RULE FIRST, because it is the one that breaks trust when missed: the "
                 "moment they rule a subject OUT ('I'd rather not talk about X', 'let's not "
                 "go there', 'that's off limits') or close one off ('that's enough about X'), "
@@ -817,19 +817,51 @@ class ModelInterfaceService:
             logger.warning("mi: interview lead skipped", exc_info=True)
             return ""
 
+    def _current_situation(self, standing_context: dict) -> str:
+        """ONE ordered CURRENT SITUATION block — everything true right now, in the order
+        the model needs it.
+
+        This replaces eight separate high-salience leads. They existed because the
+        Constitution had grown too long to be reliably salient, so each one restated its
+        rules nearer the user's turn — and the restatements then competed with each other
+        and with the Constitution (measured: 142 duplicated instruction mentions across the
+        leads). Consolidating removes the duplication without losing a single fact: the
+        component builders still produce the content, they are simply assembled once, in a
+        deliberate order, under one heading.
+
+        ORDER IS THE POINT, because it is what a short reply attaches to:
+          1. what we are doing / waiting on   (unresolved intent outranks everything)
+          2. what is on screen / in play      (attachments, focus)
+          3. who he is                        (persona, preferences)
+
+        Facts and interaction guidance only. Every truth/safety rule stays in the
+        Constitution — this block never restates a policy, it states a situation.
+        """
+        parts = [
+            # 1. unresolved intent + active subject + completed actions
+            self._conversation_state_lead(standing_context),
+            # 2. what is in play right now
+            self._attachment_lead(standing_context),
+            self._focus_lead(standing_context),
+            self._executive_lead(standing_context),
+            self._interview_lead(standing_context),
+            # 3. who he is / how to speak to him
+            self._profile_lead(standing_context),
+            self._persona_lead(standing_context),
+        ]
+        body = "".join(p for p in parts if p)
+        if not body.strip():
+            return ""
+        return ("\n\n=== CURRENT SITUATION (what is true right now — read this BEFORE "
+                "page context when interpreting a follow-up or a short reply) ===" + body)
+
     def _system_prompt(self, standing_context: dict) -> str:
         # The completion reminder is placed LAST — the highest-salience position, the final
         # instruction the model reads before the user's turn — so it is not out-weighted by
         # the standing supportive/question-frequency relationship signals in the context above.
         return (
             CONSTITUTION
-            + self._persona_lead(standing_context)
-            + self._interview_lead(standing_context)
-            + self._attachment_lead(standing_context)
-            + self._conversation_state_lead(standing_context)
-            + self._executive_lead(standing_context)
-            + self._focus_lead(standing_context)
-            + self._profile_lead(standing_context)
+            + self._current_situation(standing_context)
             + "\n\n=== STRUCTURED CONTEXT (deterministic; do not invent beyond it) ===\n"
             + json.dumps(standing_context, ensure_ascii=False)
             # AFTER the structured context, so the answer rules are the last thing read

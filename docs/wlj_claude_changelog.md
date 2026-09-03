@@ -5,6 +5,40 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-09-02 — refactor(cos): Phase-2 context continuity + one CURRENT SITUATION block
+
+The two high-confidence items from the architecture review. **Deliberately not a broad refactor:** the Constitution and the 40-tool schema are untouched, and no capability was pruned.
+
+### 1. Phase-2 continuity — the structural class, measured
+
+Phase 2 **reconstructed** its prompt from a hand-listed subset of the envelope, so every new context type had to remember to opt in and anything that forgot simply vanished. Instrumented before the change: **5 of 8 envelope keys were lost at the boundary** — `ai_relationship` (the user's own persona), `current_context`, `deterministic_understanding`, `execution_state`, `pending_confirmations`.
+
+That the persona was among them is worth stating plainly: **Phase 2 rewrites the final answer**, so a synthesized reply stopped sounding like the assistant the user chose — and nobody had noticed, because nothing measured it.
+
+`build_orientation` now carries the WHOLE situation forward (verdicts still stripped, per-key budgets so the prompt stays small), and an omission must be **declared in `INTENTIONALLY_OMITTED` with a reason**. Two are declared: `deterministic_understanding` (Constitution I.3→I.4 — handed a pre-decided verdict the model narrates it as its own with no evidence lineage to defend) and `interview` (synthesis is never an interview turn). **A new context type now survives by default**; `orientation_coverage()` reports `phase1_keys / carried / intentionally_omitted / silently_lost`, and the contract fails on any silent loss. Measured after: **`silently_lost: []`**.
+
+### 2. One ordered CURRENT SITUATION block
+
+Eight competing top-level headings became one, ordered by what a short reply actually attaches to: **unresolved intent → what is in play → who he is**. The component builders are unchanged; they are assembled once under a single heading with sub-labels. The old headings are gone, asserted by test.
+
+### Instrumentation — measured, not asserted
+
+| | Before | After |
+|---|---|---|
+| Top-level situation headings | **8** | **1** |
+| Phase-1 keys lost at the Phase-2 boundary | **5 of 8** | **0** |
+| Constitution | 68,946 | **68,946 (untouched)** |
+| Tool schema (40 tools) | 72,832 | **72,832 (untouched)** |
+| CURRENT SITUATION block | — | 4,068 chars |
+
+**Honest note on total prompt size: it did not shrink** (~112.6k, and the earlier 111k baseline was measured with *less* state populated, so it is not a like-for-like number). This task consolidated **structure and ordering**, not volume — the 142 duplicated instruction mentions inside the leads were left in place, because that text is exactly what made the boundary-recording and do-not-repeat fixes work in production. Pruning it is a separate, evidence-led task.
+
+**Files:** `apps/ai/model_interface/synthesis.py` (`INTENTIONALLY_OMITTED`, generic `build_orientation`, `orientation_coverage`), `service.py` (`_current_situation`, headings demoted to sub-labels), new `apps/core/tests/test_phase2_context_continuity.py`.
+
+**Verification: ZERO provider calls.** 24 new continuity tests + 355 regression tests green (personal-context loop, CoS continuity, interview, PK, write surface, confirmation enforcement, action lifecycle, model-interface runtime, gateway, executive briefing, request-path safety).
+
+---
+
 ## 2026-09-02 — feat(cos): situational memory gets a revalidation horizon
 
 Natural learning shipped the ability to remember "recovering from a rib injury and easing back into exercise". This is the other half: **that must stop being unquestioned current truth after a while — without anyone deleting it, and without WLJ ever deciding it stopped being true.**

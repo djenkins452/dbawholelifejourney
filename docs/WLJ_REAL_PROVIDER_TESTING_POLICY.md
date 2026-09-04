@@ -220,6 +220,36 @@ A workload is autonomous when it runs inside `autonomous_workload(...)` **or** c
 `proactive`/`background` traffic class — which every existing scheduled provider path
 already sets.
 
+### Proven state — HELD, pending a separately-authorized experiment (2026-09-04)
+
+What follows is only what was **observed**, in production, on 2026-09-04. It contains no
+statement about environment configuration, because configuration was never read.
+
+| Proven | Evidence |
+|---|---|
+| Autonomous provider attempts were **refused** | Admission denied the calls at the seam |
+| Those refused attempts consumed **0 tokens / $0.00** | Cost ledger, `traffic_class: proactive` — 2 calls, 0 input, 0 output, $0.00, 2 failures |
+| Deterministic fallback messaging after a refusal is **removed** | `author_checkin` no longer calls `current_action_directive`; asserted by contract |
+| A refusal now means **silence** | `RealLLMCallDenied` handled explicitly; nothing is published |
+| OpenAI can explicitly choose **`NO_MESSAGE`** when authoring is admitted | Silence affordance in the user turn; `declined` outcome honoured |
+| Check-in **decisions are audited** | `ToolCallLog` `kind="checkin"`, outcome ∈ authored / declined / refused / quiet / empty / error, with envelope telemetry |
+| A **cross-producer interruption cooldown** is enforced | Atomic claim at the single delivery seam; per user, not per check-in type |
+
+**What is NOT proven.** Whether the environment flag is set either way — that requires
+reading the configuration, which was not done. A refusal is evidence the gate denied a call;
+it is not a reading of the environment. (An earlier changelog entry inferred the opposite
+value from the opposite behaviour; both inferences were unsound and are corrected in place.)
+
+**What has still never happened.** The usefulness gate has not run in production even once.
+Every proactive message delivered to date was authored by WLJ, not chosen by the model — so
+the architecture being certified (WLJ detects, OpenAI decides whether speaking is
+worthwhile, silence is valid) remains unexercised by real traffic.
+
+**Status: HELD.** Proactive behaviour stays disabled pending a separately-authorized
+production usefulness experiment. The `kind="checkin"` audit rows are what will make that
+experiment measurable — how many decisions reached authoring, how many chose silence, and
+whether what arrived was worth the interruption.
+
 ### Re-enabling (Danny only)
 
 Set on the Railway environment (both **web** and **worker**), then redeploy:

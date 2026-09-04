@@ -62674,8 +62674,13 @@ default.**
   from different domains decide identically. The degraded path now returns "" rather than
   "Here's where things stand — ask me what's on your plate."
 
-**Two findings reported, not changed.** `WLJ_PROACTIVE_AI_ENABLED` is on in production —
-Danny's environment decision, untouched. And these calls are accounted as
+**Two findings reported, not changed.** *(CORRECTED 2026-09-04: this originally read
+"`WLJ_PROACTIVE_AI_ENABLED` is on in production". Configuration was never observed — that
+was inferred from provider calls succeeding, and the inference was unsound: at the time,
+unattributed calls were admitted by the unconditional production allow regardless of the
+flag. What was actually observed is that autonomous-shaped calls were ADMITTED. Nothing
+here is a statement about the environment's configuration.)* Autonomous-shaped provider
+calls were being admitted in production. And these calls are accounted as
 `traffic_class: unattributed`, not `proactive`: the app-open greeting path
 (`greeting_service` → `build_cos_structured_output` → `author_checkin`) has no
 `llm_traffic_context` wrapper, and its docstring still claims "NO LLM calls". Since the
@@ -62795,7 +62800,13 @@ Prayer Time. Do this now."* — twice.
 
 **The cost gate was working.** The ledger for the day shows `proactive` traffic: **2 calls,
 0 input tokens, 0 output tokens, $0.00**, and `failed_calls: 2`. Autonomous provider calls
-were REFUSED, exactly as designed. `WLJ_PROACTIVE_AI_ENABLED` is off in production.
+were REFUSED and consumed nothing.
+
+*(CORRECTED 2026-09-04: this originally concluded "`WLJ_PROACTIVE_AI_ENABLED` is off in
+production". Configuration was never observed — only admission behaviour was. A refusal is
+evidence that the gate denied the call; it is not a reading of the environment, and the
+same entry earlier in this log had inferred the opposite value from the opposite behaviour.
+Only what the ledger and the runtime actually showed is stated here.)*
 
 **Then WLJ published something anyway.** `author_checkin` caught `RealLLMCallDenied` in a
 generic `except Exception` and fell through to the degraded next-action directive —

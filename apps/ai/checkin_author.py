@@ -141,6 +141,32 @@ def has_reason_to_interrupt(envelope, signals=None) -> bool:
     return bool(current.get("primary_action"))
 
 
+def _record_decision(user, *, outcome, phase, envelope, signals, text):
+    """Audit EVERY check-in decision — authored, declined, refused, quiet or errored.
+
+    The proactive path wrote no `ToolCallLog` row at all, so when three unwanted messages
+    arrived on 2026-09-04 there was no record of what produced them: no turn, no telemetry,
+    no decision. The cost ledger could say four calls happened; nothing could say why, or
+    which message came from which. A path that can interrupt a person has to be as
+    auditable as one that answers them.
+
+    Structural metadata only — the outcome, the phase, sizes and counts. Never the message,
+    never a signal value, never a title. Never raises.
+    """
+    try:
+        from apps.ai.cos_services import audit as _audit
+        from apps.ai.model_interface import telemetry as _tel
+        digest = {"outcome": outcome, "phase": phase or "",
+                  "message_len": len(text or ""),
+                  "signal_keys": sorted(signals or {})[:8],
+                  "envelope": _tel.envelope_state(envelope)}
+        _audit.record_tool_call(
+            user, kind="checkin", tool_name="author_checkin", surface="proactive",
+            result_status=outcome, result_digest=digest)
+    except Exception:  # pragma: no cover - auditing must never break the path
+        logger.warning("checkin_author: decision audit skipped", exc_info=True)
+
+
 def _is_silence(text) -> bool:
     """Did the model decline? Tolerant of punctuation and case, nothing more."""
     stripped = (text or "").strip().strip(".!\"' ").upper()
@@ -163,7 +189,7 @@ def author_checkin(user, *, phase=None, signals=None) -> str:
     """
     from apps.ai.llm_accounting import (SOURCE_PROACTIVE_CHECKIN, TRAFFIC_PROACTIVE,
                                         llm_traffic_context)
-    from apps.ai.llm_admission import autonomous_workload
+    from apps.ai.llm_admission import RealLLMCallDenied, autonomous_workload
 
     phase = phase or _derive_phase(user)
 
@@ -181,9 +207,11 @@ def author_checkin(user, *, phase=None, signals=None) -> str:
     if not has_reason_to_interrupt(envelope, signals):
         logger.info("checkin_author: nothing live for user=%s — silent, no provider call",
                     getattr(user, "id", "?"))
+        _record_decision(user, outcome="quiet", phase=phase, envelope=envelope,
+                         signals=signals, text="")
         return ""
 
-    text = None
+    text, outcome = None, "authored"
     with autonomous_workload("proactive_checkin"), llm_traffic_context(
             traffic_class=TRAFFIC_PROACTIVE, source=SOURCE_PROACTIVE_CHECKIN):
         try:
@@ -195,31 +223,41 @@ def author_checkin(user, *, phase=None, signals=None) -> str:
                 # prompt's task and truth away entirely.
                 govern_budget=CHECKIN_GOVERN_BUDGET,
             )
+        except RealLLMCallDenied:
+            # The cost gate refused an unattended call. That is the gate WORKING, and it
+            # is emphatically not a reason to publish something instead.
+            outcome = "refused"
+            logger.info("checkin_author: cost gate refused the call user=%s — silent",
+                        getattr(user, "id", "?"))
         except Exception:
+            outcome = "error"
             logger.warning("checkin_author: model authoring failed", exc_info=True)
 
     # THE MODEL MAY DECLINE. Something was live, and it judged none of it worth a person's
-    # attention right now. That is the intended outcome, not a failure, and it must not
-    # fall through to the degraded directive — which would turn every "not worth it" into
-    # a message anyway.
+    # attention right now. That is the intended outcome, not a failure.
     if _is_silence(text):
+        outcome = "declined"
         logger.info("checkin_author: model judged nothing worth interrupting user=%s",
                     getattr(user, "id", "?"))
-        return ""
+        text = ""
+    elif text and str(text).strip():
+        text = str(text).strip()
+    else:
+        # NO MODEL, NO MESSAGE.
+        #
+        # This used to fall back to the canonical next-action directive. On 2026-09-04 the
+        # cost gate refused two unattended calls — correctly — and the fallback published
+        # "Next: Prayer Time. Do this now." twice anyway: WLJ-authored, never offered to the
+        # model, not subject to the silence it had just been given, and identical between
+        # two producers so it duplicated. A refusal became an interruption.
+        #
+        # The whole architecture is that OpenAI decides whether speaking is worthwhile. If
+        # OpenAI cannot be asked, nobody has decided, and WLJ does not get to decide
+        # instead. Silence is the only honest outcome.
+        if outcome == "authored":
+            outcome = "empty"
+        text = ""
 
-    if text and str(text).strip():
-        return str(text).strip()
-
-    # Degraded (model unavailable): the canonical next-action directive — a FACT, not
-    # prose — but ONLY when there is genuinely an action to state. Without that guard the
-    # directive degrades to "Nothing pending right now.", which is precisely the
-    # low-value interruption this whole path exists to stop; a signal-driven check-in
-    # would announce nothing at all rather than staying quiet.
-    try:
-        from apps.core.execution.decision_authority import (current_action,
-                                                            current_action_directive)
-        if not (current_action(user) or {}).get("primary_action"):
-            return ""
-        return current_action_directive(user)
-    except Exception:  # pragma: no cover - defensive
-        return ""
+    _record_decision(user, outcome=outcome, phase=phase, envelope=envelope,
+                     signals=signals, text=text)
+    return text

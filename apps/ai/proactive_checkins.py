@@ -31,6 +31,7 @@ import logging
 from datetime import date, timedelta
 from typing import Optional, List
 
+from django.core.cache import cache
 from django.utils import timezone
 
 from .models import AssistantConversation, AssistantMessage
@@ -132,6 +133,16 @@ def _get_dedup_cache(user):
     # Fallback: create a new cache (still better than N queries if reused)
     from apps.core.utils import get_user_today
     return _ProactiveDedupCache(user, get_user_today(user))
+
+
+# How long one proactive interruption reserves the user's attention, regardless of which
+# producer wants it. Long enough that two producers in the same cycle cannot both land;
+# short enough that a genuinely separate moment later in the day still reaches them.
+INTERRUPTION_COOLDOWN_SECONDS = 1800
+
+# Clinical prompts keep the bypass they already have elsewhere in this file: a medication
+# reminder is not chatter competing for attention.
+_INTERRUPTION_COOLDOWN_EXEMPT = frozenset({"medication"})
 
 
 # ── Detected signals — facts WLJ noticed, NOT things WLJ decided are important ───────
@@ -1349,6 +1360,22 @@ class ProactiveCheckInService:
         except Exception:
             return True
 
+    def _claim_interruption_slot(self, check_in_type) -> bool:
+        """Atomically claim the right to interrupt this user right now.
+
+        `cache.add` is set-if-absent, so two workers racing in the same second cannot both
+        win. Fails OPEN: if the cache is unavailable the message still goes out, because a
+        degraded cache must never silence a genuine check-in — the same posture every other
+        proactive gate here takes.
+        """
+        try:
+            return bool(cache.add(f"wlj:proactive:interrupt:{self.user.pk}",
+                                  str(check_in_type)[:40],
+                                  INTERRUPTION_COOLDOWN_SECONDS))
+        except Exception:  # pragma: no cover - a cooldown must never break delivery
+            logger.warning("proactive: interruption cooldown unavailable", exc_info=True)
+            return True
+
     def _create_proactive_message(
         self,
         content: str,
@@ -1407,6 +1434,26 @@ class ProactiveCheckInService:
                     return None
             except Exception:
                 pass  # Mode check must never block check-ins
+
+        # ONE INTERRUPTION AT A TIME — across producers, not just within one.
+        #
+        # Every existing cooldown is keyed to a check-in TYPE, so two different producers
+        # could each pass their own throttle and both interrupt in the same minute. On
+        # 2026-09-04 that is exactly what happened: two producers, the same second, the
+        # same sentence. The person on the other end does not experience "types"; they
+        # experience being interrupted twice.
+        #
+        # Domain-agnostic and content-blind: it knows nothing about what the message says
+        # or which check-in produced it. Medication keeps its existing priority bypass by
+        # being exempt here too — a clinical prompt is not chatter.
+        if check_in_type and check_in_type not in _INTERRUPTION_COOLDOWN_EXEMPT:
+            if not self._claim_interruption_slot(check_in_type):
+                logger.info(
+                    "PROACTIVE_SUPPRESSED_COOLDOWN user=%s type=%s — another proactive "
+                    "message was already delivered within %ss",
+                    self.user.id, check_in_type, INTERRUPTION_COOLDOWN_SECONDS,
+                )
+                return None
 
         message = AssistantMessage.objects.create(
             conversation=conversation,

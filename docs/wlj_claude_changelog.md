@@ -62785,3 +62785,73 @@ That was the hole.
 `apps/ai/proactive_checkins.py`, `apps/ai/personal_assistant.py`, `apps/ai/tasks.py`,
 `apps/journal/services/journal_conversation.py`, plus the four narrowed contracts. Zero
 provider calls.
+
+---
+
+## 2026-09-04 — A cost refusal became an interruption: WLJ stops authoring check-ins entirely
+
+**The three messages.** 7:40 AM *"Hello! How can I assist you today?"*; 12:16 PM *"Next:
+Prayer Time. Do this now."* — twice.
+
+**The cost gate was working.** The ledger for the day shows `proactive` traffic: **2 calls,
+0 input tokens, 0 output tokens, $0.00**, and `failed_calls: 2`. Autonomous provider calls
+were REFUSED, exactly as designed. `WLJ_PROACTIVE_AI_ENABLED` is off in production.
+
+**Then WLJ published something anyway.** `author_checkin` caught `RealLLMCallDenied` in a
+generic `except Exception` and fell through to the degraded next-action directive —
+`current_action_directive()`, whose output format is literally `"Next: {title}. Do this
+now."` That message was WLJ-authored, never offered to the model, not subject to the
+silence the model was never given the chance to choose, and **byte-identical between
+producers**, so two producers passing two separate per-type throttles emitted the same
+sentence in the same minute.
+
+A cost control became a message generator. The usefulness gate never ran, because OpenAI
+was never asked.
+
+**No audit trail existed.** The last `ToolCallLog` row before this investigation was
+2026-09-04T01:40 UTC — the proactive path wrote **no audit row at all**. The Stage-0
+telemetry I built for exactly this purpose was never emitted by the path that produced the
+messages, so provenance had to be reconstructed from an aggregate cost ledger.
+
+### Structural fixes
+
+**1. If OpenAI cannot be asked, nobody speaks.** The degraded directive is deleted from
+`author_checkin`. The architecture is that OpenAI decides whether speaking is worthwhile;
+if it cannot be reached, nobody has decided, and WLJ does not get to decide instead. A
+refusal is now caught explicitly (`RealLLMCallDenied`) and logged as the gate working —
+never as a reason to publish.
+
+**2. Every check-in decision is audited.** A `ToolCallLog` row (`kind="checkin"`,
+`surface="proactive"`) records the outcome — `authored` / `declined` / `refused` / `quiet`
+/ `empty` / `error` — with the envelope telemetry attached. `declined` (the model said no)
+is distinguishable from `refused` (it was never asked). Structural metadata only: a test
+plants a secret message and a secret signal value and proves neither reaches the row, while
+the signal's NAME does.
+
+**3. One interruption at a time, across producers.** Every existing cooldown was keyed to a
+check-in TYPE; the person being interrupted does not experience types. A content-blind,
+domain-agnostic 30-minute claim at the single delivery seam (`cache.add`, atomic, fails
+OPEN so a degraded cache never silences a genuine check-in). Medication keeps the priority
+bypass it already has elsewhere.
+
+No Prayer Time special case, no greeting filter, no significance threshold, no canned-message
+rule. A test parses `checkin_author` with `ast` and fails if any string LITERAL contains an
+incident phrase — asserting on code, not on the comments that explain it. (The first draft
+grepped raw source and failed on its own explanation.)
+
+### Tests
+
+`apps/core/tests/test_proactive_silence_contract.py` (22 new). **234 green** across the
+proactive, admission, diagnostic, brief and telemetry suites.
+
+### Provenance limits, stated honestly
+
+Per-message attribution could not be established beyond the aggregate ledger: no audit rows
+existed, and `LLMUsageEvent` has no operator read-back endpoint. The 7:40 greeting is
+consistent with a `proactive_checkin`-sourced call recorded `unattributed` (2 such calls,
+~18 output tokens total — two greetings' worth), which would place it on a code path that
+predates the attribution fix or reaches `_call_api` with `endpoint="proactive_checkin"`
+without the traffic context. **That is inference, not proof**, and fix (2) is what makes the
+next occurrence provable.
+
+**Files.** `apps/ai/checkin_author.py`, `apps/ai/proactive_checkins.py`. Zero provider calls.

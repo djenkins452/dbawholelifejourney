@@ -62632,3 +62632,72 @@ balancing/tone rule was planted. 384 tests green across the certified-runtime su
 **Files.** `apps/ai/model_interface/synthesis.py`, `.../service.py`, `.../telemetry.py`,
 `.../constitution.py`. New: `apps/core/tests/test_phase1_verdict_boundary_contract.py`.
 Zero provider calls.
+
+---
+
+## 2026-09-04 — Two greetings and a threshold: the check-in prompt was being truncated to nothing
+
+**What Danny woke to.** "Hello! How can I assist you today?", a weight-goal warning, and
+"Hello! How can I assist you today?" again.
+
+**The greetings were not a fallback and not a canned string.** They were two real provider
+calls — `proactive_checkin`, ~11,600 input tokens and about **nine output tokens** each.
+`author_checkin` assembled CONSTITUTION + the authoring instruction + the entire truth
+envelope into the SYSTEM prompt and called `_call_api` with an **empty user message**.
+`_call_api` calls `govern_prompt(messages)` with no budget, so it falls back to the legacy
+12,000-token default and truncates the system prompt **from the end**.
+
+Reproduced deterministically on Danny's real envelope: **122,518 chars in, 29,817 kept —
+24%**. What survived ends mid-Constitution at block 17 followed by `[Context trimmed to fit
+token budget]`. The `=== PROACTIVE CHECK-IN (author this now) ===` instruction: gone. The
+`=== DETERMINISTIC TRUTH ===` envelope: gone. The model received two-thirds of a
+constitution, a truncation marker and an empty user turn. A greeting is the only thing left
+to say.
+
+This is the same defect the tool loop was fixed for — its docstring already says the 12k
+default "cannot fit the ~21k model-interface system prompt and was silently deleting the
+conversation". The fix went to the tool loop; **`_call_api`, its sibling, was left on the
+default.**
+
+**Structural fix, no canned rules.**
+- The task and the truth move to the **USER turn**, which the governor never trims. Position
+  is the fix: they can no longer be evicted, and the empty user message that makes a model
+  greet is gone.
+- `_call_api` gained an optional `govern_budget` and actually forwards it; the check-in
+  passes one sized to the model.
+- **Silence became an available answer.** `has_reason_to_interrupt(envelope)` asks the FACT
+  question — is anything live in today's canonical execution truth, or is there a decided
+  current action? — *before* any tokens are generated. No live work and no action means no
+  message and no provider call. Whether a live thing is worth saying, and how, stays the
+  model's judgment. It reads execution buckets and the single decision authority and knows
+  nothing about any domain or metric; a test proves two envelopes identical in shape but
+  from different domains decide identically. The degraded path now returns "" rather than
+  "Here's where things stand — ask me what's on your plate."
+
+**Two findings reported, not changed.** `WLJ_PROACTIVE_AI_ENABLED` is on in production —
+Danny's environment decision, untouched. And these calls are accounted as
+`traffic_class: unattributed`, not `proactive`: the app-open greeting path
+(`greeting_service` → `build_cos_structured_output` → `author_checkin`) has no
+`llm_traffic_context` wrapper, and its docstring still claims "NO LLM calls". Since the
+autonomous gate keys on the `proactive`/`background` traffic class and
+`autonomous_workload()` has **zero callers**, that path would not have been recognised as
+autonomous even with the pause on. Reported for decision; the cost gate and preference
+boundaries are intact.
+
+**The weight message is a separate layer.** `cos_event_engine.py:149` fires on
+`gp["on_pace"] is False and gp["required_pace_lb_wk"]` — a bare boolean with no magnitude,
+recency or significance test — and `persist_event` sets `is_read = False` to resurface it.
+There is no relevance or importance threshold anywhere in that engine: it distinguishes
+"detected" from "already sent", never "detected" from "worth interrupting". Analysed and
+reported; not changed, because a materiality standard is a product decision and the brief
+forbids special-casing weight.
+
+**Tests.** `apps/core/tests/test_proactive_checkin_value_contract.py` (18), including the
+REAL governor run proving the task and truth survive even at the budget that caused the
+incident. 198 tests green. Two of my own first-draft tests were too crude — they scanned
+file text and failed on this module's own docstring quoting the greeting; explaining a
+failure is not implementing a filter, so they now assert on behaviour and on the AST,
+excluding docstring nodes.
+
+**Files.** `apps/ai/checkin_author.py`, `apps/ai/services.py`. New:
+`apps/core/tests/test_proactive_checkin_value_contract.py`. Zero provider calls.

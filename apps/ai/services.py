@@ -505,9 +505,19 @@ class AIService:
         model: str = None,
         bypass_breaker: bool = False,
         skip_current_context: bool = False,
+        govern_budget: int = None,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
+
+        `govern_budget` sizes the token governor for THIS call. Without it the governor
+        falls back to the legacy 12,000-token default, which is smaller than the
+        Constitution alone — so a long system prompt is silently truncated FROM THE END,
+        taking whatever the caller appended after it. The tool loop was given an explicit
+        budget when that was found; `_call_api` was not, and the proactive check-in author
+        (which appends its instruction and the whole truth envelope after the Constitution)
+        lost both of them, every time. Callers assembling a large system prompt must pass
+        this.
 
         Supports image attachments for Vision processing when image_data
         and image_mime_type are provided, or multiple images via all_images.
@@ -584,7 +594,7 @@ class AIService:
         # Token governor: enforce global budget ceiling (Phase 6)
         try:
             from apps.ai.conversation.token_governor import govern_prompt
-            messages, _token_report = govern_prompt(messages)
+            messages, _token_report = govern_prompt(messages, max_budget=govern_budget)
         except ImportError:
             pass
         except Exception as _gov_err:

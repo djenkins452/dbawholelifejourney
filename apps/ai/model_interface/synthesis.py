@@ -302,16 +302,50 @@ def _compact(v, limit=1200):
     return s if len(s) <= limit else s[:limit] + "…"
 
 
-def _strip_verdicts(obj):
+def strip_verdicts(obj):
     """Recursively drop the pre-decided progress/drift VERDICT fields (`_VERDICT_KEYS`),
     keeping every FACT. A momentum score/band/pace label is the very judgment OpenAI must
     form (I.4); the milestone %, target dates and counts underneath it are the facts it
-    reasons from and can substantiate."""
+    reasons from and can substantiate.
+
+    PUBLIC because BOTH phases use it now, and there must be exactly one list and one
+    function. It protected Phase 2 from the day it was written, while Phase 1 — which
+    reads the same `deterministic_understanding` and answers most turns — received the
+    verdicts raw. On 2026-09-03 "How did I do today?" came back as "strong momentum,
+    focus and execution spot on" while a workout, a bike ride, pickleball and a supplement
+    were still outstanding in the canonical execution truth sitting in the same prompt.
+    Phase 2 never ran that turn. The protection existed; it was applied to the phase that
+    was not there.
+    """
     if isinstance(obj, dict):
-        return {k: _strip_verdicts(v) for k, v in obj.items() if k not in _VERDICT_KEYS}
+        return {k: strip_verdicts(v) for k, v in obj.items() if k not in _VERDICT_KEYS}
     if isinstance(obj, list):
-        return [_strip_verdicts(v) for v in obj]
+        return [strip_verdicts(v) for v in obj]
     return obj
+
+
+def verdict_keys_in(obj):
+    """Which verdict keys are present anywhere in a structure. Instrumentation only —
+    returns the KEY NAMES (WLJ's own vocabulary), never a value. Reads the same single
+    `_VERDICT_KEYS` list, so it can never drift from what strip_verdicts removes."""
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key in _VERDICT_KEYS:
+                    found.add(key)
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(obj)
+    return sorted(found)
+
+
+# Retained name for the Phase-2 call sites written before the boundary was shared.
+_strip_verdicts = strip_verdicts
 
 
 # ── Phase-1 → Phase-2 context continuity ──────────────────────────────────────

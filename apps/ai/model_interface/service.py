@@ -275,6 +275,33 @@ class ModelInterfaceService:
         if writes_enabled:
             from apps.ai.model_interface import confirmation
             ctx["pending_confirmations"] = confirmation.list_open(self.user)
+
+        # PHASE-1 VERDICT BOUNDARY. WLJ measures; it does not conclude.
+        #
+        # `build_orientation` has stripped `_VERDICT_KEYS` from the Phase-2 prompt since the
+        # day it was written, because a momentum band or a strategic summary IS the judgment
+        # the model has to form and defend. Phase 1 received them raw — and Phase 1 answers
+        # most turns while Phase 2 frequently does not run at all. The protection had been
+        # applied to the phase that was often absent. (2026-09-03, "How did I do today?":
+        # "strong momentum, focus and execution spot on" while a workout, a bike ride,
+        # pickleball and a supplement were still outstanding in canonical execution truth
+        # sitting in the same prompt. Phase 2 was ineligible — one tool call, one surface.)
+        #
+        # Applied to the WHOLE envelope rather than to `deterministic_understanding` alone,
+        # for the reason the narrower version exposed within minutes: momentum verdicts were
+        # arriving from a SECOND section too (`missions[*].progress.momentum_score` and
+        # `momentum_7d_avg`). Section-by-section stripping would have left the same failure
+        # reachable by another route, and every future section would have to remember to opt
+        # in. One list, one function, one boundary, both phases — nothing new invented.
+        #
+        # Every FACT survives, including the numbers underneath a withdrawn verdict: primary
+        # challenge, biggest risk, workload, cognitive load, priority, patterns, wins,
+        # opportunity, goal pace, material changes, and the canonical execution buckets.
+        try:
+            from apps.ai.model_interface.synthesis import strip_verdicts
+            ctx = strip_verdicts(ctx)
+        except Exception:  # pragma: no cover - envelope must never hard-fail
+            logger.warning("mi: verdict strip skipped", exc_info=True)
         return ctx
 
     def _enqueue_understanding_warm(self):

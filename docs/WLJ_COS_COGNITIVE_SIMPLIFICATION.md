@@ -198,3 +198,33 @@ This is direct evidence for the migration's thesis and for the ranking of its ca
 when the assistant answers badly with accurate context in front of it, the first question is
 whether WLJ mislabelled the context — not which procedural rule to add. Every rule that
 tells the model *when* something matters is a Stage-2 candidate on exactly these grounds.
+
+---
+
+## Stage 2, experiment 1 — the Phase-1 verdict boundary (COMPLETE 2026-09-04)
+
+**Chosen over block 22 on production evidence**, not on size. The mechanism already existed
+and was already trusted; this applies it symmetrically rather than inventing anything.
+
+**Removed from Phase 1** (the existing `_VERDICT_KEYS`, unchanged): `momentum`,
+`strategic_summary`, `momentum_score`, `momentum_7d_avg`, `momentum_summary`,
+`momentum_trend`, `recommended_action`.
+
+**Retained**: primary challenge, challenge reason, biggest risk, workload + summary,
+cognitive load, health read, recovery/intervention flags, executive & clinical priority,
+patterns, wins, opportunity, predictions, confidence, goal pace, material changes,
+`milestone_percent`, `progress_score`, and every canonical execution bucket.
+
+**Block 17**: 1,122 → 824 chars. Only the deference clauses went, because only they existed
+because a conclusion was supplied.
+
+**Prompt**: constitution 69,067 → 68,769; structured context 52,934 → 49,182; system prompt
+131,386 → 127,461; with tool schemas 199,358.
+
+**The lesson that generalises.** The narrow fix — strip one section — was wrong inside ten
+minutes: the same verdict arrived from `missions[*].progress`. A boundary drawn per-section
+requires every future section to opt in from memory; a boundary drawn at the envelope cannot
+be forgotten. Both phases now share one list, one function, one boundary.
+
+**Still deliberately unchanged**: Phase-2 eligibility, Phase 2 itself, every other
+constitution block, every tool.

@@ -182,6 +182,45 @@ def attachment_state(standing_context):
     }
 
 
+_EXECUTION_BUCKETS = ("overdue", "due_now", "coming_up", "later", "completed")
+
+
+def envelope_state(standing_context):
+    """What the envelope actually handed the model, structurally.
+
+    Three questions this answers that nothing else could. Which sections were present at
+    all — a key name, not its contents. Whether `deterministic_understanding` was populated
+    or still warming, which decides whether a whole-life read was even available. And HOW
+    MANY items sat in each canonical execution bucket, which decides whether the day's
+    outstanding work was in front of the model when it judged the day.
+
+    On 2026-09-03 none of that was recoverable after the fact: "How did I do today?" came
+    back as "strong momentum" and the counters could only say the envelope had eight keys.
+    Counts and WLJ's own key names — never a title, a time, or a value.
+
+    `verdict_keys_present` MUST stay empty. It reads the same `_VERDICT_KEYS` the strip
+    uses, so it cannot drift from it, and it is the direct measurement of the Phase-1
+    verdict boundary holding.
+    """
+    ctx = standing_context or {}
+    understanding = ctx.get("deterministic_understanding")
+    execution = ctx.get("execution_state") or {}
+    try:
+        from apps.ai.model_interface.synthesis import verdict_keys_in
+        verdicts = verdict_keys_in(ctx)
+    except Exception:      # pragma: no cover - measurement is never load-bearing
+        verdicts = []
+    return {
+        "keys": sorted(k for k, v in ctx.items() if v),
+        "understanding_status": (understanding.get("status")
+                                 if isinstance(understanding, dict) else None),
+        "execution_buckets": {
+            name: len(execution.get(name) or []) for name in _EXECUTION_BUCKETS
+        },
+        "verdict_keys_present": verdicts,
+    }
+
+
 def build_turn_telemetry(*, sections, tools, tools_called, loop_metrics=None,
                          synthesis_eligible=False, synthesis_used=False,
                          answer_change=None, coverage=None, truncations=0,
@@ -218,6 +257,7 @@ def build_turn_telemetry(*, sections, tools, tools_called, loop_metrics=None,
         },
         "coverage": _compact_coverage(coverage),
         "attachments": attachment_state(standing_context),
+        "envelope": envelope_state(standing_context),
         "truncations": int(truncations or 0),
     }
     record["tools"]["tools_unused"] = max(

@@ -62567,3 +62567,68 @@ matters is now a Stage-2 candidate on those grounds.
 **Files.** `apps/ai/model_interface/service.py`, `apps/ai/model_interface/constitution.py`,
 `apps/core/tests/test_attachment_lifecycle_contract.py`,
 `docs/WLJ_COS_COGNITIVE_SIMPLIFICATION.md`. Zero provider calls.
+
+---
+
+## 2026-09-04 — Stage 2, first experiment: WLJ stops handing Phase 1 its conclusions
+
+**Why.** On 2026-09-03 at 9:38 PM, "How did I do today?" returned *16 tasks completed, no
+overdue, strong momentum, focus and execution spot on* — while a workout, a bike ride,
+pickleball and a supplement were still outstanding in the canonical execution truth sitting
+in the same prompt. The data was right: `get_analysis(tasks, overall)` genuinely returned
+`overdue_count: 0`, because a supplement is not a task. What was wrong is that WLJ also
+handed over a CONCLUSION.
+
+`understanding` publishes `momentum` and `strategic_summary`. Those exact keys are in
+`synthesis._VERDICT_KEYS` — WLJ had already classified them as judgments the model must form
+for itself — and `strip_verdicts` removed them from Phase 2 from the day it was written.
+Phase 1 got them raw. Phase 1 answers most turns; Phase 2 often does not run at all, and on
+that turn it was ineligible (one tool call is one evidence surface; eligibility needs two).
+**The protection had been applied to the phase that was frequently absent.**
+
+**The fix is symmetry, not new machinery.** `_strip_verdicts` became public
+`strip_verdicts`, and `build_standing_context` now applies the same function, over the same
+single list, to the Phase-1 envelope. Block 17's deference instructions — *"REASON FROM
+THIS. Do not recompute it, do not re-rank the priority… speak to what it MEANS"* — existed
+only because a conclusion was being supplied, and go with it: **1,122 → 824 chars (−26.6%)**.
+Its unrelated guards stay (pending means warming; a whole-life read is not the authority on
+any one subject). No rule was added telling the model to be more critical, balanced,
+negative or positive.
+
+**The narrow version of this fix was wrong, and said so within minutes.** Stripping
+`deterministic_understanding` alone left momentum verdicts arriving from a second section:
+`missions[*].progress.momentum_score` and `momentum_7d_avg`, both already in the same list.
+Section-by-section stripping would have left the identical failure reachable by another
+route and made every future section opt in by memory. The boundary is therefore the WHOLE
+envelope, exactly as `build_orientation` already does for Phase 2. Verified against Danny's
+real envelope: `verdict_keys_in(ctx)` → `[]`, with `milestone_percent` and `progress_score`
+still present underneath.
+
+**One distinction worth keeping.** The word "momentum" legitimately remains in the prompt —
+in the capability index, as a metric the model may RETRIEVE (`get_history(goals,
+"momentum")`). A catalogue entry naming a retrievable measure is the opposite of a supplied
+conclusion. A first draft of the test banned the substring; it would have deleted a
+capability while proving nothing. The contract asserts on the verdict as a FIELD and on its
+value.
+
+**Telemetry.** `envelope_state()` records envelope key NAMES,
+`deterministic_understanding.status` (ok/pending), execution-bucket COUNTS (overdue,
+due_now, coming_up, later, completed), and `verdict_keys_present` — which reads the same
+`_VERDICT_KEYS` so it cannot drift, and must stay empty. None of it was recoverable for the
+9:38 turn; on the next assessment turn it will be provable whether the whole-day truth was
+in front of the model.
+
+**Measured.** Constitution 69,067 → **68,769**. Structured context 52,934 → **49,182**
+(−3,752, the verdicts and their prose). System prompt 131,386 → **127,461**; with tool
+schemas 203,283 → **199,358**.
+
+**Tests.** `apps/core/tests/test_phase1_verdict_boundary_contract.py` (27) proves: no verdict
+key reaches Phase 1 from any section; every underlying fact and its value survives; Phase 2
+keeps its protection and its declared omission; canonical execution buckets and
+`pending_confirmations` are untouched; only one verdict list exists in the certified
+runtime; block 17 shrank rather than grew and its non-verdict guards remain; and no
+balancing/tone rule was planted. 384 tests green across the certified-runtime suites.
+
+**Files.** `apps/ai/model_interface/synthesis.py`, `.../service.py`, `.../telemetry.py`,
+`.../constitution.py`. New: `apps/core/tests/test_phase1_verdict_boundary_contract.py`.
+Zero provider calls.

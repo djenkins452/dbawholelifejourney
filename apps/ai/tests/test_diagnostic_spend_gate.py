@@ -34,7 +34,11 @@ class ProductionDoesNotExcuseADiagnosticTests(TestCase):
     """The exact hole that cost money."""
 
     def test_production_still_admits_a_customer(self):
-        decision = may_real_llm_call(environment=ENV_PRODUCTION)
+        """A customer's turn now SAYS so (2026-09-04): being in production stopped being
+        sufficient on its own, because an unattributed call is not evidence of a human."""
+        from apps.ai.llm_accounting import TRAFFIC_PRODUCTION, llm_traffic_context
+        with llm_traffic_context(traffic_class=TRAFFIC_PRODUCTION):
+            decision = may_real_llm_call(environment=ENV_PRODUCTION)
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.reason, "production_runtime")
 
@@ -81,7 +85,9 @@ class ProductionDoesNotExcuseADiagnosticTests(TestCase):
         with diagnostic_workload("scoped", authorized_calls=1):
             self.assertIsNotNone(current_diagnostic_budget())
         self.assertIsNone(current_diagnostic_budget())
-        self.assertTrue(may_real_llm_call(environment=ENV_PRODUCTION).allowed)
+        from apps.ai.llm_accounting import TRAFFIC_PRODUCTION, llm_traffic_context
+        with llm_traffic_context(traffic_class=TRAFFIC_PRODUCTION):
+            self.assertTrue(may_real_llm_call(environment=ENV_PRODUCTION).allowed)
 
     def test_a_development_diagnostic_is_refused_too(self):
         with diagnostic_workload("dev check"):

@@ -79,20 +79,52 @@ def autonomous_workload(reason="scheduled"):
         _autonomous.reset(token)
 
 
-def current_workload_is_autonomous():
+# Traffic classes that assert a HUMAN is behind this call. Everything else — including
+# no classification at all — is autonomous.
+#
+#   production    a person sent a message and is waiting for the answer.
+#   certification an operator deliberately started this, and it is separately gated by
+#                 the diagnostic budget below (which is why it must not be refused here
+#                 before that gate is ever reached).
+_HUMAN_ATTRIBUTED = frozenset({"production", "certification"})
+
+
+def current_workload_is_autonomous(environment=None):
     """True when this call has no human behind it.
 
-    Two signals, either sufficient: the explicit marker above, or an ambient
-    proactive/background traffic class — which every existing scheduled provider path
-    already sets, so the gate covers them without touching their call sites.
+    This used to ask only "is this marked proactive or background?", so a path that never
+    classified itself came back "not autonomous" and — in production, where the allow is
+    unconditional — was admitted with nobody having asked for it. Check-in authoring was
+    exactly that: real provider calls, `unattributed`, invisible to the gate that exists to
+    stop unattended spend. Danny woke up to three of them.
+
+    An unclassified call is not evidence that a human asked for it, so it now counts as
+    autonomous — but ONLY IN PRODUCTION, which is the one place the hole exists. Everywhere
+    else, deny-by-default already governs every call (flag + run id + a finite budget), and
+    treating unattributed as autonomous there would refuse authorized development and
+    operator work before it ever reached the gate that authorizes it.
+
+    The interactive entry points assert `production` for themselves
+    (`ModelInterfaceService.generate`, `PersonalAssistant.send_message`, the legacy
+    streaming task, the journal write-together seam), so a real customer is never caught by
+    this. A future autonomous path that forgets to classify itself now fails CLOSED.
     """
     if _autonomous.get():
         return True
+    # An operator explicitly opened a diagnostic. That is a human, and it carries its own
+    # budget gate below — refusing it here would mean that gate is never reached.
+    if current_diagnostic_budget() is not None:
+        return False
     try:
         from apps.ai.llm_accounting import current_traffic_class
-        return current_traffic_class() in ("proactive", "background")
-    except Exception:  # pragma: no cover - defensive
+        traffic = current_traffic_class()
+    except Exception:  # pragma: no cover - fail closed: unknown means unattended
+        return True
+    if traffic in ("proactive", "background"):
+        return True
+    if traffic in _HUMAN_ATTRIBUTED:
         return False
+    return (environment or current_environment()) == ENV_PRODUCTION
 
 
 #     DIAGNOSTIC WORKLOAD — an operator looking, not a customer using.
@@ -269,7 +301,7 @@ def may_real_llm_call(*, source=None, traffic_class=None, environment=None):
     # ── AUTONOMOUS WORK IS GATED IN EVERY ENVIRONMENT, PRODUCTION INCLUDED. ──
     # Checked BEFORE the production allow on purpose: running in production must never
     # imply permission to spend money with no human present.
-    if current_workload_is_autonomous() and not proactive_ai_enabled():
+    if current_workload_is_autonomous(env) and not proactive_ai_enabled():
         return _denied("proactive_ai_disabled", env)
 
     # ── Operator diagnostics are gated in EVERY environment, production included. ──
@@ -339,8 +371,13 @@ def _consume_budget(run_id):
 def admit_or_raise(*, source=None, traffic_class=None, operation=""):
     """Admit one billable request or raise :class:`RealLLMCallDenied`."""
     decision = may_real_llm_call(source=source, traffic_class=traffic_class)
+    # Stamp the authorization on EVERY decision, refusals included. It used to be written
+    # only on an admission, so a run id set by an authorized development call stayed put
+    # for every later call in the same context — including ones that never ran under it —
+    # and `record_llm_event` stamps `certification` from exactly this value. Attribution
+    # that outlives the thing it attributes is not attribution.
+    _admitted_run_id.set(decision.run_id)
     if decision.allowed:
-        _admitted_run_id.set(decision.run_id)
         if decision.run_id:
             logger.warning(
                 "REAL-LLM GOVERNOR: ADMITTED paid %s under authorization run=%s "

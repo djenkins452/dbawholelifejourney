@@ -234,11 +234,29 @@ class SharedBudgetTests(TransactionTestCase):
 class ProductionTests(TestCase):
     """Do NOT break Danny's actual WLJ."""
 
-    def test_production_traffic_is_admitted_without_any_authorization(self):
+    def test_production_customer_traffic_is_admitted_without_any_authorization(self):
+        """A real customer's turn never needs a development authorization.
+
+        NARROWED 2026-09-04: the turn must now SAY it is a customer's. Being in production
+        used to be enough on its own, and that was the hole — the check-in author made real
+        provider calls classified `unattributed` and rode this allow with nobody having
+        asked for anything. Absence of attribution is not evidence of a human, so the
+        interactive entry points assert `production` for themselves.
+        """
+        from apps.ai.llm_accounting import TRAFFIC_PRODUCTION, llm_traffic_context
         client = guarded()
-        with mock.patch.dict("os.environ", {"WLJ_ENV": ENV_PRODUCTION}, clear=True):
+        with mock.patch.dict("os.environ", {"WLJ_ENV": ENV_PRODUCTION}, clear=True), \
+             llm_traffic_context(traffic_class=TRAFFIC_PRODUCTION):
             client.chat.completions.create(model="gpt-4o", messages=[])
         self.assertEqual(client._client.chat.completions.calls, 1)
+
+    def test_an_unattributed_production_call_is_refused_as_autonomous(self):
+        """The check-in incident, as a contract: nobody asserted a human, so nobody did."""
+        from apps.ai.llm_admission import may_real_llm_call
+        with mock.patch.dict("os.environ", {"WLJ_ENV": ENV_PRODUCTION}, clear=True):
+            decision = may_real_llm_call()
+        self.assertFalse(decision.allowed)
+        self.assertEqual(decision.reason, "proactive_ai_disabled")
 
     def test_production_consumes_no_development_budget(self):
         auth = _mint(1)

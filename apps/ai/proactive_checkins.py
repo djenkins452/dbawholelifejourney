@@ -134,6 +134,56 @@ def _get_dedup_cache(user):
     return _ProactiveDedupCache(user, get_user_today(user))
 
 
+# ── Detected signals — facts WLJ noticed, NOT things WLJ decided are important ───────
+#
+# WLJ's standing intelligence carries two kinds of thing: measurements and calculations
+# (facts), and composed narratives and briefings (WLJ's own words about them). Only the
+# first kind may be handed to the model as a signal — the second would be WLJ writing the
+# check-in again by the back door, and the model narrating a conclusion it did not form.
+#
+# The filter is on PROSE, never on significance. Nothing here knows what a weight is, and
+# no signal is ranked, scored, or thresholded; deciding whether any of it deserves a
+# person's attention is the model's job.
+_NARRATIVE_KEYS = ("briefing",)
+_NARRATIVE_SUFFIX = "_narrative"
+_MAX_SIGNAL_CHARS = 4000
+
+
+def _detected_signals(intel):
+    """The bounded FACTS from the standing read, with WLJ's prose removed.
+
+    Returns {} when nothing was detected — which is what keeps a quiet day free: the
+    caller returns before any provider call is made.
+    """
+    if not isinstance(intel, dict) or not intel:
+        return {}
+    facts = {k: v for k, v in intel.items()
+             if v and not k.endswith(_NARRATIVE_SUFFIX) and k not in _NARRATIVE_KEYS}
+    if not facts:
+        return {}
+    try:
+        from apps.ai.model_interface.synthesis import strip_verdicts
+        facts = strip_verdicts(facts)
+    except Exception:  # pragma: no cover - the boundary is best-effort here
+        logger.warning("proactive: verdict strip skipped for signals", exc_info=True)
+    # Bounded: a check-in prompt is not a place for the whole standing read.
+    try:
+        import json as _json
+        blob = _json.dumps(facts, default=str, ensure_ascii=False)
+        if len(blob) > _MAX_SIGNAL_CHARS:
+            trimmed, size = {}, 0
+            for key, value in facts.items():
+                chunk = len(_json.dumps({key: value}, default=str, ensure_ascii=False))
+                if size + chunk > _MAX_SIGNAL_CHARS:
+                    continue
+                trimmed[key] = value
+                size += chunk
+            facts = trimmed
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return facts
+
+
 class ProactiveCheckInService:
     """
     Service for generating proactive check-in messages.
@@ -339,12 +389,19 @@ class ProactiveCheckInService:
         )
 
     def generate_health_trend_check_in(self) -> Optional[AssistantMessage]:
-        """Capability 6 — strategic, proactive intervention when a health TREND
-        turns: goal slipping, weight stalling/reversing, a standing
-        recommendation failing, or a real win worth naming. Reuses the unified
-        CoS standing read (apps/ai/cos_intelligence.py) so proactive and
-        conversational Beth share ONE brain. Throttled to ~1/day per type;
-        in-app + DNE delivery, so it works without a registered push device."""
+        """A detected signal is offered to the model, which decides whether to speak.
+
+        This used to be an if-ladder of hard-coded sentences: WLJ picked "the single most
+        important strategic intervention" and wrote the words. That is two model jobs done
+        deterministically — ranking significance, and authoring — and it produced the
+        2026-09-04 notification that told Danny his weight goal was slipping, in isolation,
+        because one calculation crossed one line.
+
+        Now WLJ does only what it can do deterministically: throttle (dedup/cooldown),
+        detect, and hand over the FACTS. The model weighs them against the rest of the
+        person's day and either writes something useful or says nothing. Silence produces
+        no message. Nothing detected produces no provider call.
+        """
         if not self.throttler.can_send('health_trend'):
             return None
         try:
@@ -352,7 +409,11 @@ class ProactiveCheckInService:
             intel = build_cos_intelligence(self.user)
         except Exception:
             return None
-        content = self._select_health_trend_message(intel)
+        signals = _detected_signals(intel)
+        if not signals:
+            return None
+        from apps.ai.checkin_author import author_checkin
+        content = (author_checkin(self.user, signals=signals) or "").strip()
         if not content:
             return None
         return self._create_proactive_message(
@@ -361,37 +422,6 @@ class ProactiveCheckInService:
             message_type='insight',
             metadata={'check_in_type': 'health_trend'},
         )
-
-    def _select_health_trend_message(self, intel) -> Optional[str]:
-        """Pick the single most important strategic intervention, or None when
-        nothing has meaningfully turned — strategic, never generic chatter."""
-        if not intel:
-            return None
-        gp = intel.get('goal_pace') or {}
-        eff = intel.get('recommendation_effectiveness') or ''
-        pace = gp.get('current_pace_lb_wk')
-        # 1) Goal trajectory slipping — highest strategic priority.
-        if gp.get('target_passed'):
-            return (f"Heads up — your weight target date ({gp.get('target_date')}) "
-                    f"has passed and you're still {gp.get('remaining')} lb out at "
-                    f"~{pace} lb/week. Worth resetting the date or tightening "
-                    f"the plan.")
-        if gp.get('on_pace') is False and gp.get('required_pace_lb_wk'):
-            return (f"Your weight goal is slipping — at ~{pace} lb/week you're "
-                    f"behind your {gp.get('target_date')} target (you'd need "
-                    f"~{gp.get('required_pace_lb_wk')}/week). Want to adjust the "
-                    f"plan or the date?")
-        # 2) Weight reversing / stalled.
-        if pace is not None and pace <= 0 and not gp.get('insufficient'):
-            return ("Your weight has stalled — it isn't trending toward your goal "
-                    "right now. Want to look at what changed this week?")
-        # 3) A standing recommendation that isn't working — needs a pivot.
-        if any(k in eff for k in ("different approach", "change tack", "wrong way")):
-            return f"Worth a rethink: {eff}"
-        # 4) A real win worth naming.
-        if "working" in eff:
-            return f"Quick positive note — {eff}"
-        return None
 
     def generate_journal_check_in(self) -> Optional[AssistantMessage]:
         """

@@ -125,13 +125,18 @@ class UserInitiatedStillWorksTests(ProactiveUserMixin):
     """5: pausing autonomous work must not touch the product."""
 
     def test_user_initiated_conversation_is_still_admitted_in_production(self):
-        with _prod_env():
+        """The turn declares itself a customer's (2026-09-04) — production alone stopped
+        being sufficient, because the check-in author rode that allow unattributed."""
+        from apps.ai.llm_accounting import TRAFFIC_PRODUCTION, llm_traffic_context
+        with _prod_env(), llm_traffic_context(traffic_class=TRAFFIC_PRODUCTION):
             decision = may_real_llm_call()
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.reason, "production_runtime")
 
     def test_a_user_turn_is_not_classified_as_autonomous(self):
-        self.assertFalse(current_workload_is_autonomous())
+        from apps.ai.llm_accounting import TRAFFIC_PRODUCTION, llm_traffic_context
+        with llm_traffic_context(traffic_class=TRAFFIC_PRODUCTION):
+            self.assertFalse(current_workload_is_autonomous())
 
     def test_the_certified_runtime_reaches_the_provider_for_a_user_turn(self):
         from apps.ai.models import AssistantConversation

@@ -1176,6 +1176,30 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
             Dict with 'response' (str), optionally 'actions_taken' (list of dicts),
             and optionally 'user_message_has_image' (bool)
         """
+        # A HUMAN IS WAITING. The admission gate now treats an UNCLASSIFIED provider call
+        # as autonomous and refuses it, because absence of proof that a person asked is
+        # not proof that one did. This is the legacy runtime's assertion that one has.
+        # Only when nothing has already claimed the turn — an outer certification or
+        # proactive context must keep its own classification.
+        from apps.ai.llm_accounting import (TRAFFIC_PRODUCTION, current_traffic_class,
+                                            llm_traffic_context)
+        with llm_traffic_context(
+                traffic_class=None if current_traffic_class() else TRAFFIC_PRODUCTION):
+            return self._send_message_inner(
+                message, conversation=conversation, page_context=page_context,
+                image_data=image_data, image_mime_type=image_mime_type,
+                images_list=images_list)
+
+    def _send_message_inner(
+        self,
+        message: str,
+        conversation: AssistantConversation = None,
+        page_context: dict = None,
+        image_data: str = None,
+        image_mime_type: str = None,
+        images_list: list = None,
+    ) -> dict:
+        """The body of :meth:`send_message`, run inside its traffic attribution."""
         import time as _t
         _t_total_start = _t.monotonic()
 

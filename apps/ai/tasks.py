@@ -98,21 +98,31 @@ def run_chat_generation(self, user_id, conversation_id, message,
         except AssistantConversation.DoesNotExist:
             conversation = assistant.get_or_create_conversation()
 
-        for event in assistant.send_message_stream(
-            message, conversation, page_context=page_context or {},
-        ):
-            etype = event.get("type")
-            if etype == "token":
-                if _first_token_ms is None:
-                    _first_token_ms = (time.monotonic() - started) * 1000
-                _token_count += 1
-                snap["text"] += event.get("content", "")
-                _flush()
-            else:
-                # Relay control events (done / correction / duplicate_pending
-                # / error) verbatim so the observer re-emits identical SSE.
-                snap["events"].append(event)
-                _flush(force=True)
+        # A HUMAN IS WAITING. This runs in the worker, but a person typed the message
+        # and is watching the tokens arrive. The admission gate now refuses an
+        # UNCLASSIFIED provider call as autonomous, so the turn asserts itself here —
+        # around the whole generator, in the CONSUMING frame, which is where a
+        # contextvar actually holds for everything the generator goes on to do.
+        from apps.ai.llm_accounting import (TRAFFIC_PRODUCTION,
+                                            current_traffic_class,
+                                            llm_traffic_context)
+        _traffic = None if current_traffic_class() else TRAFFIC_PRODUCTION
+        with llm_traffic_context(traffic_class=_traffic):
+            for event in assistant.send_message_stream(
+                message, conversation, page_context=page_context or {},
+            ):
+                etype = event.get("type")
+                if etype == "token":
+                    if _first_token_ms is None:
+                        _first_token_ms = (time.monotonic() - started) * 1000
+                    _token_count += 1
+                    snap["text"] += event.get("content", "")
+                    _flush()
+                else:
+                    # Relay control events (done / correction / duplicate_pending
+                    # / error) verbatim so the observer re-emits identical SSE.
+                    snap["events"].append(event)
+                    _flush(force=True)
 
         snap["status"] = "done"
         bus.write(job_id, snap)

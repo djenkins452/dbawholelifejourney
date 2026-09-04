@@ -124,7 +124,7 @@ class PromptSurvivesTheGovernorTests(TestCase):
 
     def test_the_task_and_the_truth_are_in_the_user_turn(self):
         user_prompt = ca._user_prompt(LIVE, "morning")
-        self.assertIn("PROACTIVE CHECK-IN (author this now)", user_prompt)
+        self.assertIn("=== PROACTIVE CHECK-IN ===", user_prompt)
         self.assertIn("=== DETERMINISTIC TRUTH ===", user_prompt)
         self.assertNotIn("PROACTIVE CHECK-IN", ca._system_prompt(),
                          "the task is back in the system prompt, where it gets truncated")
@@ -140,7 +140,7 @@ class PromptSurvivesTheGovernorTests(TestCase):
                     {"role": "user", "content": ca._user_prompt(LIVE, "morning")}]
         governed, _ = govern_prompt(messages, max_budget=ca.CHECKIN_GOVERN_BUDGET)
         survived = governed[-1]["content"]
-        self.assertIn("author this now", survived)
+        self.assertIn("If there IS something worth their attention", survived)
         self.assertIn("DETERMINISTIC TRUTH", survived)
 
     def test_the_user_turn_survives_even_at_the_legacy_budget(self):
@@ -151,7 +151,8 @@ class PromptSurvivesTheGovernorTests(TestCase):
                     {"role": "user", "content": ca._user_prompt(LIVE, "morning")}]
         governed, report = govern_prompt(messages, max_budget=12000)
         self.assertTrue(report.over_budget)
-        self.assertIn("author this now", governed[-1]["content"])
+        self.assertIn("If there IS something worth their attention",
+                      governed[-1]["content"])
 
     def test_the_call_passes_a_real_budget(self):
         with mock.patch("apps.ai.model_interface.service.ModelInterfaceService"

@@ -62701,3 +62701,87 @@ excluding docstring nodes.
 
 **Files.** `apps/ai/checkin_author.py`, `apps/ai/services.py`. New:
 `apps/core/tests/test_proactive_checkin_value_contract.py`. Zero provider calls.
+
+---
+
+## 2026-09-04 — Unattended spend is refused by default; detection stops meaning interruption
+
+Two gaps left open by the check-in incident, closed together.
+
+### 1. Attribution — the gate was asking the wrong question
+
+`current_workload_is_autonomous()` asked *"is this marked proactive or background?"* So a
+path that never classified itself came back **"not autonomous"** and, in production —
+where the allow is unconditional — was admitted with nobody having asked for anything.
+Check-in authoring was exactly that: real provider calls, `unattributed`, invisible to the
+gate that exists to stop unattended spend.
+
+The question is now the other way round: **did anything positively assert a human?** An
+unclassified call counts as autonomous — **but only in production**, which is the one place
+the hole exists. Everywhere else deny-by-default already governs every call (flag + run id +
+a finite budget), and treating unattributed as autonomous there would have refused
+authorized development and operator diagnostics *before they reached the gate that
+authorizes them*. The first version of this change did exactly that and broke 19 tests;
+the environment scope is the fix, not a workaround.
+
+**Interactive seams now assert the human**, so a real customer is never caught by the new
+default: `ModelInterfaceService.generate` (already did), `PersonalAssistant.send_message`,
+the legacy streaming task (wrapped around the generator in the CONSUMING frame, where a
+contextvar actually holds), and the journal write-together seam. Each only claims the turn
+when nothing else has, so a diagnostic can never launder itself as customer traffic.
+
+**Attribution moved to the WORK, not the caller.** `author_checkin` now marks itself
+`autonomous_workload` + `TRAFFIC_PROACTIVE` + `SOURCE_PROACTIVE_CHECKIN`. It was previously
+each caller's job to declare, and the ones that forgot were the incident. A new caller
+cannot reintroduce the hole.
+
+**A leaking authorization stamp, found by the same trace.** `_admitted_run_id` was written
+only on an admission and never cleared, so a run id from an authorized development call
+stayed set for every later call in the same context — and `record_llm_event` stamps
+`certification` from exactly that value. It surfaced as a test that started reporting
+`certification` for an unattributed call once refusals became more common. Now stamped on
+every decision, refusals included. Attribution that outlives the thing it attributes is not
+attribution.
+
+### 2. Detection is not interruption
+
+`_select_health_trend_message` was an if-ladder that ranked signals ("highest strategic
+priority") and wrote the sentence — two model jobs done deterministically, and the reason
+one goal-pace calculation crossing one line became an unprompted notification. **Deleted.**
+
+WLJ now does only what it can do deterministically: throttle (dedup/cooldown unchanged),
+detect, and hand over the FACTS. `_detected_signals()` filters WLJ's own PROSE — narratives
+and composed briefings — never significance, and reuses `strip_verdicts` so no pre-decided
+conclusion travels either. It names no domain: a test greps its source for "weight",
+"pace", "sleep", "workout", "goal" and fails on any of them.
+
+The model receives the signals labelled *"WLJ noticed these, WLJ has NOT decided any of them
+matters"*, is told plainly that a message which does not help is worse than silence, and may
+reply `NO_MESSAGE`. **Without an affordance for silence, a model asked to author a message
+will always author one** — that is the whole mechanism. Silence produces no message, and
+deliberately does *not* fall through to the degraded directive.
+
+**The degraded directive stopped producing filler.** When the model is unavailable it now
+returns the canonical next-action line only if there IS a current action; otherwise nothing.
+It was degrading to *"Nothing pending right now."* — precisely the low-value interruption
+this work exists to remove.
+
+**Preserved:** nothing live and nothing detected → zero provider calls; the environment cost
+gate; user preference boundaries (a preference may request proactive help, never authorize
+the spend — asserted by test).
+
+### Tests
+
+`apps/core/tests/test_proactive_autonomy_contract.py` (33 new). `test_health_trend_proactive`
+rewritten — its selection half certified the deleted ladder; what remains certifies WLJ's
+half (detection + delivery gating). **513 green** across proactive, admission, diagnostic,
+journal, gateway, request-path-safety and telemetry suites.
+
+Four legacy contracts were deliberately narrowed and say so in place: "production traffic is
+admitted without any authorization" now requires the turn to declare itself a customer's.
+That was the hole.
+
+**Files.** `apps/ai/llm_admission.py`, `apps/ai/checkin_author.py`,
+`apps/ai/proactive_checkins.py`, `apps/ai/personal_assistant.py`, `apps/ai/tasks.py`,
+`apps/journal/services/journal_conversation.py`, plus the four narrowed contracts. Zero
+provider calls.

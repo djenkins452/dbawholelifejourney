@@ -301,16 +301,29 @@ def generate_entry(user, convo):
 
 def _call(user, system, user_prompt, conversation_history=None, max_tokens=260,
           temperature=0.6, endpoint="journal_write_together"):
+    """The ONE provider seam for write-together, and the one place it asserts a human.
+
+    Every call here is a person typing in their journal and waiting for the reply, so the
+    turn declares itself `production`. The admission gate now treats an UNCLASSIFIED call
+    as autonomous and refuses it — absence of proof that a human asked is not proof that
+    one did — so this assertion is what keeps a real user's turn admitted.
+    """
+    from apps.ai.llm_accounting import (TRAFFIC_PRODUCTION, current_traffic_class,
+                                        llm_traffic_context)
+    # Only when nothing has already claimed the turn: an outer certification/diagnostic
+    # context must keep its own classification.
+    traffic = None if current_traffic_class() else TRAFFIC_PRODUCTION
     try:
-        return AIService()._call_api(
-            system,
-            user_prompt,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            endpoint=endpoint,
-            user=user,
-            conversation_history=conversation_history,
-        )
+        with llm_traffic_context(traffic_class=traffic):
+            return AIService()._call_api(
+                system,
+                user_prompt,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                endpoint=endpoint,
+                user=user,
+                conversation_history=conversation_history,
+            )
     except Exception:
         logger.exception("Journal conversation model call failed (endpoint=%s)", endpoint)
         return None

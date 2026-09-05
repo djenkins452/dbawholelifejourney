@@ -193,7 +193,19 @@ def list_open(user):
 
 def bind_conversation(user, conversation_id):
     """Bind this turn's freshly-minted confirmations to the conversation and return the
-    client payload for the newest one (or None)."""
+    client payload for the newest one (or None).
+
+    THE NEWEST IS NOT THE ONLY ONE. A request naming two things mints two confirmations,
+    and only one of them was ever shown — so only one could be authorized. On 2026-09-05
+    "log the sandwich and the mac and cheese" created both at 20:39:21 and 20:39:22; the
+    user saw the mac, confirmed it, and the sandwich sat pending until it expired while
+    the assistant reported the whole request done.
+
+    The payload now carries `also_pending` — the other open confirmations, by id and
+    summary. WLJ states that authorization is incomplete; whether to present them one at a
+    time, together, or differently is the model's and the client's call. A partial
+    authorization can no longer be invisible.
+    """
     if not conversation_id:
         return None
     M = _model()
@@ -202,11 +214,19 @@ def bind_conversation(user, conversation_id):
     M.objects.filter(user_id=uid, status=M.STATUS_PENDING,
                      conversation_id__isnull=True).update(conversation_id=cid_int)
     _bust(uid)
-    newest = (M.objects.filter(user_id=uid, status=M.STATUS_PENDING,
-                               conversation_id=cid_int,
-                               expires_at__gt=timezone.now())
-              .order_by("-created_at").first())
-    return client_view(_as_dict(newest)) if newest else None
+    open_rows = list(M.objects.filter(user_id=uid, status=M.STATUS_PENDING,
+                                      conversation_id=cid_int,
+                                      expires_at__gt=timezone.now())
+                     .order_by("-created_at"))
+    if not open_rows:
+        return None
+    payload = client_view(_as_dict(open_rows[0]))
+    others = [{"confirmation_id": r.id,
+               "summary": (r.authorization_line or r.summary or "")}
+              for r in open_rows[1:]]
+    if others and isinstance(payload, dict):
+        payload["also_pending"] = others
+    return payload
 
 
 def open_for_conversation(user, conversation_id):

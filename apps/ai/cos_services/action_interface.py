@@ -448,6 +448,22 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
 
     out["confirmation_id"] = confirmation_id
 
+    # PARTIAL AUTHORIZATION IS A FACT, AND IT TRAVELS WITH THE RESULT.
+    #
+    # One "yes" resolves exactly ONE confirmation. When a request named two things, the
+    # second stayed pending and unseen, and the assistant — holding a plain success —
+    # reported the whole request done. It had nothing to say otherwise. So the result now
+    # carries what is STILL AWAITING AUTHORIZATION for this user; the model can no longer
+    # narrate completion over an unfinished set, because the evidence says it is unfinished.
+    # WLJ states the fact and stops there: how to raise it is the model's judgment.
+    try:
+        still_open = [c for c in _confirm.list_open(user)
+                      if c.get("confirmation_id") != confirmation_id]
+        if still_open:
+            out["still_awaiting_authorization"] = still_open
+    except Exception:  # pragma: no cover - never break a completed write
+        logger.warning("action_interface: open-confirmation read skipped", exc_info=True)
+
     # COMPLETED-ACTION CONTINUITY. This is the ONE place every confirmed action lands, and
     # it runs on the confirm endpoint — a DIFFERENT turn from the one that proposed the
     # action, which never calls record_turn(). Without recording here, a successful write

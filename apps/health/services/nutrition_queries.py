@@ -524,7 +524,14 @@ class NutritionQueries:
                 "is_favorite": bool(getattr(f, "is_favorite", False)),
             },
             status="eaten",
-            performance={
+            # A gap is reported as a gap. When nothing established this entry's nutrition,
+            # the stored zeros are placeholders and must never travel as measurements —
+            # they used to arrive with `confidence: "high"`, which is how a meal nobody
+            # looked up became a confident 0 calories in every total and every assessment.
+            performance=({
+                "nutrition": "unknown",
+                "reason": "no nutrition was established for this entry when it was logged",
+            } if _nutrition_unknown(f) else {
                 "calories": _num(f.total_calories),
                 "protein_g": _num(f.total_protein_g),
                 "carbohydrates_g": _num(f.total_carbohydrates_g),
@@ -536,7 +543,7 @@ class NutritionQueries:
                 "cholesterol_mg": _num(f.total_cholesterol_mg),
                 "potassium_mg": _num(getattr(f, "total_potassium_mg", None)),
                 "net_carbs_g": _num(getattr(f, "total_net_carbs_g", None)),
-            },
+            }),
             extensions={k: v for k, v in {
                 "notes": (f.notes or "").strip() or None,
                 "location": (f.location or None),
@@ -546,7 +553,18 @@ class NutritionQueries:
                 "mood_tags": (f.mood_tags or None),
             }.items() if v is not None},
             freshness=F.CURRENT,
+            confidence=("low" if _nutrition_unknown(f) else "high"),
         )
+
+
+def _nutrition_unknown(entry):
+    """Was this entry's nutrition ever established? Provenance, not a value check.
+
+    Reads the entry's own recorded source rather than guessing from zeros: a genuine
+    zero-calorie food (black coffee, water) is a measurement and must keep its numbers.
+    """
+    from apps.health.models import FoodEntry
+    return getattr(entry, "data_source_used", None) == FoodEntry.DATA_SOURCE_UNKNOWN
 
 
 def build_meal_signals(meal_totals):

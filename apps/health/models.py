@@ -4132,10 +4132,16 @@ class FoodEntry(UserOwnedModel):
     DATA_SOURCE_USER_OVERRIDE = 'user_override'
     DATA_SOURCE_QUICK_ADD = 'quick_add'
     DATA_SOURCE_MANUAL = 'manual'
+    # Nothing established this entry's nutrition — no user-supplied values and no exact
+    # food match. The macros are placeholders, NOT measurements. Recorded explicitly so a
+    # gap can never be read as a confident zero (production 2026-09-05: "mac and cheese"
+    # reached the model as 0 calories with confidence "high").
+    DATA_SOURCE_UNKNOWN = 'unknown'
     DATA_SOURCE_CHOICES = [
         (DATA_SOURCE_LOCAL, 'Local Database'),
         (DATA_SOURCE_FATSECRET, 'FatSecret API'),
         (DATA_SOURCE_OPENFOODFACTS, 'Open Food Facts'),
+        (DATA_SOURCE_UNKNOWN, 'Nutrition Unknown'),
         (DATA_SOURCE_AI_GUESS, 'AI Estimate'),
         (DATA_SOURCE_USER_OVERRIDE, 'User Override'),
         (DATA_SOURCE_QUICK_ADD, 'Quick Add'),

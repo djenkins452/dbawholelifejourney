@@ -62866,3 +62866,83 @@ without the traffic context. **That is inference, not proof**, and fix (2) is wh
 next occurrence provable.
 
 **Files.** `apps/ai/checkin_author.py`, `apps/ai/proactive_checkins.py`. Zero provider calls.
+
+---
+
+## 2026-09-05 — Nutrition action integrity: the write layer was substituting the food
+
+**Production timeline** (ToolCallLog, user `dannyjenkins71@gmail.com`, all times UTC):
+
+| Time | Action | Result |
+|---|---|---|
+| 20:39:21 | `log_food(McAlistairs Ham and Cheese sandwich, lunch)` | `confirmation_required` — **never resolved** |
+| 20:39:22 | `log_food(mac and cheese, lunch)` | `confirmation_required` |
+| 20:39:37 | resolve `d932078d` | ok — "1 mac and cheese logged for lunch" |
+| 20:45:14→20:46:55 | four `log_food(banana/Banana, breakfast)` cycles | four × ok — "1 **Oikos Pro Banana** (130 cal) logged (matched: Oikos Pro Banana)" |
+| 20:47:33 | `log_food(banana, quantity 1, breakfast)` | `confirmation_required` — a NEW action, still pending |
+
+**Root cause 1 — identity substituted at the write layer.** `_search_local` matches
+`name__icontains=query` ordered by `-updated_at`, and `handle_log_food` adopted
+`results[0]` **whole**: its name AND its nutrition. "banana" is a substring of "Oikos Pro
+Banana", and that CustomFood was the most recently updated. The substitution was
+deterministic, which is exactly why three explicit corrections failed — the model sent
+`food_name="banana"` every single time and WLJ replaced it every single time. **The model
+was never the problem.**
+
+**Root cause 2 — unknown nutrition written and reported as zero.** "mac and cheese" matched
+nothing, so every macro stayed at its `Decimal("0")` initialiser and was stored as fact. The
+canonical row reads calories 0.0, protein 0.0, carbs 0.0, fat 0.0 — and reaches the model
+with **`confidence: "high"`**. A number nobody looked up is not a measurement, and a
+confident zero silently deflates every total that includes it.
+
+**Root cause 3 — a two-food request could not be authorized.** The model correctly minted
+two confirmations. `bind_conversation` returned only **the newest**, so only the mac and
+cheese was ever displayed; one "yes" resolves exactly one confirmation; the sandwich sat
+pending until it expired, unseen. `resolve_pending_action` returned a plain success, so the
+assistant had nothing to say except that the request was done.
+
+**Root cause 4 — the "banana" pending action during the ham/mac correction was NEW**, minted
+at 20:47:33 (its args carry `quantity: 1`, which the earlier ones did not). Not a consumed
+confirmation resurfacing; the newest-pending-wins display rule again.
+
+### Structural fixes
+
+- **Exact identity or nothing.** `_exact_food_match` adopts a search result only when its
+  normalized name IS the requested food. Anything else is a candidate: the entry keeps the
+  name the user said, borrows no other product's nutrition, and the near-matches come back
+  in the result so the model can offer them. Containment in either direction is not identity.
+- **Unknown is recorded as unknown.** New `FoodEntry.DATA_SOURCE_UNKNOWN` (migration
+  `health/0109`) when neither user-supplied values nor an exact match established the
+  nutrition. The truth surface then reports `{"nutrition": "unknown", ...}` with
+  `confidence: "low"` instead of placeholder zeros at high confidence. Provenance decides,
+  never the value — a genuine zero-calorie food keeps its measurement.
+- **Partial authorization is visible.** `bind_conversation` adds `also_pending` for the
+  sibling confirmations, and every resolved action carries
+  `still_awaiting_authorization`. WLJ states the fact; how to raise it stays the model's
+  judgment.
+
+No banana, Oikos, McAlister's, sandwich or mac-and-cheese case anywhere — a test parses the
+three changed modules with `ast` and fails if any incident noun appears in a string LITERAL
+(docstrings excluded, since they are the record of why).
+
+### Tests
+
+`apps/core/tests/test_nutrition_action_integrity_contract.py` (22). **280 green** across
+nutrition, confirmation, continuity and action suites.
+
+**One pre-existing failure, reported not fixed:**
+`test_nutrition_entity_truth.test_nutrition_is_now_entity_capable` asserts the nutrition
+domain exposes `("food",)` and it now exposes `("food", "meal", "frequent_food")`. Verified
+failing at HEAD before this change.
+
+### Production data — NOT repaired
+
+No rows were mutated. What exists on 2026-09-05: **`mac and cheese`, lunch, all macros
+0.0**; **no ham-and-cheese entry** (never authorized); **no banana or Oikos entry at all** —
+four writes reported success and no such row is retrievable today. Whether those were
+deleted afterwards or never persisted could not be determined from available surfaces, and
+is stated as an open question rather than a conclusion.
+
+**Files.** `apps/ai/action_handlers.py`, `apps/health/models.py` + migration `0109`,
+`apps/health/services/nutrition_queries.py`, `apps/ai/model_interface/confirmation.py`,
+`apps/ai/cos_services/action_interface.py`. Zero provider calls.

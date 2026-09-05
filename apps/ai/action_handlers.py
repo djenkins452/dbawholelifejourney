@@ -24,6 +24,35 @@ class _SkipFoodSearch(Exception):
     """Control-flow sentinel: the user supplied their own nutrition, so no food
     lookup runs at all. Raised and caught inside `handle_log_food` only."""
 
+
+def _normalize_food_name(name):
+    """Fold case, punctuation and spacing so the SAME food compares equal.
+
+    Deliberately narrow: it decides whether two strings name the same thing, never how
+    similar they are. Similarity is what produced "Oikos Pro Banana" from "banana".
+    """
+    import re
+    return re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).strip()
+
+
+def _exact_food_match(results, food_name):
+    """The search result that IS the requested food, or None.
+
+    Exact normalized identity only — no substring, no ranking, no closest-wins. A result
+    that merely CONTAINS what the user said is a different, more specific product; adopting
+    it silently renames the user's food and attaches another product's nutrition.
+
+    Domain-agnostic by construction: it compares two strings and knows nothing about
+    brands, foods or categories.
+    """
+    target = _normalize_food_name(food_name)
+    if not target:
+        return None
+    for result in results or []:
+        if _normalize_food_name(getattr(result, "name", "")) == target:
+            return result
+    return None
+
 import requests
 from django.conf import settings
 from django.db import IntegrityError, transaction
@@ -1123,6 +1152,7 @@ class ActionHandler:
 
             # Smart food lookup with 3-tier search
             food_match = None
+            candidates = []
             matched_name = food_name
             nutrition_data = {
                 'total_calories': Decimal(str(calories)) if calories else Decimal('0'),
@@ -1155,8 +1185,25 @@ class ActionHandler:
                     use_ai=True  # AI can correct misspellings
                 )
 
-                if results:
-                    best_match = results[0]
+                # EXPLICIT TARGET OUTRANKS THE NEAREST STORED FOOD.
+                #
+                # `results[0]` used to be adopted whole — its NAME and its nutrition. The
+                # local search is `name__icontains`, ordered by `-updated_at`, so "banana"
+                # matched the saved product "Oikos Pro Banana" and the entry was renamed to
+                # it, carrying that product's macros. Deterministic and repeatable: on
+                # 2026-09-05 the user corrected it three times, the model sent
+                # `food_name="banana"` every time, and every time the write layer
+                # substituted the product. The model was never the problem.
+                #
+                # A match may only take over the user's stated food when it IS that food —
+                # an exact normalized name. Anything else is a CANDIDATE: the entry keeps
+                # the name the user said, borrows nothing from a different product, and the
+                # near-matches are handed back so the model can offer them. WLJ does not
+                # decide which product a person meant.
+                best_match = _exact_food_match(results, food_name)
+                if best_match is None:
+                    candidates = [r.name for r in (results or [])[:5]]
+                if results and best_match is not None:
                     matched_name = best_match.name
                     food_match = best_match
 
@@ -1193,6 +1240,15 @@ class ActionHandler:
             # can displace a value the user actually stated.
             nutrition_data.update(supplied)
 
+            # UNKNOWN NUTRITION IS NOT ZERO NUTRITION.
+            #
+            # When nothing was found, every macro stayed at its Decimal("0") initialiser and
+            # was written as fact. On 2026-09-05 "mac and cheese" was stored as 0 calories,
+            # 0 protein, 0 carbs, 0 fat — and reached the model as `confidence: "high"`. A
+            # number nobody looked up is not a measurement, and a confident zero is worse
+            # than an admitted gap: it silently deflates every total that includes it.
+            nutrition_established = bool(supplied) or food_match is not None
+
             # Get food_item for linking if available
             food_item = None
             if food_match and food_match.food_item_id:
@@ -1227,7 +1283,8 @@ class ActionHandler:
                 # PROVENANCE: record that these numbers came from the user, not from a
                 # database row or an estimate, using the existing granular source field.
                 data_source_used=(FoodEntry.DATA_SOURCE_USER_OVERRIDE if supplied
-                                  else FoodEntry.DATA_SOURCE_MANUAL),
+                                  else FoodEntry.DATA_SOURCE_LOCAL if food_match
+                                  else FoodEntry.DATA_SOURCE_UNKNOWN),
                 snapshot_nutrients={k: float(v) for k, v in supplied.items()},
                 notes=notes or ""
             )
@@ -1265,10 +1322,16 @@ class ActionHandler:
             cal_val = float(nutrition_data['total_calories'])
             cal_str = f" ({int(cal_val)} cal)" if cal_val > 0 else ""
 
-            # Note if name was corrected (e.g., misspelling fixed)
+            # Note if the entry resolved to a stored food of exactly that name.
             name_note = ""
             if matched_name.lower() != food_name.lower():
                 name_note = f" (matched: {matched_name})"
+            # NEAR MATCHES ARE OFFERED, NEVER APPLIED. The user keeps the food they named;
+            # the model can ask whether they meant one of these and update it if so.
+            if not nutrition_established:
+                name_note += " — nutrition unknown (nothing matched exactly)"
+                if candidates:
+                    name_note += f"; did they mean: {', '.join(candidates)}?"
 
             # Trend lookup — daily calorie total (safe — never blocks action)
             trend = None
@@ -1286,6 +1349,8 @@ class ActionHandler:
             return ActionResult(
                 success=True,
                 message=f"{_pick_opener(_SUCCESS_OPENERS, 'food')} \u2014 {quantity} {matched_name}{cal_str} logged for {meal_type}{source_note}{name_note}.",
+                data={'nutrition_established': nutrition_established,
+                      'candidates': candidates},
                 created_object={
                     'model': 'FoodEntry',
                     'id': entry.id,

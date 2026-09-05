@@ -62946,3 +62946,52 @@ is stated as an open question rather than a conclusion.
 **Files.** `apps/ai/action_handlers.py`, `apps/health/models.py` + migration `0109`,
 `apps/health/services/nutrition_queries.py`, `apps/ai/model_interface/confirmation.py`,
 `apps/ai/cos_services/action_interface.py`. Zero provider calls.
+
+---
+
+## 2026-09-05 — Multi-item food logging: N requested foods stay one action
+
+**The gap.** "Log a ham and cheese sandwich and mac and cheese for lunch" became two
+independent confirmations. The client displays the newest, so only one was ever shown; one
+"yes" resolves exactly one confirmation; the sandwich expired unseen while the assistant
+reported the request done. Nothing was wrong with either write — **the requested SET was
+never a thing the system could hold**, so it could not be authorized, executed or verified
+as one.
+
+**Architecture — reuses the existing action/confirmation spine, adds no Nutrition-only
+machinery.** `log_food` gains an optional `items` array. One tool call → one action → one
+confirmation → one authorization → N independent verified writes → per-item results.
+
+```
+requested set  →  items[]  →  ONE confirmation (enumerating every food)
+               →  one "yes"  →  each item written + verified independently
+               →  {logged: [...], failed: [...], complete: bool}
+```
+
+- **`confirmation_contract.authorization_line`** now enumerates a bound SET. List-valued
+  params were previously skipped entirely — only scalars rendered — so an action carrying
+  several items would have authorized them with **none of them shown**: the same
+  "authorized something you were never shown" failure the sentence exists to prevent,
+  multiplied. Every member is named and the true count is stated, so a truncated list can
+  never read as the whole set. Domain-agnostic: it finds a list of dicts among the params
+  and names each member by its own identifying field, knowing nothing about food.
+- **`ActionHandler._log_food_set`** routes every member through the SAME single-food path,
+  so each keeps exact-identity resolution, unknown-is-not-zero provenance and its own
+  post-write verification. One item failing cannot roll back or suppress the others.
+- **Partial execution cannot be narrated as success.** The result is `success=True` only
+  when every requested item landed; otherwise `error='partial_write'`, a message reading
+  "1 of 2 logged — I couldn't log X", and `complete: False`. `requested_count` always
+  equals `len(logged) + len(failed)`, so no requested item can silently disappear.
+- Bounded at 12 items; an item without a food name is rejected rather than silently skipped.
+
+Single-food calls are unchanged, and the single-food authorization line is byte-identical.
+
+**Tests.** `apps/core/tests/test_multi_item_food_lifecycle_contract.py` (24) covering two
+foods, three foods, one item failing while others succeed, cancellation, retry/single-use
+replay, no cross-item identity substitution, and canonical postcondition verification per
+item. **296 green** across the multi-item, nutrition-integrity, confirmation, rich
+confirmation, intent-registration and nutrition suites.
+
+**Files.** `apps/ai/intents/health_intents.py` (schema + "one call for several foods"),
+`apps/ai/action_handlers.py`, `apps/ai/confirmation_contract.py`. Zero provider calls, and
+no production data touched.

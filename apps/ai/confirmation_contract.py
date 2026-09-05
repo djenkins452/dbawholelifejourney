@@ -192,6 +192,45 @@ _AUTHORIZATION_MAX_NUMERIC = 12
 _NEVER_SHOW = frozenset({"confirmed", "record_id", "source_artifact_id", "confidence"})
 
 
+_MAX_SET_MEMBERS_SHOWN = 12
+
+
+def _bound_set_line(act, params):
+    """The authorization sentence for an action carrying a LIST of bound members, or "".
+
+    Domain-agnostic: it looks for a list of dicts among the params and names each member by
+    its own identifying field, whatever that field is called. It knows nothing about food,
+    tasks, or any domain.
+    """
+    for key, value in (params or {}).items():
+        if key in _NEVER_SHOW or not isinstance(value, list) or not value:
+            continue
+        names = []
+        for member in value:
+            if not isinstance(member, dict):
+                names = []
+                break
+            for field in _IDENTIFYING_PARAMS:
+                text = str(member.get(field) or "").strip()
+                if text:
+                    names.append(text[:60])
+                    break
+        if not names:
+            continue
+        shown = names[:_MAX_SET_MEMBERS_SHOWN]
+        listed = ", ".join(shown)
+        if len(names) > len(shown):
+            listed += f", and {len(names) - len(shown)} more"
+        scope = ""
+        for field in ("meal_type", "date", "for_date"):
+            if params.get(field):
+                scope = f" — {field.replace('_', ' ')} {params[field]}"
+                break
+        return (f"{_title_for(act)} — {len(names)} item"
+                f"{'s' if len(names) != 1 else ''}: {listed}{scope}")
+    return ""
+
+
 def authorization_line(action, params=None):
     """THE ONE DETERMINISTIC SENTENCE naming exactly what this confirmation authorizes.
 
@@ -209,6 +248,16 @@ def authorization_line(action, params=None):
     if not act:
         return ""
     params = params if isinstance(params, dict) else {}
+
+    # A BOUND SET IS NAMED IN FULL. List-valued params were skipped below (only scalars
+    # were rendered), so an action carrying several items would have authorized them with
+    # none of them shown — the exact "you authorized something you were never shown"
+    # failure this sentence exists to prevent, multiplied. Every member is enumerated, and
+    # the count is stated so a truncated list can never read as the whole set.
+    set_line = _bound_set_line(act, params)
+    if set_line:
+        return set_line
+
     bits = []
     for key in _IDENTIFYING_PARAMS:
         if key not in params:

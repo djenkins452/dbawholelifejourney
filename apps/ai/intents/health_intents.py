@@ -238,9 +238,41 @@ HEALTH_INTENT_TOOLS = [
                     "notes": {
                         "type": "string",
                         "description": "Any additional notes about the food"
+                    },
+                    "items": {
+                        "type": "array",
+                        "description": (
+                            "SEVERAL FOODS IN ONE REQUEST. When the user names more than "
+                            "one food ('a sandwich and mac and cheese for lunch'), call "
+                            "this ONCE with every food as an item — never once per food. "
+                            "One call is one authorization covering the whole set, and "
+                            "each food is then logged as its own entry. Each item takes "
+                            "the same fields as a single food; `meal_type` given at the "
+                            "top level applies to every item that does not state its own."
+                        ),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "food_name": {"type": "string"},
+                                "quantity": {"type": "number"},
+                                "meal_type": {
+                                    "type": "string",
+                                    "enum": ["breakfast", "lunch", "dinner", "snack"]},
+                                "calories": {"type": "number"},
+                                "protein_g": {"type": "number"},
+                                "carbohydrates_g": {"type": "number"},
+                                "fiber_g": {"type": "number"},
+                                "sugar_g": {"type": "number"},
+                                "fat_g": {"type": "number"},
+                                "saturated_fat_g": {"type": "number"},
+                                "sodium_mg": {"type": "number"},
+                                "notes": {"type": "string"},
+                            },
+                            "required": ["food_name"],
+                        },
                     }
                 },
-                "required": ["food_name"]
+                "required": []
             }
         }
     },

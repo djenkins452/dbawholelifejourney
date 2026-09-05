@@ -1096,9 +1096,81 @@ class ActionHandler:
         ("sodium_mg", "total_sodium_mg"),
     )
 
-    def handle_log_food(self, food_name: str, quantity: float = 1,
+    _MAX_FOOD_ITEMS = 12
+
+    def _log_food_set(self, items, *, meal_type=None, notes="", leading_food=None,
+                      leading_quantity=1, leading_calories=None, **kwargs):
+        """Write every food in an authorized set, INDEPENDENTLY, and report per item.
+
+        Each item goes through the SAME single-food path — same exact-identity rule, same
+        unknown-is-not-zero provenance, same post-write verification — so nothing about
+        multi-item logging weakens what one food guarantees. One item failing cannot roll
+        back or suppress the others, and cannot be narrated away: `logged` and `failed` are
+        both reported, and the result is only a success when every requested item landed.
+        """
+        requested = []
+        if leading_food:
+            # A model that fills BOTH the single field and the array meant one set.
+            requested.append({"food_name": leading_food, "quantity": leading_quantity,
+                              "calories": leading_calories})
+        for item in items or []:
+            if isinstance(item, dict) and (item.get("food_name") or "").strip():
+                requested.append(dict(item))
+
+        if not requested:
+            return ActionResult(success=False, error='validation_failed',
+                                message="I couldn't tell which foods to log.")
+        if len(requested) > self._MAX_FOOD_ITEMS:
+            return ActionResult(
+                success=False, error='validation_failed',
+                message=(f"That's {len(requested)} foods in one go — I can log up to "
+                         f"{self._MAX_FOOD_ITEMS} at a time."))
+
+        logged, failed = [], []
+        for item in requested:
+            params = {k: v for k, v in item.items() if v is not None}
+            params.setdefault("meal_type", meal_type)
+            params.setdefault("notes", notes)
+            for key, value in kwargs.items():
+                params.setdefault(key, value)
+            params.pop("items", None)
+            name = params.get("food_name")
+            try:
+                result = self.handle_log_food(**params)
+            except Exception:  # one bad item never takes the others down
+                logger.warning("log_food set: item failed name=%s", name, exc_info=True)
+                failed.append({"food_name": name, "error": "interface_error"})
+                continue
+            if getattr(result, "success", False):
+                logged.append({"food_name": name, "message": result.message,
+                               "nutrition_established": (result.data or {}).get(
+                                   "nutrition_established"),
+                               "candidates": (result.data or {}).get("candidates") or []})
+            else:
+                failed.append({"food_name": name,
+                               "error": getattr(result, "error", "failed"),
+                               "message": result.message})
+
+        # THE REQUESTED SET IS THE UNIT OF TRUTH. Partial execution is reported as partial.
+        summary = f"{len(logged)} of {len(requested)} logged"
+        if failed:
+            names = ", ".join(f["food_name"] for f in failed if f.get("food_name"))
+            message = (f"{summary} — I couldn't log {names}. "
+                       f"Nothing else was affected.")
+        else:
+            message = " ".join(entry["message"] for entry in logged) or summary
+        return ActionResult(
+            success=bool(logged) and not failed,
+            error=None if not failed else 'partial_write',
+            message=message,
+            data={"requested_count": len(requested), "logged": logged, "failed": failed,
+                  "complete": not failed},
+        )
+
+    def handle_log_food(self, food_name: str = None, quantity: float = 1,
                         meal_type: str = None, calories: float = None,
-                        notes: str = "", **kwargs) -> ActionResult:
+                        notes: str = "", items: list = None,
+                        **kwargs) -> ActionResult:
         """
         Log a food entry with smart nutrition lookup.
 
@@ -1115,6 +1187,26 @@ class ActionHandler:
             notes: Optional notes
         """
         from apps.health.models import FoodEntry, FoodItem
+
+        # ── SEVERAL FOODS, ONE REQUEST ────────────────────────────────────────────────
+        # A request naming two foods is ONE user action. It used to become two independent
+        # confirmations, of which the client displayed only the newest — so on 2026-09-05
+        # the sandwich was never shown, never authorized, and expired unseen while the
+        # assistant reported the whole request done.
+        #
+        # `items` binds the complete requested set to ONE action, so it mints ONE
+        # confirmation whose authorization line enumerates every food (see
+        # `confirmation_contract.authorization_line`) and one "yes" authorizes exactly that
+        # set. Each food is then written and VERIFIED independently, and the result reports
+        # per item — so a partial write is reported as partial, never as success.
+        if items:
+            return self._log_food_set(items, meal_type=meal_type, notes=notes,
+                                      leading_food=food_name, leading_quantity=quantity,
+                                      leading_calories=calories, **kwargs)
+        if not food_name:
+            return ActionResult(
+                success=False, error='validation_failed',
+                message="I need to know which food to log.")
 
         try:
             # Use HTIE-resolved time if available, else current time

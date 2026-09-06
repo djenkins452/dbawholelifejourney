@@ -86,6 +86,21 @@ WRITE_SURFACE = {
                                         # the row survives and remains restorable
         "postcondition": "verified",    # returns already_removed vs ok from canonical state
     },
+    "update_food_entry": {
+        # M5 exact-identity food CORRECTION (the write half; delete_record is the removal
+        # half). A direct model-interface dispatch, declared here because entering through a
+        # newer path never exempts a write from the contract.
+        "authority": CANONICAL,        # FoodEntry.calculate_totals() — the ONE nutrition
+                                       # calculation; totals are never multiplied elsewhere.
+        # STRICTER than "policy": a correction OVERWRITES stored truth, so it ALWAYS mints a
+        # bound confirmation showing the record's current state and the exact changes — a
+        # write that overwrites can never be talked past by a preference.
+        "confirmation": "always",
+        "target_binding": "mandatory",  # no exact entry_id -> FAIL CLOSED, nothing changed
+        "reversible": True,             # the field is freely re-editable via the same tool
+                                        # and the row remains soft-deletable
+        "postcondition": "verified",    # re-reads the row and returns the new stored state
+    },
     "resolve_pending_action": {
         "authority": EXEMPT, "confirmation": EXEMPT,
         "exemption": ("This tool IS the confirmation. Requiring confirmation of a "

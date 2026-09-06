@@ -34,8 +34,11 @@ SYSTEM_INTENT_TOOLS = [
                 "properties": {
                     "entry_type": {
                         "type": "string",
-                        "enum": ["weight", "heart_rate", "blood_pressure", "glucose", "blood_oxygen", "sleep", "water", "steps", "journal", "food"],
-                        "description": "Type of entry to edit. Infer from context or the last action."
+                        "enum": ["weight", "heart_rate", "blood_pressure", "glucose", "blood_oxygen", "sleep", "water", "steps"],
+                        "description": ("Type of entry to edit. Infer from context or the last "
+                                        "action. NOTE: food is corrected by update_food_entry "
+                                        "(by exact entry id), not here; 'journal' has no editor "
+                                        "on this path.")
                     },
                     "new_value": {
                         "type": "number",

@@ -386,6 +386,31 @@ def resolve_pending_action(user, confirmation_id=None, *, confirm=True, choice=N
                            "record_id": done.get("record_id"),
                            "description": done.get("description")})
         return out
+    if action == "update_food_entry":
+        # The CONFIRMED correction executes the identity + values BOUND at confirmation
+        # time — never a target re-resolved from a name or the current conversation state.
+        from apps.ai.cos_services import food_correction as _fc
+        fields = {k: v for k, v in params.items()
+                  if k not in ("entry_id", "confirmed", "target")}
+        done = _fc.update_food_entry(user, params.get("entry_id"), **fields)
+        ok = done.get("status") in (_fc.OK, _fc.NOTHING_TO_CHANGE)
+        out = {"status": OK if ok else ERROR, "result": done.get("message"),
+               "code": None if ok else done.get("status"),
+               "evidence": {k: done.get(k) for k in
+                            ("record_id", "changed", "food_name", "meal_type",
+                             "quantity", "calories", "estimated", "description")}}
+        _confirm.finalize(user, confirmation_id, status="resolved", choice="confirm",
+                          result={"status": out["status"], "result": out["result"]})
+        record_tool_call(
+            user, kind="action", tool_name=action, turn_id=turn_id, surface=surface,
+            args=params, result_status=done.get("status", ""),
+            conversation_id=conversation_id,
+            result_digest={"status": done.get("status"), "confirmed": True,
+                           "confirmation_id": confirmation_id,
+                           "changed": done.get("changed"),
+                           "record_id": done.get("record_id"),
+                           "description": done.get("description")})
+        return out
     if action == "complete_execution_item":
         try:
             from apps.ai.cos_services.execution_completion import (

@@ -199,7 +199,16 @@ HEALTH_INTENT_TOOLS = [
                 "the user supplies are recorded EXACTLY as given and are never replaced "
                 "by a database or estimated value. Omit a nutrient only when the user "
                 "did not state it (WLJ may then fill it from a food match). Grams for "
-                "macros, MILLIGRAMS for sodium."
+                "macros, MILLIGRAMS for sodium.\n"
+                "NUTRITION YOU DON'T HAVE: you CAN estimate calories and macros from "
+                "nutrition knowledge — never tell the user you cannot. But do not invent "
+                "numbers unasked: if the user just names a food and no match is found, log "
+                "it (nutrition stays honestly UNKNOWN) OR offer a quick estimate. When the "
+                "user ASKS FOR or ACCEPTS your best estimate, DO provide per-item estimates "
+                "and pass them as calories/macros WITH `estimated: true`, so they are stored "
+                "labelled as an estimate rather than as measured values or as zeroes. Assume "
+                "one serving unless the user says otherwise. Apply this to ANY food — never "
+                "single out particular items."
             ),
             "parameters": {
                 "type": "object",
@@ -239,6 +248,12 @@ HEALTH_INTENT_TOOLS = [
                         "type": "string",
                         "description": "Any additional notes about the food"
                     },
+                    "estimated": {
+                        "type": "boolean",
+                        "description": ("True if the calories/macros are YOUR best estimate "
+                                        "(the user asked for or accepted an estimate), not "
+                                        "values they stated — stored labelled as an estimate.")
+                    },
                     "items": {
                         "type": "array",
                         "description": (
@@ -267,6 +282,7 @@ HEALTH_INTENT_TOOLS = [
                                 "saturated_fat_g": {"type": "number"},
                                 "sodium_mg": {"type": "number"},
                                 "notes": {"type": "string"},
+                                "estimated": {"type": "boolean"},
                             },
                             "required": ["food_name"],
                         },

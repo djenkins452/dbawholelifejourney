@@ -1549,6 +1549,43 @@ class ModelInterfaceService:
                                    "record_id": out.get("record_id"),
                                    "description": out.get("description")})
                 return out
+            if name == "update_food_entry":
+                # M5: correct ONE food entry by EXACT identity, IN PLACE (never a duplicate).
+                # Same spine as delete_record: validate the exact target, mint a bound
+                # confirmation showing the CURRENT stored state, then execute the BOUND
+                # params and audit. Totals recompute only through calculate_totals().
+                from apps.ai.cos_services import food_correction as _fc
+                target = _fc.describe_target(user, args.get("entry_id"))
+                if target["status"] != _fc.OK:
+                    # FAIL CLOSED — no exact target, nothing changed.
+                    _audit.record_tool_call(
+                        user, kind="action", tool_name=name, turn_id=turn_id,
+                        surface=surface, args=args, result_status=target["status"],
+                        conversation_id=conversation_id,
+                        result_digest={"status": target["status"], "mutated": False})
+                    return {"status": "error", "code": target["status"],
+                            "result": target["message"]}
+                if not args.get("confirmed"):
+                    gate = action_interface.request_confirmation_for(
+                        user, "update_food_entry",
+                        {**args, "target": target.get("description", "")},
+                        turn_id=turn_id, surface=surface,
+                        conversation_id=conversation_id,
+                    )
+                    if gate is not None:
+                        return gate
+                fields = {k: v for k, v in args.items()
+                          if k not in ("entry_id", "confirmed", "target")}
+                out = _fc.update_food_entry(user, args.get("entry_id"), **fields)
+                _audit.record_tool_call(
+                    user, kind="action", tool_name=name, turn_id=turn_id,
+                    surface=surface, args=args, result_status=out.get("status", ""),
+                    conversation_id=conversation_id,
+                    result_digest={"status": out.get("status"),
+                                   "changed": out.get("changed"),
+                                   "record_id": out.get("record_id"),
+                                   "description": out.get("description")})
+                return out
             if name == "complete_execution_item":
                 # Blocker #14 Layer 2: record an execution item complete on the ACTUAL day,
                 # reusing existing per-domain writes. AUTO (the user's 'yes' is the confirm;

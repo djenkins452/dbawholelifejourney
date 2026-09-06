@@ -249,6 +249,21 @@ def authorization_line(action, params=None):
         return ""
     params = params if isinstance(params, dict) else {}
 
+    if act == "update_food_entry":
+        # Name the EXACT entry (its current stored description) and the changes, rendered
+        # only from bound params — so the user authorizes a correction to a record they see.
+        target = str(params.get("target") or "").strip()
+        labels = [("food_name", "name"), ("meal_type", "meal"), ("quantity", "servings"),
+                  ("calories", "cal"), ("protein_g", "protein g"),
+                  ("carbohydrates_g", "carbs g"), ("fat_g", "fat g"),
+                  ("fiber_g", "fiber g"), ("sugar_g", "sugar g"),
+                  ("saturated_fat_g", "sat fat g"), ("sodium_mg", "sodium mg")]
+        changes = [f"{lbl} {params[key]}" for key, lbl in labels
+                   if params.get(key) not in (None, "")]
+        est = " (estimate)" if params.get("estimated") else ""
+        head = f"Update {target}" if target else "Update food entry"
+        return head + (f" → {', '.join(changes)}{est}" if changes else est)
+
     # A BOUND SET IS NAMED IN FULL. List-valued params were skipped below (only scalars
     # were rendered), so an action carrying several items would have authorized them with
     # none of them shown — the exact "you authorized something you were never shown"

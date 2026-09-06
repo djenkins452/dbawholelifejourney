@@ -1230,6 +1230,9 @@ class ActionHandler:
             # Collected BEFORE any lookup so the search can only fill what the user did
             # not state. `supplied` is the provenance record of what came from the user.
             supplied = {}
+            # An estimate the user asked for is honest nutrition with estimate provenance —
+            # distinct from values the user stated. Only meaningful when values are supplied.
+            estimated = bool(kwargs.get('estimated'))
             for param, field in self._FOOD_NUTRIENT_FIELDS:
                 raw = calories if param == "calories" else kwargs.get(param)
                 if raw is None or raw == "":
@@ -1372,11 +1375,16 @@ class ActionHandler:
                 logged_time=now.time(),
                 meal_type=meal_type,
                 entry_source='voice',
-                # PROVENANCE: record that these numbers came from the user, not from a
-                # database row or an estimate, using the existing granular source field.
-                data_source_used=(FoodEntry.DATA_SOURCE_USER_OVERRIDE if supplied
-                                  else FoodEntry.DATA_SOURCE_LOCAL if food_match
-                                  else FoodEntry.DATA_SOURCE_UNKNOWN),
+                # PROVENANCE: record where these numbers came from, using the existing
+                # granular source field — user-stated, an AI estimate the user asked for,
+                # a database match, or genuinely unknown. An estimate is never stored as a
+                # measurement, and an unlooked-up food is never a confident zero.
+                data_source_used=(
+                    (FoodEntry.DATA_SOURCE_AI_GUESS if estimated
+                     else FoodEntry.DATA_SOURCE_USER_OVERRIDE) if supplied
+                    else FoodEntry.DATA_SOURCE_LOCAL if food_match
+                    else FoodEntry.DATA_SOURCE_UNKNOWN),
+                confidence_score=(Decimal('60') if (supplied and estimated) else None),
                 snapshot_nutrients={k: float(v) for k, v in supplied.items()},
                 notes=notes or ""
             )

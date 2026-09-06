@@ -387,6 +387,9 @@ class NutritionQueries:
         items = [{
             "food_name": (f.food_name or "").strip() or "Food",
             "brand": (f.food_brand or "").strip() or None,
+            # The exact row, so the model can correct/remove ONE food within a meal.
+            "record_id": f.pk,
+            "record_type": "food",
             "logged_time": (f.logged_time.strftime("%-I:%M %p")
                             if f.logged_time else None),
             "calories": _num(f.total_calories),
@@ -545,15 +548,25 @@ class NutritionQueries:
                 "net_carbs_g": _num(getattr(f, "total_net_carbs_g", None)),
             }),
             extensions={k: v for k, v in {
+                # CANONICAL IDENTITY — the exact row, so the model can CORRECT or REMOVE
+                # this specific entry (update_food_entry / delete_record) instead of logging
+                # a duplicate. Without it a "fix the roast beef" had no id to target and the
+                # only available write was another create (production 2026-09-05).
+                "record_id": f.pk,
+                "record_type": "food",
                 "notes": (f.notes or "").strip() or None,
                 "location": (f.location or None),
                 "eating_pace": (f.eating_pace or None),
                 "hunger_before": f.hunger_level_before,
                 "fullness_after": f.fullness_level_after,
                 "mood_tags": (f.mood_tags or None),
+                # Honest provenance for an AI-estimated entry, so an estimate never reads as
+                # a measurement (it stays addressable AND labelled).
+                "nutrition_estimated": (True if _nutrition_estimated(f) else None),
             }.items() if v is not None},
             freshness=F.CURRENT,
-            confidence=("low" if _nutrition_unknown(f) else "high"),
+            confidence=("low" if _nutrition_unknown(f)
+                        else "medium" if _nutrition_estimated(f) else "high"),
         )
 
 
@@ -565,6 +578,16 @@ def _nutrition_unknown(entry):
     """
     from apps.health.models import FoodEntry
     return getattr(entry, "data_source_used", None) == FoodEntry.DATA_SOURCE_UNKNOWN
+
+
+def _nutrition_estimated(entry):
+    """Were this entry's numbers an AI/best estimate (not user-stated, not a DB match)?
+
+    Provenance, not a value check — so an estimate stays addressable and travels labelled
+    (confidence 'medium'), never as a measured value.
+    """
+    from apps.health.models import FoodEntry
+    return getattr(entry, "data_source_used", None) == FoodEntry.DATA_SOURCE_AI_GUESS
 
 
 def build_meal_signals(meal_totals):

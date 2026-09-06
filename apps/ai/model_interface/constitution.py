@@ -776,6 +776,13 @@ CONSTITUTION = (
     "and act. Some actions return status=confirmation_required with a confirmation_id + "
     "summary — show the summary, and once the user confirms, call resolve_pending_action "
     "with THAT confirmation_id (never re-issue the action, never invent a confirmation_id).\n"
+    "CORRECTING vs RE-LOGGING: when the user wants to fix, change, or remove something they "
+    "ALREADY logged, act on that EXACT existing record by its id — do NOT create a second "
+    "one. A food already logged is corrected with update_food_entry(entry_id=…) and removed "
+    "with delete_record(record_type='food', record_id=…); the id is the record_id from a "
+    "food/meal retrieval or Current Context. Logging it again to 'fix' it just makes a "
+    "duplicate. And if a tool exists to do what the user asked, CALL it — never describe a "
+    "change, correction, or removal as done unless the tool actually returned success.\n"
     "\n"
     "ATTACHMENTS (what the user uploaded this turn): `current_context.attachments` lists "
     "what the user just attached — each has an `artifact_id`, `content_type`, and `kind`. "
@@ -1782,6 +1789,55 @@ def _delete_record_tool():
         }, "required": ["record_type", "record_id"]}}}
 
 
+def _update_food_tool():
+    """M5 (2026-09-05) — CORRECT ONE existing food entry IN PLACE, by EXACT identity.
+
+    The write half of food correction. Removal already had a home (delete_record); a
+    CORRECTION (change the calories, the quantity, the meal) had none, so the model could
+    only log a second entry — a duplicate. This updates the exact row through the canonical
+    Nutrition calculation (per-serving × quantity, applied once), never creating a new one.
+    """
+    return {"type": "function", "function": {
+        "name": "update_food_entry",
+        "description": (
+            "CORRECT an existing food entry the user already logged — change its nutrition, "
+            "quantity, name, or meal — WITHOUT creating a new one. Use this WHENEVER the user "
+            "wants to fix, change, correct, or update a food they already logged ('fix the "
+            "roast beef', 'that should be 280 calories', 'make it 2 servings', 'that was "
+            "lunch not dinner'). You MUST pass `entry_id` — the `record_id` of the exact "
+            "entry, from a food/meal truth retrieval or Current Context. NEVER call log_food "
+            "to correct something already logged — that duplicates it. NEVER guess an "
+            "entry_id or use 'the last one': if you can't identify the exact entry, retrieve "
+            "the day's foods first. Supply ONLY the fields that change; nutrition values are "
+            "PER SERVING (WLJ multiplies by quantity). If the numbers are your best estimate "
+            "rather than values the user stated, set `estimated: true` so they are stored "
+            "honestly as an estimate, not a measurement."
+        ),
+        "parameters": {"type": "object", "properties": {
+            "entry_id": {"type": "integer",
+                         "description": "The EXACT record_id of the food entry to correct."},
+            "food_name": {"type": "string", "description": "Corrected food name (optional)."},
+            "meal_type": {"type": "string",
+                          "enum": ["breakfast", "lunch", "dinner", "snack"],
+                          "description": "Corrected meal (optional)."},
+            "quantity": {"type": "number",
+                         "description": "Corrected number of servings (optional)."},
+            "calories": {"type": "number", "description": "Per-serving calories (optional)."},
+            "protein_g": {"type": "number", "description": "Per-serving protein g (optional)."},
+            "carbohydrates_g": {"type": "number",
+                                "description": "Per-serving carbohydrate g (optional)."},
+            "fat_g": {"type": "number", "description": "Per-serving fat g (optional)."},
+            "fiber_g": {"type": "number", "description": "Per-serving fiber g (optional)."},
+            "sugar_g": {"type": "number", "description": "Per-serving sugar g (optional)."},
+            "saturated_fat_g": {"type": "number",
+                                "description": "Per-serving saturated fat g (optional)."},
+            "sodium_mg": {"type": "number", "description": "Per-serving sodium mg (optional)."},
+            "estimated": {"type": "boolean",
+                          "description": ("True if these numbers are your best estimate, not "
+                                          "values the user stated — stored as an estimate.")},
+        }, "required": ["entry_id"]}}}
+
+
 def _complete_execution_item_tool():
     """Record that ONE execution item (from the execution review) was completed, on the date
     it ACTUALLY happened. Reuses existing per-domain completion writes (one source of truth).
@@ -2091,6 +2147,7 @@ def action_tools():
     resolver + the execution-completion router + the guided-review driver + the durable
     follow-up scheduler. No generic request_action; no invented interface."""
     return _named_action_tools() + [_resolve_tool(), _delete_record_tool(),
+                                   _update_food_tool(),
                                    _complete_execution_item_tool(),
             _remember_about_user_tool(),
                                     _next_review_item_tool(), _schedule_follow_up_tool()]

@@ -63012,3 +63012,99 @@ confirmation, intent-registration and nutrition suites.
 **Files.** `apps/ai/intents/health_intents.py` (schema + "one call for several foods"),
 `apps/ai/action_handlers.py`, `apps/ai/confirmation_contract.py`. Zero provider calls, and
 no production data touched.
+
+---
+
+## 2026-09-06 — Food discovery had no ranking at all; the alphabet was choosing the top result
+
+**Two production examples, one cause.** Searching `ham and cheese sandwich` led with
+`4 Egg Ham and Cheese Sandwich`; searching `banana` did not surface a plain banana.
+
+**Current architecture (mapped).** The Nutrition UI autocomplete
+(`/health/physical/nutrition/api/search/` → `FoodSearchAPIView`) and the CoS write path
+(`handle_log_food`) already call the **same** authority — `food_search_service.search()`.
+So the two never disagreed about *semantics*; they inherited the same absence of any.
+
+That method gathered `limit` rows and returned them in the order the database produced:
+saved foods by `-updated_at`, then the catalog **ordered alphabetically by name**, then
+FatSecret in API order — concatenated and sliced. **Nothing ranked anything.**
+
+**Root cause 1 — `4 Egg Ham and Cheese Sandwich`.** `FoodItem` was `.order_by('name')`. A
+name beginning with a digit sorts before every letter, so any catalog row starting with a
+numeral takes the top slot for every query it substring-matches. Relevance never entered
+into it.
+
+**Root cause 2 — plain `Banana` is absent because WLJ has no generic food catalog.**
+`FoodItem` is not a reference catalog; it is an opportunistic **cache**, written only by
+FatSecret cache-back, AI-estimate cache-back, and barcode scans. There is no seed command,
+no fixture, no import — and `load_initial_data` actively *deletes* cached FatSecret rows as
+a one-time cleanup. The development database holds **10** rows, all leftovers of past
+lookups ("breaded chicken", "KFC chicken legs", "Nutrition"). Nothing has ever put a plain
+banana there. Compounding it, `MIN_LOCAL_RESULTS_THRESHOLD = 3` meant three irrelevant
+substring hits were enough to stop the search before the external source was consulted —
+quantity standing in for quality.
+
+**Root cause 3 — the write path could not see the food it needed.** `handle_log_food`
+searched with `limit=1`, and `_search_local` spends the limit on saved foods first, so
+`remaining = 0` and the catalog was never queried at all. The exact food a user named was
+unreachable *by construction* — which is also the honest answer to "did the exact-target
+safety change reduce recall?": the identity gate at `b18192ef` was correct, but paired with
+`limit=1` it could only ever reject the single substring candidate. Recall of *correct*
+matches was already zero; the gate made the failure visible.
+
+### Structural fix
+
+New `apps/health/services/food_ranking.py` — one pure, deterministic relevance ordering,
+consumed by the shared search authority and therefore by both the UI and the CoS:
+
+```
+exact name → every meaningful word and no extras → every word plus N extras (fewest first)
+→ some words → string similarity → nothing
+```
+
+A candidate that **adds** concepts the person did not ask for cannot outrank a better
+generic match on shared words alone. Source (saved / catalog / external) is a **tie-break
+only** — a saved product can never beat the exact food someone asked for, which is what
+produced the original substitution. Function words are stripped (grammar, not a food list).
+
+`search()` now gathers a candidate **pool** before ranking rather than slicing first, and
+consults the external source when nothing local is actually *good* rather than when fewer
+than three rows exist. The write path takes 10 candidates instead of 1 — while the write
+boundary is unchanged: only an **exact** identity is ever adopted, everything else is
+offered back.
+
+    SEARCH may return approximate candidates.
+    WRITE identity may never silently substitute one.
+
+### Catalog / source gap — REPORTED, not patched
+
+WLJ has **no generic food reference data**, and no hand-maintained list was added. The
+scalable options, in order of recommendation:
+
+1. **USDA FoodData Central** — free, public-domain, ~600k foods including SR Legacy
+   generics ("Banana, raw"), Foundation Foods and Branded Foods. A bulk CSV/JSON import
+   into `FoodItem` seeded by a management command. Best fit for "banana", "ham and cheese
+   sandwich", generic ingredients.
+2. **FatSecret** — already integrated and already covers restaurant menus. It is gated on
+   `FATSECRET_CLIENT_ID` / `FATSECRET_CLIENT_SECRET`; **whether those are set in production
+   was not observed** and should be checked before concluding the source is unavailable.
+3. **Open Food Facts** — barcode/branded coverage; already referenced by the scan path.
+
+Recommendation: seed USDA generics for recall, keep FatSecret for restaurant and branded
+lookups, and stop treating the cache as a catalog.
+
+### Tests
+
+`apps/health/tests/test_food_discovery_ranking.py` (21) — exact generic food, saved-food
+exact match, branded vs generic, added-material-word candidate, typo, no match, multiple
+reasonable candidates, cross-user isolation, tie-break-not-tier, stability, plus write-path
+identity still never substituting. **250 + 40 green** across nutrition, ranking, multi-item
+and confirmation suites.
+
+**One pre-existing failure, unchanged and still reported:**
+`test_nutrition_entity_truth.test_nutrition_is_now_entity_capable` asserts `("food",)` where
+the domain exposes three entity types. Verified failing at HEAD before any of this work.
+
+**Files.** New `apps/health/services/food_ranking.py`;
+`apps/health/services/food_search.py`, `apps/ai/action_handlers.py`. No production data
+mutated. Zero provider calls.

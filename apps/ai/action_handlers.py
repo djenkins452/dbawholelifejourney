@@ -25,6 +25,11 @@ class _SkipFoodSearch(Exception):
     lookup runs at all. Raised and caught inside `handle_log_food` only."""
 
 
+# How many search candidates the write path considers. Only an exact identity is ever
+# adopted; the rest exist so a near miss can be OFFERED back to the user.
+_FOOD_CANDIDATE_LIMIT = 10
+
+
 def _normalize_food_name(name):
     """Fold case, punctuation and spacing so the SAME food compares equal.
 
@@ -1275,7 +1280,12 @@ class ActionHandler:
                 results = food_search_service.search(
                     query=food_name,
                     user=self.user,
-                    limit=1,
+                    # A CANDIDATE SET, not a single row. `limit=1` returned the most
+                    # recently updated saved food containing this name as a substring and
+                    # nothing else — so the exact food the user named could never be found
+                    # even when WLJ held it. The write boundary below still adopts only an
+                    # EXACT identity; this simply lets one be present to be found.
+                    limit=_FOOD_CANDIDATE_LIMIT,
                     use_fatsecret=True,
                     use_ai=True  # AI can correct misspellings
                 )

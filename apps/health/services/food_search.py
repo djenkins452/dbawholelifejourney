@@ -25,13 +25,21 @@ from typing import List, Optional
 from django.db.models import Q
 from django.utils import timezone
 
+from . import food_ranking as _ranking
 from .fatsecret import fatsecret_service, FatSecretFood
 from .ai_nutrition import ai_nutrition_service, AIFoodEstimate
 
 logger = logging.getLogger(__name__)
 
-# Minimum local results before querying external APIs
+# Retained for callers that still reference it; the tier decision is now made by
+# `food_ranking.has_strong_match`, which asks whether a candidate is GOOD rather than
+# whether three of them exist.
 MIN_LOCAL_RESULTS_THRESHOLD = 3
+
+# How many candidates to gather before ranking. Relevance cannot be judged inside a slice
+# the database took first, so the pool is deliberately wider than the caller's `limit`.
+_POOL_MULTIPLIER = 5
+_MIN_POOL = 25
 
 
 @dataclass
@@ -112,14 +120,28 @@ class FoodSearchService:
         query = query.strip()
         results = []
 
-        # Tier 1: Search local database
-        local_results = self._search_local(query, user, limit)
-        results.extend(local_results)
+        # GATHER A CANDIDATE POOL, THEN RANK IT.
+        #
+        # This used to gather exactly `limit` rows and return them in the order the
+        # database happened to produce: saved foods by `-updated_at`, then the catalog
+        # ALPHABETICALLY BY NAME. The leading result was an artifact of recency and the
+        # alphabet, which is why "4 Egg Ham and Cheese Sandwich" led the results for "ham
+        # and cheese sandwich" — a name beginning with a digit sorts before every letter.
+        #
+        # Worse, `limit` bounded the pool BEFORE anything judged relevance, so a caller
+        # asking for one result (the CoS write path) could only ever see the most recently
+        # updated saved food that happened to contain the query as a substring. The exact
+        # food someone asked for was unreachable by construction.
+        pool = max(limit * _POOL_MULTIPLIER, _MIN_POOL)
+        results.extend(self._search_local(query, user, pool))
 
-        # Tier 2: If insufficient local results, query FatSecret
-        if use_fatsecret and len(results) < MIN_LOCAL_RESULTS_THRESHOLD:
-            remaining = limit - len(results)
-            fatsecret_results = self._search_fatsecret(query, remaining)
+        # Tier 2: consult the external source when nothing local is actually GOOD.
+        #
+        # The old condition was "fewer than three local rows", so three irrelevant
+        # substring hits were enough to stop the search — quantity standing in for
+        # quality, and a reliable way to bury the food someone asked for.
+        if use_fatsecret and not _ranking.has_strong_match(results, query):
+            fatsecret_results = self._search_fatsecret(query, pool - len(results))
 
             # Filter out duplicates (by name similarity)
             existing_names = {r.name.lower() for r in results}
@@ -134,7 +156,9 @@ class FoodSearchService:
             if ai_result:
                 results.append(ai_result)
 
-        return results[:limit]
+        # ONE ORDERING, FOR EVERY CONSUMER. The Nutrition autocomplete and the Chief of
+        # Staff already call this same method; they now also share its relevance order.
+        return _ranking.rank(results, query)[:limit]
 
     def _search_local(
         self,

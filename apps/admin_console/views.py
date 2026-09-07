@@ -3863,10 +3863,27 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         except Exception as exc:
             config_presence = {'error': repr(exc)}
 
+        # --- FOOD DISCOVERY TRACE (read-only; NEVER an AI estimate) --------------
+        # `?food_search=<query>` runs the SAME shared authority the Nutrition UI and the
+        # Chief of Staff call, and reports each stage separately: what the local catalog
+        # held, whether the tier gate decided an external lookup was needed, whether
+        # FatSecret was actually reached, and what it said. Autocomplete failure was
+        # otherwise unobservable — the view returns an empty result list for "no match",
+        # for an auth failure and for an exception alike.
+        #
+        # `use_ai=False` always: the AI estimation tier is a PAID provider call and has no
+        # place in a diagnostic. Distinct reason codes per cause — a broad except that maps
+        # our own defect onto an external-sounding one is how logs start accusing vendors.
+        food_probe = None
+        food_query = (request.GET.get('food_search') or '').strip()
+        if food_query:
+            food_probe = self._food_search_probe(food_query, user)
+
         return JsonResponse({
             'web_commit': web_commit,
             'worker_build': worker_build,
             'config_presence': config_presence,
+            'food_probe': food_probe,
             'probe': {'email': user.email, 'domain': domain, 'subject': subject,
                       'period': period},
             'envelope': envelope,
@@ -3875,6 +3892,84 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
             'routine_forensics': routine_forensics,
             'web_encryption': web_encryption,
         }, json_dumps_params={'default': str})
+
+
+    @staticmethod
+    def _food_search_probe(query, user):
+        """Stage-by-stage food discovery trace. Read-only; no OpenAI call, ever."""
+        out = {'query': query}
+
+        # 1. Source availability — presence-derived, never a value.
+        try:
+            from apps.health.services.fatsecret import fatsecret_service
+            out['fatsecret_available'] = bool(fatsecret_service.is_available)
+        except Exception as exc:
+            out['fatsecret_available'] = None
+            out['fatsecret_import_error'] = repr(exc)[:200]
+
+        # 2. Catalog shape — has anything ever been seeded, and from where?
+        try:
+            from django.db.models import Count
+
+            from apps.health.models import CustomFood, FoodItem
+            out['catalog'] = {
+                'food_items_total': FoodItem.objects.count(),
+                'food_items_active': FoodItem.objects.filter(is_active=True).count(),
+                'by_source': {r['data_source']: r['n'] for r in
+                              FoodItem.objects.values('data_source')
+                              .annotate(n=Count('id')).order_by()},
+                'custom_foods_for_user': CustomFood.objects.filter(user=user).count(),
+            }
+        except Exception as exc:
+            out['catalog'] = {'error': repr(exc)[:200]}
+
+        # 3. What the local tier finds, and what the gate concludes from it.
+        try:
+            from apps.health.services import food_ranking as _fr
+            from apps.health.services.food_search import food_search_service
+            local = food_search_service._search_local(query, user, 25)
+            out['local'] = {
+                'count': len(local),
+                'names': [r.name for r in local[:10]],
+                'has_strong_match': _fr.has_strong_match(local, query),
+            }
+            out['fatsecret_would_be_called'] = not out['local']['has_strong_match']
+        except Exception as exc:
+            out['local'] = {'error': repr(exc)[:200]}
+
+        # 4. Did FatSecret actually answer? Token first — a missing token is a SILENT
+        #    empty list inside search_foods, indistinguishable from "no such food".
+        try:
+            from apps.health.services.fatsecret import fatsecret_service
+            if not fatsecret_service.is_available:
+                out['fatsecret'] = {'reason': 'not_configured_on_this_service'}
+            else:
+                token = fatsecret_service._get_access_token()
+                if not token:
+                    out['fatsecret'] = {'reason': 'auth_token_unavailable'}
+                else:
+                    foods = fatsecret_service.search_foods(query, max_results=10)
+                    out['fatsecret'] = {
+                        'reason': 'ok' if foods else 'authenticated_but_no_results',
+                        'count': len(foods),
+                        'names': [f.name for f in foods[:10]],
+                    }
+        except Exception as exc:
+            out['fatsecret'] = {'reason': 'request_failed',
+                                'error_class': type(exc).__name__,
+                                'error': str(exc)[:300]}
+
+        # 5. End to end, exactly as the UI calls it — minus the paid AI tier.
+        try:
+            from apps.health.services.food_search import food_search_service
+            ranked = food_search_service.search(query=query, user=user, limit=10,
+                                                use_fatsecret=True, use_ai=False)
+            out['ranked'] = [{'name': r.name, 'source': r.source} for r in ranked]
+            out['ranked_count'] = len(ranked)
+        except Exception as exc:
+            out['ranked'] = {'error_class': type(exc).__name__,
+                             'error': str(exc)[:300]}
+        return out
 
 
 class PKCorpusAPIView(APIRateLimitMixin, View):

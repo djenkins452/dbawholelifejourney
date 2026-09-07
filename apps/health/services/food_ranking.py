@@ -54,9 +54,27 @@ def normalize(name):
     return re.sub(r"[^a-z0-9]+", " ", (name or "").lower()).strip()
 
 
+def _singular(word):
+    """Fold a regular English plural so one banana matches "Bananas, raw".
+
+    Added when the USDA catalog was seeded (2026-09-06) and immediately proved
+    undiscoverable: USDA names generics in the plural with a comma qualifier, so
+    "banana" shared NO token with "Bananas, raw" and a saved branded product outranked
+    the actual fruit. This is morphology, not ranking — the tiers and their order are
+    untouched; it only decides when two words are the same word.
+    """
+    if len(word) > 4 and word.endswith("es") and word[:-2].endswith(
+            ("s", "x", "z", "ch", "sh")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
 def tokens(name):
-    """Meaningful words, function words removed."""
-    return {t for t in normalize(name).split() if t and t not in _FUNCTION_WORDS}
+    """Meaningful words, function words removed, regular plurals folded."""
+    return {_singular(t) for t in normalize(name).split()
+            if t and t not in _FUNCTION_WORDS}
 
 
 def score(candidate_name, query, *, source=""):

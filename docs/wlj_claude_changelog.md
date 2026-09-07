@@ -63108,3 +63108,77 @@ the domain exposes three entity types. Verified failing at HEAD before any of th
 **Files.** New `apps/health/services/food_ranking.py`;
 `apps/health/services/food_search.py`, `apps/ai/action_handlers.py`. No production data
 mutated. Zero provider calls.
+
+---
+
+## 2026-09-06 — FatSecret is configured on web but NOT the worker; WLJ now has a generic food catalog
+
+### Production configuration — verified, not inferred
+
+`FATSECRET_CLIENT_ID` / `FATSECRET_CLIENT_SECRET` were not in the configuration contract, so
+their presence could only be guessed from search behaviour. Both are now declared (advisory,
+web + worker), and the truth probe returns per-service `config_presence` — state words only,
+never a value. Read at commit `4ff133d0`, all services on the same commit:
+
+| Service | FATSECRET_CLIENT_ID | FATSECRET_CLIENT_SECRET |
+|---|---|---|
+| **web** | **present** | **present** |
+| **worker** | **absent** | **absent** |
+| beat | absent | absent |
+| build | absent | absent |
+
+**This is a split brain, and it explains the two production examples exactly.** The
+Nutrition autocomplete runs on **web**, where FatSecret is available. The Chief of Staff's
+`log_food` runs on the **worker**, where `fatsecret_service.is_available` is False and Tier 2
+silently returns nothing — so the CoS could only ever see cached and user-saved foods. Same
+code, same authority, same ranking; **different data reachable by service.**
+
+The UI's own banana miss had a second cause, already fixed at `93df5e5e`: the old "fewer
+than three local rows" gate let irrelevant substring hits stop the search before FatSecret
+was consulted.
+
+**Remediation is Danny's and cannot be done from here:** set both keys on the Railway
+**worker** service (and beat, if proactive work should ever resolve foods).
+
+### USDA generic catalog — implemented
+
+FatSecret is absent where the CoS writes, and by the intended source model it is the
+*restaurant and commercial* source anyway. Generic foods needed a home, and `FoodItem` was
+never one: written only by FatSecret cache-back, AI estimates and barcode scans, then
+periodically emptied by `load_initial_data`. Ten accidental rows in development.
+
+New `python manage.py import_usda_foods --source <FDC json> [--limit N] [--dry-run]`:
+
+- **SR Legacy + Foundation Foods only** — the generics (~10k rows). **Not** Branded Foods
+  (~1.9M), which is FatSecret's and Open Food Facts' territory.
+- **Idempotent** — keyed by FDC id (`data_source='usda'` + `source_reference`), so a refresh
+  updates in place. A test proves a re-run neither duplicates nor touches FatSecret,
+  barcode or user-created rows.
+- **Bounded** — seven nutrients kept, per 100 g as the dataset states them; no household
+  portion is invented. `--limit` and `--dry-run` for staged rollout.
+- **Not bundled** — the operator downloads from USDA and passes `--source`, so catalog
+  refresh is not tied to a deploy. USDA publishes ~twice yearly (April/October); re-run.
+
+### One narrow ranking change, and why I made it after being told not to
+
+Seeding immediately proved the catalog **undiscoverable**: USDA names generics in the plural
+with a comma qualifier, so "banana" shared no token at all with "Bananas, raw", and a saved
+branded product outranked the actual fruit. `tokens()` now folds regular English plurals.
+
+This is **morphology, not ranking** — the tiers, their order and every weight are untouched;
+it only decides when two words are the same word. Called out explicitly rather than slipped
+in, because the standing instruction was not to modify ranking again.
+
+### Tests
+
+`apps/health/tests/test_usda_catalog_import.py` (16) — import, idempotency, both export
+shapes, energy-less rows skipped, limit, dry run, bad source, other sources untouched; then
+discoverability: generic found, generic outranks branded partial, restaurant rows still
+found, UI and CoS identical result sets, and the write boundary still refusing to substitute
+even with a wide catalog. **271 green** across nutrition, ranking, multi-item, config
+governance and catalog suites.
+
+**Files.** New `apps/health/management/commands/import_usda_foods.py`,
+`apps/health/tests/test_usda_catalog_import.py`; `apps/core/config_governance/contract.py`,
+`apps/admin_console/views.py`, `apps/health/services/food_ranking.py`. No production data
+mutated. Zero provider calls.

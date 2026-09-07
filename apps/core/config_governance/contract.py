@@ -189,6 +189,30 @@ CONTRACT: tuple = (
             "rotation as a one-way decision that requires re-encrypting existing rows."
         ),
     ),
+    # Food reference data. WLJ holds NO generic food catalog of its own — `FoodItem` is an
+    # opportunistic cache of past lookups — so without these credentials a search for an
+    # ordinary food has nothing to find. Advisory rather than critical: the app runs, and
+    # only food recall degrades. Declared here so presence is observable per service through
+    # the same secret-safe manifest as everything else, instead of being inferred from
+    # search behaviour (2026-09-06).
+    VariableSpec(
+        name="FATSECRET_CLIENT_ID", classification=CLASS_SECRET,
+        description="FatSecret API client id — restaurant and commercial food lookup.",
+        capability="Food search recall beyond the local cache",
+        required_services=(SERVICE_WEB, SERVICE_WORKER), severity=SEV_ADVISORY,
+        preferred_source=SOURCE_SHARED, empty_valid=True,
+        remediation=("Set FATSECRET_CLIENT_ID on Web AND Worker to restore external food "
+                     "lookup. Without it, only cached and user-saved foods are findable."),
+    ),
+    VariableSpec(
+        name="FATSECRET_CLIENT_SECRET", classification=CLASS_SECRET,
+        description="FatSecret API client secret — restaurant and commercial food lookup.",
+        capability="Food search recall beyond the local cache",
+        required_services=(SERVICE_WEB, SERVICE_WORKER), severity=SEV_ADVISORY,
+        preferred_source=SOURCE_SHARED, empty_valid=True,
+        remediation=("Set FATSECRET_CLIENT_SECRET on Web AND Worker alongside the client "
+                     "id; both are required for the service to authenticate."),
+    ),
     VariableSpec(
         name="CLAUDE_API_KEY", classification=CLASS_SECRET,
         description="Operator/automation API key for admin task + ops-diagnostic endpoints.",

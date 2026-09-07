@@ -3843,9 +3843,30 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         except Exception as exc:
             recent_calls = [{'error': repr(exc)}]
 
+        # --- CONFIGURATION PRESENCE, per service (booleans/state words only) -----
+        # Presence, never a value. Reads the secret-safe manifests each service publishes
+        # at startup, so "is this configured on the WORKER too?" is answerable without
+        # inferring it from behaviour — which is how the proactive flag was twice reported
+        # from admission results and twice reported wrong (2026-09-04).
+        config_presence = None
+        try:
+            from apps.core.config_governance import manifest as _cfgm
+            manifests = _cfgm.read_all_manifests() or {}
+            config_presence = {
+                svc: {
+                    'commit': (m or {}).get('commit'),
+                    'published_at': (m or {}).get('published_at'),
+                    'presence': (m or {}).get('presence') or {},
+                }
+                for svc, m in manifests.items()
+            }
+        except Exception as exc:
+            config_presence = {'error': repr(exc)}
+
         return JsonResponse({
             'web_commit': web_commit,
             'worker_build': worker_build,
+            'config_presence': config_presence,
             'probe': {'email': user.email, 'domain': domain, 'subject': subject,
                       'period': period},
             'envelope': envelope,

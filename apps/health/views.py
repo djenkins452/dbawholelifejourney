@@ -5430,15 +5430,31 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
             return JsonResponse({'results': []})
 
         try:
+            from apps.ai.llm_accounting import (TRAFFIC_PRODUCTION,
+                                                current_traffic_class,
+                                                llm_traffic_context)
+
             from .services.food_search import food_search_service
 
-            results = food_search_service.search(
-                query=query,
-                user=request.user,
-                limit=limit,
-                use_fatsecret=True,
-                use_ai=True
-            )
+            # A HUMAN IS TYPING. The admission gate treats an UNCLASSIFIED provider call
+            # as autonomous and refuses it, and this view never said otherwise — so when
+            # nothing matched locally or at FatSecret, the AI estimation tier was denied as
+            # unattended spend, `_estimate_with_ai` swallowed the refusal, and autocomplete
+            # returned an empty list. The person searching looked like nobody at all.
+            #
+            # This is the same assertion already made by the certified chat runtime, the
+            # legacy chat entry point, the streaming task and the journal seam; this
+            # interactive seam was missed when they were fixed (2026-09-08). Only when
+            # nothing has already claimed the turn, so an outer classification survives.
+            traffic = None if current_traffic_class() else TRAFFIC_PRODUCTION
+            with llm_traffic_context(traffic_class=traffic):
+                results = food_search_service.search(
+                    query=query,
+                    user=request.user,
+                    limit=limit,
+                    use_fatsecret=True,
+                    use_ai=True
+                )
 
             return JsonResponse({
                 'results': [r.to_dict() for r in results]

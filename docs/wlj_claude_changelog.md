@@ -63182,3 +63182,66 @@ governance and catalog suites.
 `apps/health/tests/test_usda_catalog_import.py`; `apps/core/config_governance/contract.py`,
 `apps/admin_console/views.py`, `apps/health/services/food_ranking.py`. No production data
 mutated. Zero provider calls.
+
+---
+
+## 2026-09-08 — "hibachi shrimp" returned nothing because a person looked like nobody
+
+### The trace (production, web, commit `65427cd5`)
+
+```
+query                     hibachi shrimp
+fatsecret_available       true                    ← credentials present AND usable
+local                     1 candidate "Hibachi Shrimp"   has_strong_match: true
+fatsecret_would_be_called false                   ← correct: an exact local match exists
+fatsecret (forced probe)  authenticated_but_no_results   count 0
+ranked                    [{"name": "Hibachi Shrimp", "source": "local"}]
+catalog                   1,616 FoodItems — ai 1,585 · barcode 31 · usda 0
+```
+
+So the shared authority **does** return a result, FatSecret **does** authenticate, and it
+simply holds no match for that phrase. Not a configuration failure, not an auth failure, not
+a gating failure, not a parsing failure, not ranking, and not "no match".
+
+### Root cause — a regression I introduced at `f4d08ef5`
+
+That change made an UNCLASSIFIED provider call in production count as autonomous, which is
+right: absence of proof that a human asked is not proof that one did. I then asserted the
+human on the certified chat runtime, the legacy chat entry point, the streaming task and the
+journal seam — and **missed the Nutrition food search view.**
+
+So when a search matched nothing locally and nothing at FatSecret, the AI estimation tier
+was refused as unattended spend. `estimate_nutrition` swallowed the refusal and returned
+None, `_estimate_with_ai` returned None, `search()` returned `[]`, and autocomplete showed
+nothing. Three different causes — no such food, an auth failure, and a refused call — all
+render as an empty list, which is why this was invisible.
+
+`FoodSearchAPIView` now declares `TRAFFIC_PRODUCTION`, only when nothing has already claimed
+the turn.
+
+### The catalog answer, while we were in there
+
+`usda: 0` — **the USDA importer has never been run in production.** The 1,616 rows are
+1,585 AI estimates and 31 barcode scans: still a cache, not a catalog. That is unchanged and
+awaiting the import.
+
+### Two things for Danny, neither actioned here
+
+1. **The worker's FatSecret reading is STALE, not negative.** Manifests publish at process
+   startup; the worker's is from 01:19 and predates the credentials being added, while web
+   republished at 23:41. The worker must restart before its row means anything. It is **not**
+   evidence the keys are missing now.
+2. **This fix restores a paid call per unmatched autocomplete search.** 1,585 AI-sourced rows
+   show the historical volume. That is the behaviour that existed before `f4d08ef5` and the
+   attribution is now correct and visible in the cost ledger by source — but whether
+   autocomplete should reach the AI tier at all is a product decision, not mine. Seeding USDA
+   would remove most of that traffic by making the generic answer local.
+
+### Tests
+
+`apps/health/tests/test_food_search_attribution.py` (6), including a seam inventory that
+fails if a user-facing provider-calling surface does not declare its human — the omission
+this incident was. **158 green.**
+
+**Files.** `apps/health/views.py`, plus the read-only `food_probe` on the operator endpoint
+(`65427cd5`). No production data mutated, no configuration changed, zero OpenAI calls.

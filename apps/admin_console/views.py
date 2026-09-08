@@ -3948,12 +3948,11 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
                 if not token:
                     out['fatsecret'] = {'reason': 'auth_token_unavailable'}
                 else:
-                    foods = fatsecret_service.search_foods(query, max_results=10)
-                    out['fatsecret'] = {
-                        'reason': 'ok' if foods else 'authenticated_but_no_results',
-                        'count': len(foods),
-                        'names': [f.name for f in foods[:10]],
-                    }
+                    # The structured outcome, not a bare list: "no results" and "the
+                    # provider rejected us" used to be the same empty list.
+                    outcome = fatsecret_service.search_foods_outcome(query, max_results=10)
+                    out['fatsecret'] = outcome.as_diagnostic()
+                    out['fatsecret']['names'] = [f.name for f in outcome.foods[:10]]
         except Exception as exc:
             out['fatsecret'] = {'reason': 'request_failed',
                                 'error_class': type(exc).__name__,

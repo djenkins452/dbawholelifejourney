@@ -21,7 +21,7 @@ API Documentation: https://platform.fatsecret.com/docs
 import base64
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 import requests
@@ -74,6 +74,69 @@ class FatSecretFood:
             'saturated_fat_g': self.saturated_fat_g,
             'serving_size': self.serving_size,
             'serving_unit': self.serving_unit,
+        }
+
+
+# ── Search outcomes ──────────────────────────────────────────────────────────
+#
+# `search_foods` used to return `[]` for five unrelated conditions: an HTTP failure,
+# FatSecret's XML error envelope arriving with HTTP 200 (its documented behaviour when a
+# request is rejected — wrong format, OAuth problem, rate limit, unregistered IP), a missing
+# `foods` payload, a genuinely empty result, and any parse exception. Every one of them
+# reached the caller as "no such food".
+#
+# Production, 2026-09-08: authentication succeeded and every live search returned nothing —
+# including "banana" and "big mac", which FatSecret certainly holds. Nothing in the system
+# could say why, because the five causes had one shape.
+OK_WITH_RESULTS = "OK_WITH_RESULTS"
+OK_NO_RESULTS = "OK_NO_RESULTS"
+AUTH_ERROR = "AUTH_ERROR"
+PROVIDER_ERROR = "PROVIDER_ERROR"       # FatSecret answered, and the answer is an error
+HTTP_ERROR = "HTTP_ERROR"
+INVALID_RESPONSE = "INVALID_RESPONSE"   # 200, parsed, but not the documented shape
+PARSE_ERROR = "PARSE_ERROR"             # body could not be read as JSON at all
+NOT_CONFIGURED = "NOT_CONFIGURED"
+
+_DETAIL_CAP = 400
+
+# A bearer token appears only in request headers, never in a response — but a provider that
+# echoes a request would put one in a body, so anything token-shaped is removed before a
+# detail is stored or logged.
+_TOKEN_PATTERN = re.compile(r"(?i)(bearer\s+)?[A-Za-z0-9_\-]{40,}")
+
+
+def _safe_detail(text):
+    """A bounded, credential-free fragment of a provider response."""
+    return _TOKEN_PATTERN.sub("[redacted]", str(text or ""))[:_DETAIL_CAP]
+
+
+@dataclass
+class FatSecretSearchOutcome:
+    """What actually happened on one FatSecret search.
+
+    `foods` is always a list, so a caller that only wants candidates can ignore everything
+    else and never break; `status` is what makes an empty list explainable.
+    """
+    status: str
+    foods: list = field(default_factory=list)
+    detail: str = ""
+    http_status: Optional[int] = None
+    provider_code: Optional[str] = None
+    body_kind: str = ""          # json | xml | empty | unreadable
+
+    @property
+    def ok(self):
+        return self.status in (OK_WITH_RESULTS, OK_NO_RESULTS)
+
+    def as_diagnostic(self):
+        """Operator-facing shape. Counts, codes and a bounded message — never a payload."""
+        return {
+            "status": self.status,
+            "count": len(self.foods),
+            "http_status": self.http_status,
+            "provider_code": self.provider_code,
+            "body_kind": self.body_kind,
+            "detail": self.detail,
         }
 
 
@@ -185,36 +248,47 @@ class FatSecretService:
         max_results: int = 10,
         page_number: int = 0
     ) -> List[FatSecretFood]:
-        """
-        Search for foods in FatSecret database.
+        """Search FatSecret. Returns candidates — the list-only contract callers rely on.
 
-        Args:
-            query: Food name to search (e.g., "McDonald's Big Mac")
-            max_results: Number of results per page (max 50)
-            page_number: Zero-based page offset
-
-        Returns:
-            List of FatSecretFood objects with nutrition data
+        Resilient by design: an empty list on any failure, so no provider problem can break
+        a page. `search_foods_outcome` is the same call with the reason attached, for
+        diagnostics that need to know WHY the list is empty.
         """
+        return self.search_foods_outcome(query, max_results, page_number).foods
+
+    def search_foods_outcome(
+        self,
+        query: str,
+        max_results: int = 10,
+        page_number: int = 0
+    ) -> "FatSecretSearchOutcome":
+        """The same search, with a structured outcome instead of a bare list.
+
+        Every return below names ONE condition. That is the whole point: the previous
+        implementation answered five different failures with the same empty list, so a
+        provider rejecting our requests and a food genuinely not existing were
+        indistinguishable — in the UI, in the logs, and in production forensics.
+        """
+        if not self.is_available:
+            return FatSecretSearchOutcome(
+                status=NOT_CONFIGURED,
+                detail="FATSECRET_CLIENT_ID / FATSECRET_CLIENT_SECRET are not set on this "
+                       "service.")
+
         token = self._get_access_token()
         if not token:
-            return []
+            return FatSecretSearchOutcome(
+                status=AUTH_ERROR,
+                detail="No OAuth token could be obtained for these credentials.")
 
         try:
-            # FatSecret /rest/server.api takes form-encoded parameters
-            # (or query string), NOT a JSON body — even when format=json is
-            # requested. Sending a JSON body causes FatSecret's legacy parser
-            # to drop our parameters and return its default XML error envelope
-            # with HTTP 200, which then fails JSON decoding downstream. See
-            # docstring on the class and the production incident logged at
-            # _safe_json in March 2026 for context.
+            # FatSecret /rest/server.api takes form-encoded parameters (or a query string),
+            # NOT a JSON body — even when format=json is requested. Sending a JSON body
+            # causes its legacy parser to drop our parameters and return the default XML
+            # error envelope with HTTP 200, which then fails JSON decoding downstream.
             response = requests.post(
                 FATSECRET_API_URL,
-                headers={
-                    'Authorization': f'Bearer {token}',
-                    # No Content-Type override — requests sets
-                    # application/x-www-form-urlencoded automatically for `data=`.
-                },
+                headers={'Authorization': f'Bearer {token}'},
                 data={
                     'method': 'foods.search',
                     'search_expression': query,
@@ -224,30 +298,72 @@ class FatSecretService:
                 },
                 timeout=self.timeout
             )
-            response.raise_for_status()
+        except requests.exceptions.RequestException as exc:
+            logger.error("FatSecret API request failed: %s", exc)
+            return FatSecretSearchOutcome(status=HTTP_ERROR,
+                                          detail=_safe_detail(exc))
 
-            data = self._safe_json(response, "FatSecret foods.search")
-            if data is None:
-                return []
-            foods_data = data.get('foods', {})
+        http_status = response.status_code
+        if http_status >= 400:
+            return FatSecretSearchOutcome(
+                status=HTTP_ERROR, http_status=http_status,
+                detail=_safe_detail(response.text))
 
-            # Handle empty results
-            if not foods_data or 'food' not in foods_data:
-                return []
+        if not response.content:
+            return FatSecretSearchOutcome(
+                status=INVALID_RESPONSE, http_status=http_status, body_kind="empty",
+                detail="FatSecret returned an empty body.")
 
-            # Handle single result (API returns dict instead of list)
-            foods_list = foods_data.get('food', [])
-            if isinstance(foods_list, dict):
-                foods_list = [foods_list]
+        try:
+            data = response.json()
+        except ValueError as exc:
+            # THE case this whole model exists for: FatSecret answers a rejected request
+            # with its XML error envelope and HTTP 200. That is an error, not "no results".
+            body = response.text or ""
+            kind = "xml" if body.lstrip().startswith("<") else "unreadable"
+            code = None
+            match = re.search(r"<code>(\d+)</code>", body)
+            if match:
+                code = match.group(1)
+            logger.error("FatSecret foods.search non-JSON body (status=%s, kind=%s): %s",
+                         http_status, kind, _safe_detail(body))
+            return FatSecretSearchOutcome(
+                status=PROVIDER_ERROR if kind == "xml" else PARSE_ERROR,
+                http_status=http_status, body_kind=kind, provider_code=code,
+                detail=_safe_detail(body) or _safe_detail(exc))
 
-            return [self._parse_food(food) for food in foods_list]
+        # FatSecret also returns a JSON error object with HTTP 200.
+        if isinstance(data, dict) and "error" in data:
+            err = data.get("error") or {}
+            return FatSecretSearchOutcome(
+                status=PROVIDER_ERROR, http_status=http_status, body_kind="json",
+                provider_code=str(err.get("code")) if isinstance(err, dict) else None,
+                detail=_safe_detail(err.get("message") if isinstance(err, dict) else err))
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"FatSecret API request failed: {e}")
-        except Exception as e:
-            logger.error(f"Error parsing FatSecret response: {e}")
+        if not isinstance(data, dict) or "foods" not in data:
+            return FatSecretSearchOutcome(
+                status=INVALID_RESPONSE, http_status=http_status, body_kind="json",
+                detail="Response did not contain a `foods` object.")
 
-        return []
+        foods_data = data.get("foods") or {}
+        foods_list = foods_data.get("food", []) if isinstance(foods_data, dict) else []
+        if isinstance(foods_list, dict):     # a single result arrives as an object
+            foods_list = [foods_list]
+        if not foods_list:
+            return FatSecretSearchOutcome(
+                status=OK_NO_RESULTS, http_status=http_status, body_kind="json",
+                detail="FatSecret has no match for this search expression.")
+
+        try:
+            foods = [self._parse_food(food) for food in foods_list]
+        except Exception as exc:
+            logger.error("Error parsing FatSecret response: %s", exc)
+            return FatSecretSearchOutcome(
+                status=PARSE_ERROR, http_status=http_status, body_kind="json",
+                detail=_safe_detail(exc))
+
+        return FatSecretSearchOutcome(status=OK_WITH_RESULTS, foods=foods,
+                                      http_status=http_status, body_kind="json")
 
     def get_food_details(self, food_id: str) -> Optional[FatSecretFood]:
         """

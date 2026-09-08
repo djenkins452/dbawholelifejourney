@@ -63313,3 +63313,40 @@ provider. **344 green.**
 `apps/health/views.py`, `apps/ai/action_handlers.py`,
 `apps/health/management/commands/import_usda_foods.py`. No Nutrition entries modified. Zero
 OpenAI calls.
+
+---
+
+## 2026-09-08 — FatSecret: five different failures had one shape
+
+Production showed FatSecret authenticating and then returning nothing for every live
+search — including `banana` and `big mac`, which it certainly holds. Nothing could say why,
+because `search_foods` returned `[]` for an HTTP failure, for FatSecret's XML error envelope
+arriving with HTTP 200 (its documented behaviour on a rejected request), for a missing
+`foods` payload, for a genuinely empty result, and for any parse exception.
+
+**A structured outcome at the provider boundary.** `search_foods_outcome()` returns a
+`FatSecretSearchOutcome` naming exactly one condition:
+
+`OK_WITH_RESULTS` · `OK_NO_RESULTS` · `AUTH_ERROR` · `PROVIDER_ERROR` · `HTTP_ERROR` ·
+`INVALID_RESPONSE` · `PARSE_ERROR` · `NOT_CONFIGURED`
+
+with `http_status`, `provider_code` (parsed from FatSecret's `<code>` envelope),
+`body_kind` (json/xml/empty/unreadable) and a bounded `detail`.
+
+**Callers lost nothing.** `search_foods()` is now a one-line wrapper returning
+`outcome.foods`, so the list-only contract is unchanged and no provider failure can break a
+page — the reason simply travels alongside the list for anything that wants it. The operator
+probe reports `as_diagnostic()`: counts, codes and a bounded message, never a payload.
+
+**No secret can ride out.** Anything token-shaped is redacted from a detail before it is
+stored or logged, details are capped at 400 characters, and the diagnostic shape carries no
+food payload — all asserted.
+
+**Tests.** `apps/health/tests/test_fatsecret_outcomes.py` (19): every condition mapped to
+its own status, all eight statuses distinct, callers still receiving a plain list and never
+an exception, and the redaction/bounding proven. **290 green** including the barcode
+consumers of this service.
+
+**Files.** `apps/health/services/fatsecret.py`, `apps/admin_console/views.py`,
+`apps/health/tests/test_fatsecret_outcomes.py`. No credentials, Railway variables, allowlists
+or ranking touched. Zero OpenAI calls.

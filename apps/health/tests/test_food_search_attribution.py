@@ -56,8 +56,13 @@ class SearchAttributionTests(TestCase):
         self.client.force_login(self.user)
         self.url = reverse("health:food_search_api")
 
-    def _search(self, q="a food nobody has"):
-        """Runs the real view; captures how the AI tier was classified when reached."""
+    def _search(self, q="a food nobody has", estimate="1"):
+        """Runs the real view; captures how the AI tier was classified when reached.
+
+        `estimate=1` because ordinary autocomplete no longer reaches the paid tier at all
+        (2026-09-08) — the attribution being tested here is what happens when a person
+        explicitly asks for the estimate.
+        """
         seen = {}
 
         def _estimate(*a, **kw):
@@ -72,7 +77,7 @@ class SearchAttributionTests(TestCase):
                         "_search_fatsecret", return_value=[]), \
              mock.patch("apps.health.services.food_search.food_search_service."
                         "_estimate_with_ai", side_effect=_estimate):
-            response = self.client.get(self.url, {"q": q})
+            response = self.client.get(self.url, {"q": q, "estimate": estimate})
         return response, seen
 
     def test_a_person_searching_is_not_classified_as_unattended_spend(self):
@@ -98,7 +103,8 @@ class SearchAttributionTests(TestCase):
         self.assertEqual(response.json()["results"], [])
 
     def test_a_local_match_never_reaches_the_paid_tier(self):
-        """The cheap path stays cheap: something found means nothing estimated."""
+        """The cheap path stays cheap: something found means nothing estimated — and an
+        ordinary search does not reach it even when nothing is found."""
         from apps.health.services.food_search import FoodSearchResult
         hit = FoodSearchResult(id="local_1", name="Hibachi Shrimp", brand="",
                                source="local", calories=300)
@@ -106,7 +112,8 @@ class SearchAttributionTests(TestCase):
                         "_search_local", return_value=[hit]), \
              mock.patch("apps.health.services.food_search.food_search_service."
                         "_estimate_with_ai") as estimate:
-            response = self.client.get(self.url, {"q": "hibachi shrimp"})
+            response = self.client.get(self.url, {"q": "hibachi shrimp",
+                                                  "estimate": "1"})
         estimate.assert_not_called()
         self.assertEqual(response.json()["results"][0]["name"], "Hibachi Shrimp")
 

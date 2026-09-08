@@ -5446,6 +5446,19 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
             # legacy chat entry point, the streaming task and the journal seam; this
             # interactive seam was missed when they were fixed (2026-09-08). Only when
             # nothing has already claimed the turn, so an outer classification survives.
+            # ORDINARY AUTOCOMPLETE NEVER PAYS A PROVIDER.
+            #
+            # AI estimation used to be the automatic final tier: every search that matched
+            # nothing spent an OpenAI call, silently, per keystroke-shaped query. The 1,585
+            # AI-sourced rows in the production catalog are what that looks like over time.
+            # Estimating nutrition is a real capability, but it is one a PERSON asks for —
+            # by pressing "Estimate with AI" here, or by asking the assistant — not
+            # something a text box does on their behalf because a lookup came back empty.
+            #
+            # `?estimate=1` is that explicit request, and the only way this endpoint reaches
+            # the provider. The traffic assertion stays either way: when a person does ask,
+            # they are a person (2026-09-08).
+            wants_estimate = request.GET.get('estimate') in ('1', 'true', 'yes')
             traffic = None if current_traffic_class() else TRAFFIC_PRODUCTION
             with llm_traffic_context(traffic_class=traffic):
                 results = food_search_service.search(
@@ -5453,12 +5466,18 @@ class FoodSearchAPIView(LoginRequiredMixin, View):
                     user=request.user,
                     limit=limit,
                     use_fatsecret=True,
-                    use_ai=True
+                    use_ai=wants_estimate,
                 )
 
-            return JsonResponse({
-                'results': [r.to_dict() for r in results]
-            })
+            payload = {'results': [r.to_dict() for r in results]}
+            if not results and not wants_estimate:
+                # An honest no-match, plus the door to the paid path — offered, never taken.
+                payload['no_match'] = True
+                payload['estimate_action'] = {
+                    'label': "Can't find it? Estimate with AI",
+                    'query_param': 'estimate=1',
+                }
+            return JsonResponse(payload)
 
         except Exception as e:
             import logging

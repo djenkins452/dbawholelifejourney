@@ -1287,7 +1287,11 @@ class ActionHandler:
                     # EXACT identity; this simply lets one be present to be found.
                     limit=_FOOD_CANDIDATE_LIMIT,
                     use_fatsecret=True,
-                    use_ai=True  # AI can correct misspellings
+                    # NEVER an automatic estimate. A write that quietly bought an OpenAI
+                    # guess and stored it looks identical to a looked-up fact afterwards.
+                    # When nothing matches, the entry records nutrition as UNKNOWN and the
+                    # model can offer to estimate — the user asks, then it happens.
+                    use_ai=False,
                 )
 
                 # EXPLICIT TARGET OUTRANKS THE NEAREST STORED FOOD.

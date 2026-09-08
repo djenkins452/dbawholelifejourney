@@ -27,25 +27,37 @@ WHAT IS IMPORTED — the generic datasets only: **SR Legacy** and **Foundation F
 (~10k rows, the base ingredients: "Bananas, raw"). NOT Branded Foods (~1.9M rows), which
 is FatSecret's and Open Food Facts' territory and would dwarf the database for no gain.
 
-WHAT IS NOT BUNDLED — the dataset itself. It is downloaded by the operator from
-https://fdc.nal.usda.gov/download-datasets.html and passed in with `--source`. Committing a
-30MB nutrition file to the repository would tie catalog refresh to a deploy.
+WHAT IS BUNDLED — a TRIMMED SR Legacy extract at `apps/health/data/`, 7,793 foods reduced
+to the seven nutrients WLJ stores: 256 KB gzipped, from a 210 MB source. Bundling it is what
+lets the catalog seed itself on deploy, because production has no shell to run a command in.
+The full dataset is still accepted, so a refresh never depends on what was committed.
 
-    python manage.py import_usda_foods --source FoodData_Central_sr_legacy_food_json.json
+    python manage.py import_usda_foods                      # the bundled extract
+    python manage.py import_usda_foods --source <fresh USDA json|json.gz>
     python manage.py import_usda_foods --source … --limit 500 --dry-run
 
 IDEMPOTENT: a row is keyed by its FDC id (`data_source='usda'` + `source_reference`), so
 re-running updates in place and never duplicates. Safe to run on every refresh.
 
-REFRESH: USDA publishes roughly twice a year (April/October). Re-run with the new file;
-existing rows update, new foods are added, and nothing else in the catalog is touched —
-FatSecret, barcode and user-created rows are never read or written by this command.
+REFRESH: USDA publishes roughly twice a year (April/October). Download the new SR Legacy
+JSON and re-run with `--source`; existing rows update in place, new foods are added, and
+nothing else in the catalog is touched — FatSecret, barcode and user-created rows are never
+read or written by this command. Re-trim and re-commit the bundled extract only when the
+deploy-time seed should carry the newer data.
 """
 
+
+import gzip
 import json
+from pathlib import Path
 
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
+
+# The trimmed SR Legacy extract committed with the app. Production has no shell, so the
+# catalog has to be able to seed itself on deploy; a fresh download is still accepted.
+BUNDLED_SOURCE = (Path(__file__).resolve().parents[2] / "data"
+                  / "usda_generic_foods.json.gz")
 
 # USDA nutrient ids. These are the dataset's own stable identifiers, not a food list.
 _NUTRIENTS = {
@@ -84,7 +96,14 @@ def _nutrient_map(food):
     return out
 
 
-def _iter_foods(payload):
+def load_source(path):
+    """Read a USDA export, gzipped or plain. Shared with the deploy-time seed."""
+    opener = gzip.open if str(path).endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def iter_foods(payload):
     """USDA ships either a bare list or a single-keyed object; accept both."""
     if isinstance(payload, list):
         return payload
@@ -99,9 +118,10 @@ class Command(BaseCommand):
     help = "Import USDA FoodData Central generic foods into the FoodItem catalog."
 
     def add_arguments(self, parser):
-        parser.add_argument("--source", required=True,
-                            help="Path to a USDA FoodData Central JSON export "
-                                 "(SR Legacy or Foundation Foods).")
+        parser.add_argument("--source", default=str(BUNDLED_SOURCE),
+                            help="Path to a USDA FoodData Central JSON or .json.gz export "
+                                 "(SR Legacy or Foundation Foods). Defaults to the bundled "
+                                 "trimmed extract.")
         parser.add_argument("--limit", type=int, default=0,
                             help="Import at most N foods (0 = all).")
         parser.add_argument("--dry-run", action="store_true",
@@ -111,14 +131,13 @@ class Command(BaseCommand):
         from apps.health.models import FoodItem
 
         try:
-            with open(opts["source"], "r", encoding="utf-8") as handle:
-                payload = json.load(handle)
+            payload = load_source(opts["source"])
         except OSError as exc:
             raise CommandError(f"Could not read --source: {exc}")
         except json.JSONDecodeError as exc:
             raise CommandError(f"--source is not valid JSON: {exc}")
 
-        foods = _iter_foods(payload)
+        foods = iter_foods(payload)
         if not foods:
             raise CommandError("No foods found in --source. Expected a USDA JSON export.")
 

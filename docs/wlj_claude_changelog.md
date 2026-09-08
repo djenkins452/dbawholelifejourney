@@ -63245,3 +63245,71 @@ this incident was. **158 green.**
 
 **Files.** `apps/health/views.py`, plus the read-only `food_probe` on the operator endpoint
 (`65427cd5`). No production data mutated, no configuration changed, zero OpenAI calls.
+
+---
+
+## 2026-09-08 — Autocomplete stops buying estimates; WLJ finally has a generic food catalog
+
+### Ordinary autocomplete no longer calls OpenAI
+
+AI estimation was the automatic final tier of `food_search_service.search()`: every query
+that matched nothing spent a provider call, silently, per keystroke-shaped search. The
+**1,585 AI-sourced rows** in the production catalog are what that looks like accumulated.
+
+Estimating nutrition is a real capability — it is just one a **person asks for**, not
+something a text box does on their behalf because a lookup came back empty. So:
+
+- `FoodSearchAPIView` searches with `use_ai=False`. On an empty result it answers honestly
+  (`no_match: true`) and offers a cue — `"Can't find it? Estimate with AI"` — which it does
+  **not** execute. `?estimate=1` is the explicit request, and the only route from this
+  endpoint to the provider.
+- `handle_log_food` searches with `use_ai=False` too. A write that quietly bought a guess
+  and stored it is indistinguishable from a looked-up fact afterwards; unmatched foods now
+  record nutrition as UNKNOWN and the assistant can offer to estimate.
+- The capability itself is untouched: `ai_nutrition_service.estimate_nutrition` and
+  `_estimate_with_ai` still exist, and a person-supplied value still records as
+  `DATA_SOURCE_USER_OVERRIDE`.
+
+### USDA generic catalog — seeded
+
+Production had **0** USDA rows and no shell to run the importer in. So the catalog now ships
+with the app and seeds itself:
+
+| | |
+|---|---|
+| Source | USDA FoodData Central **SR Legacy**, release 2018-04 (file dated 2025-05-01) |
+| Downloaded | 13.4 MB zip → 210 MB JSON |
+| Trimmed to | 7,793 foods × {fdcId, description, 7 nutrients} |
+| Committed as | `apps/health/data/usda_generic_foods.json.gz` — **256 KB** |
+| Seeded by | migration `health/0110`, once, guarded on the catalog holding no USDA rows |
+| Idempotency | FDC id (`data_source='usda'` + `source_reference`) |
+
+`import_usda_foods` now defaults to the bundled extract and reads `.gz`, so a refresh from a
+newer USDA release is the same command with `--source`. Reversing the migration drops only
+`data_source='usda'` rows.
+
+**The migration deliberately skips test databases.** The first run put 7,793 rows into every
+test DB and several unrelated suites objected — correctly. Suites that need the catalog seed
+it explicitly with the command, which is also what production refreshes with.
+
+### FatSecret parity — resolved
+
+The worker republished its manifest at `2026-09-08T00:01:10` and now reports **both keys
+present**, matching web. The earlier "absent" reading was stale, exactly as flagged — it
+predated Danny adding them.
+
+### Tests
+
+`apps/health/tests/test_autocomplete_no_paid_estimate.py` (12): no paid tier on an ordinary
+search, honest no-match, the cue offered but not taken, `estimate=1` as the only route, the
+write path never estimating, the capability still present, and a plain banana discoverable
+with **no provider at all**. `test_food_search_attribution` updated — the attribution it
+proves now applies to the explicit path, since the ordinary one no longer reaches the
+provider. **344 green.**
+
+**Files.** New `apps/health/data/usda_generic_foods.json.gz`,
+`apps/health/migrations/0110_seed_usda_generic_foods.py`,
+`apps/health/tests/test_autocomplete_no_paid_estimate.py`;
+`apps/health/views.py`, `apps/ai/action_handlers.py`,
+`apps/health/management/commands/import_usda_foods.py`. No Nutrition entries modified. Zero
+OpenAI calls.

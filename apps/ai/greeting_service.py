@@ -3,6 +3,10 @@ Greeting & Opening Message Mixin — Extracted from PersonalAssistant.
 
 Uses the unified CoS pipeline (build_cos_structured_output) as the single
 source of truth for day state. NO LLM calls — all output is deterministic.
+(That sentence stopped being true for a while: the structured output silently acquired
+a provider call when the check-in renderer was retired, and every dashboard render became
+a proactive authoring attempt. Restored 2026-09-14; asserted by
+`test_dashboard_render_never_authors`.)
 
 Contains:
 - get_opening_message() — main dashboard check-in card entry point

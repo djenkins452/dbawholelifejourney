@@ -676,7 +676,8 @@ class SessionStartView(LoginRequiredMixin, AssistantMixin, View):
                             'payload': alignment_payload,
                         })
 
-                # Full briefing payload (structured, no LLM)
+                # Full briefing payload (structured, no LLM — and it must stay that
+                # way: a session start is a page event, not a proactive one)
                 briefing_payload = self._build_briefing_payload(
                     user, today, user_now, time_of_day,
                     is_first_of_day, wake_inferred,

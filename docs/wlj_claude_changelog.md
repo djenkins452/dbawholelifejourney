@@ -63506,3 +63506,68 @@ author records `refused`, the gate is in the contract and the probe reports it. 
 **Files.** `apps/ai/services.py`, `apps/ai/checkin_author.py`,
 `apps/core/config_governance/contract.py`, `apps/admin_console/views.py`. Zero provider
 calls; no configuration changed; no check-in generated.
+
+---
+
+## 2026-09-14 — The dashboard was authoring proactive check-ins on every render
+
+**Production:** 29 proactive authoring attempts in eight minutes, one per page render, all
+from the dashboard opening-message path — each refused by the operator hold, each (until
+this morning's fix) retried with backoff on the web request path.
+
+### Root cause — a deterministic function that silently became a provider call
+
+`build_cos_structured_output` was written deterministic ("NO LLM calls — all output is
+deterministic", said its consumer). When the WLJ-authored check-in renderer was retired,
+`author_checkin` — a provider call — was dropped into it for `rendered_text`, and **none of
+its five consumers changed**:
+
+| Consumer | Written as | Became |
+|---|---|---|
+| `AssistantOpeningView` → `get_opening_message` | deterministic card | authoring on every open/refresh |
+| `SessionStartView` → `_build_briefing_payload` ("structured, no LLM") | deterministic | authoring on session start |
+| legacy chat turn "LOCKED CoS STATE" injection | immutable facts | authoring inside every chat turn |
+| legacy check-in fallback "without LLM involvement" | deterministic retry | authoring |
+| legacy `_get_fallback_response` "when AI is unavailable" | deterministic | **authoring, as the fallback for the AI being unavailable** |
+
+Plus `guard_llm_output`, which replaced a leaking chat reply with a freshly authored
+check-in and fell back to WLJ-written prose.
+
+Proactive authoring has exactly one legitimate lifecycle: the scheduled/event producers in
+`proactive_checkins.py`, with the preference, the operator gate, the throttles, the
+cross-producer cooldown and the audit row around it. A page render is not in it.
+
+### Fix — the first deterministic layer
+
+`build_cos_structured_output` is deterministic again: facts from the single Execution
+Decision Authority, `rendered_text` always `""`. Every consumer already guards with
+`if text and len(text) > 20`, so empty means "show the facts". `guard_llm_output` blocks
+without authoring. The WLJ-written `_SAFE_FALLBACK` is gone, and
+`generate_proactive_briefing` no longer substitutes prose when authoring fails.
+
+The scheduled entry points (`render_checkin_for_time` / `render_morning_checkin` /
+`render_daily_briefing`) are untouched and still author.
+
+**Bounded and reported, not changed:** two legacy-runtime routes still reach authoring from a
+request — `ProactiveBriefingView` → `generate_proactive_briefing`, and the deterministic
+router's first-message-of-day gate. Both are gated to once per user-day by
+`last_briefing_date`, so they are events, not storms. They belong in the scheduled lifecycle
+eventually; consolidating them is legacy-runtime work and is not in this fix.
+
+### Tests
+
+`apps/core/tests/test_dashboard_render_never_authors.py` (9): five opening renders with the
+preference ON create zero authoring attempts, zero provider calls and zero decision rows;
+the structured output never authors and still carries the facts; the guard blocks without
+authoring; no request-path module names the author; the lifecycle entry points and scheduled
+producers still do. Four tests encoding retired contracts (model prose in the structured
+output, the degraded directive, the envelope in the system prompt, the safe-fallback
+briefing) updated to say what the contract now is and why. **132 green.**
+
+Three `deterministic_router.CheckinPrefilterRouteTests` failures were **already failing at
+HEAD** before this change — legacy router categorisation, reported not fixed.
+
+**Files.** `apps/ai/beth_checkin_renderer.py`, `apps/ai/personal_assistant.py`,
+`apps/ai/greeting_service.py`, `apps/ai/views.py`, `apps/ai/tests/test_checkin_authoring.py`,
+`apps/ai/tests/test_proactive_briefing.py`. Zero provider calls;
+`WLJ_PROACTIVE_AI_ENABLED` untouched.

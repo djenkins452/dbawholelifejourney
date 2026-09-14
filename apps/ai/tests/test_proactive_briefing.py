@@ -193,16 +193,14 @@ class TestGenerateProactiveBriefing(ProactiveBriefingTestMixin, TestCase):
         self.assertIsNone(result)
 
     @patch(RENDERER_PATCH)
-    def test_renderer_exception_uses_safe_fallback(self, mock_render):
-        """If the renderer raises an exception, the safe fallback is used."""
+    def test_renderer_exception_produces_no_briefing(self, mock_render):
+        """Retired contract: a renderer failure used to publish a WLJ-written safe
+        fallback. No model, no message (2026-09-14) — the next interaction retries."""
         mock_render.side_effect = Exception("renderer exploded")
 
         result = self.assistant.generate_proactive_briefing()
 
-        # _SAFE_FALLBACK is long enough to pass the length check, so
-        # a briefing should still be generated from the fallback text.
-        self.assertIsNotNone(result)
-        self.assertIn('response', result)
+        self.assertIsNone(result)
 
 
 class TestProactiveBriefingView(ProactiveBriefingTestMixin, TestCase):

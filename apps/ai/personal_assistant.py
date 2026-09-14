@@ -1078,13 +1078,13 @@ class PersonalAssistant(StateAssessmentMixin, PriorityGeneratorMixin, GreetingMi
                 from apps.ai.beth_checkin_renderer import render_checkin_for_time
                 response_text = render_checkin_for_time(self.user)
             except Exception:
+                # No WLJ-written substitute. A failed authoring is no briefing — the
+                # length guard below returns None and the next interaction retries.
                 logger.error(
-                    "v7_BRIEFING_RENDERER_FAIL user=%s — deterministic "
-                    "renderer failed, using safe fallback",
+                    "v7_BRIEFING_RENDERER_FAIL user=%s — renderer failed; no briefing",
                     self.user.id, exc_info=True,
                 )
-                from apps.ai.beth_checkin_renderer import _SAFE_FALLBACK
-                response_text = _SAFE_FALLBACK
+                response_text = ""
 
             if not response_text or len(response_text) < 20:
                 logger.warning(

@@ -10,10 +10,10 @@ prose and NO judgment — those are the model's.
 This module now only:
   • delegates the public check-in entrypoints to the OpenAI author (triggering/policy
     callers are unchanged — they call the same functions, now model-authored);
-  • exposes `build_cos_structured_output` whose FACTS come from the single Execution
-    Decision Authority (`current_action`) and whose prose (`rendered_text`) is model-authored;
+  • exposes `build_cos_structured_output` — FACTS only, from the single Execution
+    Decision Authority (`current_action`); it never authors and never calls a provider;
   • keeps the small `guard_llm_output` / `contains_state_language` safety utility other
-    surfaces depend on.
+    surfaces depend on — it blocks; it no longer authors a replacement.
 
 Nothing here computes a briefing, a situation, an escalation level, a triage, or any prose.
 """
@@ -21,12 +21,6 @@ Nothing here computes a briefing, a situation, an escalation level, a triage, or
 import logging
 
 logger = logging.getLogger(__name__)
-
-_SAFE_FALLBACK = (
-    "Good morning.\n\n"
-    "I wasn't able to load your day right now. "
-    "Try asking me what's on your plate."
-)
 
 _BANNED_WORDS = frozenset({"items", "tasks", "routines", "domains"})
 
@@ -51,11 +45,25 @@ def render_daily_briefing(user) -> str:
 
 
 def build_cos_structured_output(user) -> dict:
-    """Structured check-in payload for surfaces that need the facts AND the message.
+    """Structured check-in FACTS for request-path surfaces. Deterministic. Never authors.
 
-    FACTS (`do_now` / `sequence` / `next_action`) come from the single Execution Decision
-    Authority; the PROSE (`rendered_text`) is authored by OpenAI. No deterministic briefing
-    is generated here anymore."""
+    `do_now` / `sequence` / `next_action` come from the single Execution Decision Authority.
+    `rendered_text` is always empty.
+
+    This function used to be deterministic, then quietly stopped being: when the WLJ-authored
+    renderer was retired, `author_checkin` (a provider call) was dropped in here, and none of
+    the five consumers written against the deterministic contract changed. The dashboard
+    opening message, the session-start briefing, the legacy chat turn's "LOCKED CoS STATE"
+    injection and TWO "the LLM is unavailable" fallbacks all became proactive authoring
+    triggers. On 2026-09-14 that produced 29 authoring attempts in eight minutes — one per
+    page render — each refused by the operator hold, each retried with backoff on the web
+    request path.
+
+    Proactive authoring belongs to ONE lifecycle: the scheduled/event-driven producers in
+    `proactive_checkins.py`, through `render_checkin_for_time` / `author_checkin`, with the
+    user preference, the operator gate, throttles, the cross-producer cooldown and the audit
+    row around it. A page render is not an event in that lifecycle and must never enter it.
+    """
     do_now, sequence, next_action = [], [], None
     try:
         from apps.core.execution.decision_authority import current_action
@@ -68,24 +76,20 @@ def build_cos_structured_output(user) -> dict:
     except Exception:  # pragma: no cover - defensive
         logger.warning("[COS STRUCTURED] current_action failed for user=%s",
                        getattr(user, "id", "?"), exc_info=True)
-    try:
-        from apps.ai.checkin_author import author_checkin
-        rendered_text = author_checkin(user)
-    except Exception:  # pragma: no cover - defensive
-        logger.warning("[COS STRUCTURED] authoring failed for user=%s",
-                       getattr(user, "id", "?"), exc_info=True)
-        rendered_text = _SAFE_FALLBACK
+    # No prose. Every consumer guards `rendered_text` with `if text and len(text) > 20`,
+    # so an empty string means "show the facts" — never a WLJ-written sentence, never a
+    # request-path provider call.
     return {
         "do_now": do_now,
         "sequence": sequence,
         "next_action": next_action,
-        "rendered_text": rendered_text,
+        "rendered_text": "",
     }
 
 
 # ── State-language guard (kept: used to protect legacy LLM surfaces) ──────────
 # If a model surface leaks first-person "state" narration (claiming what the user did /
-# still needs to do), replace it with a freshly authored check-in.
+# still needs to do), block it. It is NOT replaced with an authored check-in any more.
 _STATE_PATTERNS = [
     "you completed", "you've completed", "you have completed", "you have done",
     "you did your", "you did the", "you've done your", "you've done the",
@@ -106,14 +110,16 @@ def contains_state_language(text: str) -> bool:
 
 
 def guard_llm_output(llm_output: str, user) -> str:
-    """If an LLM surface leaked state language, replace it with an authored check-in."""
+    """If an LLM surface leaked state language, block it. Never author a replacement.
+
+    This used to call `render_checkin_for_time` — i.e. `author_checkin`, a proactive
+    provider call — from inside a chat reply, and fall back to a WLJ-written sentence when
+    that failed. Both belong to the class removed on 2026-09-14: a request path entering
+    proactive authoring. A blocked reply is returned empty; the legacy runtime's own empty
+    handling takes it from there.
+    """
     if not contains_state_language(llm_output):
         return llm_output
     logger.warning("[STATE GUARD] Blocked LLM state language for user=%s",
                    getattr(user, "id", "?"))
-    try:
-        return render_checkin_for_time(user)
-    except Exception:
-        logger.error("[STATE GUARD] Authoring fallback failed for user=%s",
-                     getattr(user, "id", "?"), exc_info=True)
-        return _SAFE_FALLBACK
+    return ""

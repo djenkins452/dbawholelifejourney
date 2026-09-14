@@ -24,21 +24,28 @@ class CheckinAuthoringTests(SimpleTestCase):
         user = MagicMock(); user.id = 1
         out = author_checkin(user, phase="morning")
         self.assertEqual(out, "You're at your workout time. Go get it.")
-        # The envelope (deterministic truth) was passed to the model.
-        system_prompt = mock_ai._call_api.call_args[0][0]
-        self.assertIn("DETERMINISTIC TRUTH", system_prompt)
-        self.assertIn("Workout", system_prompt)
+        # The envelope (deterministic truth) is passed to the model in the USER turn —
+        # moved there at 298f1f1a because the token governor truncates the system prompt
+        # from the end and was deleting the task and the truth (the "Hello!" greetings).
+        system_prompt, user_prompt = mock_ai._call_api.call_args[0][0:2]
+        self.assertNotIn("DETERMINISTIC TRUTH", system_prompt)
+        self.assertIn("DETERMINISTIC TRUTH", user_prompt)
+        self.assertIn("Workout", user_prompt)
 
     @patch("apps.ai.services.ai_service")
     @patch("apps.ai.model_interface.service.ModelInterfaceService.build_standing_context")
-    def test_degrades_to_deterministic_fact_not_prose(self, mock_envelope, mock_ai):
+    def test_degrades_to_silence_not_a_directive(self, mock_envelope, mock_ai):
+        """Retired contract: this used to degrade to the next-action directive. Since
+        13af8948 a model that cannot be asked yields NO message — "Next: Prayer Time. Do
+        this now." was that directive, published twice after a cost refusal."""
         from apps.ai.checkin_author import author_checkin
-        mock_envelope.return_value = {}
+        mock_envelope.return_value = {"current_action": {"primary_action": {"title": "W"}}}
         mock_ai._call_api.side_effect = Exception("model down")
         with patch("apps.core.execution.decision_authority.current_action_directive",
-                   return_value="Next: Workout. Do this now."):
+                   return_value="Next: Workout. Do this now.") as directive:
             user = MagicMock(); user.id = 1
-            self.assertEqual(author_checkin(user), "Next: Workout. Do this now.")
+            self.assertEqual(author_checkin(user), "")
+        directive.assert_not_called()
 
     @patch("apps.ai.checkin_author.author_checkin")
     def test_public_entrypoints_delegate_to_author(self, mock_author):
@@ -83,11 +90,15 @@ class EnvelopeCompletenessTests(TestCase):
                 self.assertIn(bucket, es)
 
     @patch("apps.ai.services.ai_service")
-    def test_structured_output_facts_from_authority_prose_from_model(self, mock_ai):
+    def test_structured_output_is_facts_only_and_never_authors(self, mock_ai):
+        """Retired contract: `rendered_text` used to be model prose, which made every
+        request-path consumer a proactive authoring trigger (29 in eight minutes on
+        2026-09-14). It is facts only now; the model is never consulted here."""
         from apps.ai.beth_checkin_renderer import build_cos_structured_output
         mock_ai._call_api.return_value = "Authored check-in."
         user = User.objects.create_user(email="struct@example.com", password="x")
         out = build_cos_structured_output(user)
         self.assertEqual(set(out.keys()),
                          {"do_now", "sequence", "next_action", "rendered_text"})
-        self.assertEqual(out["rendered_text"], "Authored check-in.")  # model prose
+        self.assertEqual(out["rendered_text"], "")
+        mock_ai._call_api.assert_not_called()

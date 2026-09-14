@@ -289,6 +289,22 @@ class PreferencesView(HelpContextMixin, LoginRequiredMixin, UpdateView):
         except Exception:
             context['cycle_tracking_enabled'] = False
 
+        # PROACTIVE ASSISTANCE — say when the operator hold is in force.
+        #
+        # The checkbox is the PERSON's preference and stays theirs; it is never toggled
+        # by the operator gate. But when the gate is off, a checked box promises
+        # check-ins and briefings that the platform is deliberately refusing, and the
+        # product looked broken instead of paused (2026-09-14). Read from the same
+        # authority the admission seam evaluates — never inferred from behaviour.
+        try:
+            from apps.ai.llm_admission import proactive_ai_enabled
+            context['proactive_ai_held'] = (
+                bool(prefs.proactive_assistance_enabled)
+                and not proactive_ai_enabled()
+            )
+        except Exception:  # the page must render whatever the gate does
+            context['proactive_ai_held'] = False
+
         # AI Personal Context (learned facts from conversations)
         ai_personal_context = prefs.ai_personal_context or ''
         context['ai_personal_context'] = ai_personal_context

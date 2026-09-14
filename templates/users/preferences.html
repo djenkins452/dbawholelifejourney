@@ -788,6 +788,9 @@
                                             Let it start things on its own
                                         </span>
                                     </div>
+                                    {% if proactive_ai_held %}
+                                    <p class="form-help wlj-proactive-held" role="status">Proactive assistance is temporarily paused by Whole Life Journey. Your preference is saved and will take effect when proactive assistance resumes.</p>
+                                    {% endif %}
                                     <p class="form-help">
                                         On, your Chief of Staff opens the day with a check-in, offers
                                         briefings and suggestions, and keeps its panel open beside you.
@@ -2554,6 +2557,16 @@ The AI will remember these to respond more thoughtfully in the future."
 </div>
 
 <style nonce="{{ csp_nonce }}">
+/* Proactive assistance held by the operator — a paused state, not a broken one. Muted
+   warning tone; never resembles an error. */
+.wlj-proactive-held {
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-left: 3px solid var(--color-warning, #c98a1a);
+    background: color-mix(in srgb, var(--color-warning, #c98a1a) 8%, transparent);
+    color: var(--color-text);
+    border-radius: 4px;
+}
 /* Health Disclaimer */
 .preferences-disclaimer {
     background: var(--color-surface);

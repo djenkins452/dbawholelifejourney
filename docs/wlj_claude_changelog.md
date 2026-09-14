@@ -63571,3 +63571,29 @@ HEAD** before this change — legacy router categorisation, reported not fixed.
 `apps/ai/greeting_service.py`, `apps/ai/views.py`, `apps/ai/tests/test_checkin_authoring.py`,
 `apps/ai/tests/test_proactive_briefing.py`. Zero provider calls;
 `WLJ_PROACTIVE_AI_ENABLED` untouched.
+
+---
+
+## 2026-09-14 — Preferences page says when proactive assistance is paused by the platform
+
+The checkbox "Let it start things on its own" read as a promise while the operator hold was
+refusing every proactive attempt; the product looked broken instead of paused. Now, when the
+person's preference is ON and the operator gate is OFF, the page shows one notice under the
+toggle:
+
+> Proactive assistance is temporarily paused by Whole Life Journey. Your preference is saved
+> and will take effect when proactive assistance resumes.
+
+When the gate is ON, nothing is shown. The checkbox remains the person's own choice — the
+gate never toggles it — and the notice reads from `proactive_ai_enabled()`, the same
+authority the admission seam evaluates, never from behaviour. A gate-read failure renders
+the page without the notice rather than breaking it.
+
+**Tests.** `apps/users/tests/test_proactive_held_notice.py` (6): shown only for
+preference-ON + gate-OFF; hidden when the gate is on or the preference is off; the checkbox
+stays checked while held and the stored preference is unchanged; the view reads the
+admission authority; a read failure never breaks the page. **34 green** with the users
+suites.
+
+**Files.** `apps/users/views.py`, `templates/users/preferences.html`. No behaviour change
+to proactive authoring. Zero provider calls.

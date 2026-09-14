@@ -5078,5 +5078,21 @@
       "created_at": "2026-09-01T13:00:00Z",
       "updated_at": "2026-09-01T13:00:00Z"
     }
+  },
+  {
+    "model": "core.releasenote",
+    "pk": 320,
+    "fields": {
+      "title": "Uploading a document now tells you what it's doing",
+      "description": "Choosing a file used to add one small grey line under the drop zone, and Save was a long scroll away. Now the file you picked appears as a clear card — name, size, type, a green check — with Change and Remove right there, and Save Document stays in reach at the bottom of the screen while you fill in the rest. While it uploads, the button locks and shows progress, so a double-click can't create two copies. If something is wrong with the file, you're told next to the file itself, not sent to an error page. And underneath, saving is now all-or-nothing: a document and its file are kept together or not at all, so a failure can no longer leave a file behind with no document to show for it. This fixes a real failure where a PDF with a long filename produced an error page after upload.",
+      "entry_type": "improvement",
+      "version": "",
+      "release_date": "2026-09-13",
+      "is_published": true,
+      "is_major": false,
+      "learn_more_url": "",
+      "created_at": "2026-09-13T23:59:00Z",
+      "updated_at": "2026-09-13T23:59:00Z"
+    }
   }
 ]

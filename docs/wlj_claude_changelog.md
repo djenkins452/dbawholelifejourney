@@ -63350,3 +63350,80 @@ consumers of this service.
 **Files.** `apps/health/services/fatsecret.py`, `apps/admin_console/views.py`,
 `apps/health/tests/test_fatsecret_outcomes.py`. No credentials, Railway variables, allowlists
 or ranking touched. Zero OpenAI calls.
+
+## 2026-09-13 — Document upload: a 500 with a file left behind, and the form that hid it
+
+**The production exception**, read from the web service log, not guessed from the screenshot:
+
+```
+/life/documents/new/  2026-09-13T23:35:56Z
+django.db.utils.DataError: value too long for type character varying(100)
+  … apps/life/models.py:1380 Document.save → django INSERT
+```
+
+**Root cause.** `Document.file` was a `FileField` at Django's default `max_length=100`, with
+`upload_to='life/documents/%Y/%m/'`. For the user's filename that is 98 characters — under
+the limit, and Django's own check (which runs on the PRE-upload name) passed. But the
+Cloudinary backend does not store what Django hands it: it prepends the `media/` prefix and,
+because it uploads with `use_filename=True` and the default `unique_filename=True`, appends a
+random `_xxxxxx` suffix — then returns THAT as the name Django writes to the column. 111
+characters into `varchar(100)`. The check proved nothing about what landed in the database.
+Production's longest existing key was 88 — every earlier upload had been within twelve
+characters of this.
+
+**What the failed request left behind** (proven against production, read-only):
+- **No Document row.** `life_document` had zero rows for the user in the window and zero
+  rows referencing the filename.
+- **One orphaned blob in Cloudinary.** `media/life/documents/2026/09/…_Allstate_bkukwc.pdf`,
+  111 characters, 282,671 bytes (= the 0.27 MB), created `23:35:56Z` — the same second as
+  the 500. Django uploads in `pre_save`, *then* runs the INSERT, with no transaction around
+  either, so the blob reached storage and the row never did. Removed after the fix was
+  verified (below), by its exact public id.
+- Also: `messages.success("Document … uploaded.")` was queued **before** the save, so the
+  next page the user loaded would have congratulated them on an upload that failed.
+
+**Fixes — the class, not the symptom.**
+- **Bound the storage key** (`document_upload_path`): dated folder + a sanitised base name
+  capped at 60 characters; the user's real name lives in a new `original_filename`. No
+  backend decoration can exceed the column again. The column itself is now
+  `max_length=500` (migration `0061`).
+- **All-or-nothing save** (`apps/life/services/document_upload.py`, the one entry point for
+  create and edit): row written inside `transaction.atomic()`; if anything fails after
+  storage accepted the file, the blob is deleted again; if storage fails, no row was ever
+  written; each failure is one typed `DocumentUploadError` with an 8-char reference that is
+  logged with `exc_info` (never the filename or contents) and rendered to the user inline.
+  The view no longer produces a 500 on this path.
+- **No duplicates**: the form mints an `upload_token`; `(user, upload_token)` is a DB unique
+  constraint (a best-effort cache is not a duplicate-prevention control). A retry or a
+  double-click re-sends the token and lands on the document the first submission created;
+  a lost race drops its blob and returns the winner.
+- **Validation is inline** (`DocumentForm`): extension allow-list, 10 MB ceiling (Cloudinary's
+  raw limit — refused with the size named, not as an opaque storage error), magic-byte
+  check so a `.pdf` that is not `%PDF` is refused, expiry-before-date check.
+- **Post-save hooks wait for commit**: the extraction/indexing enqueues in
+  `life/signals.py` now run in `transaction.on_commit`, so a worker cannot look for a row
+  that is still uncommitted — or one that rolls back.
+- **Edit path**: the old file used to be deleted BEFORE the new save; a failed replacement
+  left the row pointing at nothing. The old blob is now removed `on_commit`.
+
+**UX.** The chosen file is an unmistakable card — green check, filename, size, type,
+"Ready to upload", Change / Remove — with the sentence "The file uploads when you save the
+document — nothing is sent until then." Save Document sits in a sticky action bar that stays
+on screen while the remaining fields are used (and, on mobile, above the tab bar and
+assistant pull-up the layout fixes over the bottom 120px). On submit the button locks,
+shows a spinner and progress, and names the file being uploaded; a second click cannot send
+a second request. Client-side type/size checks mirror the server's, and server errors
+render beside their controls.
+
+**Verified**: 26 focused tests (`apps/life/tests/test_document_upload.py`) — browse/drop
+(same handler), the exact production filename, blank and round-tripped optional dates,
+type/size/signature validation, storage failure, database failure after storage (harness
+compiles the INSERT — where `pre_save` uploads — then fails, as production did), rollback,
+token retry and double-submit, lost race, safe replacement, hooks-on-commit. Browser:
+desktop and 375 px, selection, Remove, invalid type, oversize, locked uploading state,
+server-rendered inline errors, no horizontal scroll. Production: a harmless test PDF
+uploaded through the deployed form, then removed.
+
+**Not touched**: security, storage backend, document behaviour, extraction pipeline.
+`apps.scan`'s image-analysis post_save runs inline for images on the request path — noted,
+out of scope.

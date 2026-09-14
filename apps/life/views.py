@@ -24,6 +24,7 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Case, Count, Q, Sum, Value, When
 from django.http import FileResponse, HttpResponse, HttpResponseRedirect, JsonResponse
+from django import forms
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy, reverse
 from django.utils import timezone
@@ -61,7 +62,7 @@ from .models import (
     SignificantEvent,
 )
 from apps.meals.models import Recipe
-from .forms import RoutineForm, RoutineScheduleFormSet, SignificantEventForm
+from .forms import DocumentForm, RoutineForm, RoutineScheduleFormSet, SignificantEventForm
 
 
 class LifeAccessMixin(LoginRequiredMixin):
@@ -2273,14 +2274,23 @@ class DocumentDetailView(LifeAccessMixin, DetailView):
 
 
 class DocumentCreateView(LifeAccessMixin, CreateView):
-    """Upload a new document."""
+    """Upload a new document.
+
+    The file and the row are saved together through `save_document_upload`, or not at
+    all: a storage failure writes no row, a database failure removes the blob it had
+    just stored, and a re-sent form token lands on the document the first submission
+    created. Every failure the user can act on is rendered beside its control; an
+    operational failure is rendered as one safe sentence carrying a reference the logs
+    can be searched for. Nothing here produces a 500.
+    """
     model = Document
+    form_class = DocumentForm
     template_name = "life/document_form.html"
-    fields = [
-        'title', 'description', 'category', 'file',
-        'document_date', 'expiration_date',
-        'related_inventory_item', 'related_pet', 'notes'
-    ]
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
 
     def get_initial(self):
         """Pre-populate form with defaults and query parameters (for AI Camera scan)."""
@@ -2296,64 +2306,79 @@ class DocumentCreateView(LifeAccessMixin, CreateView):
             initial['category'] = self.request.GET.get('category')
         return initial
 
-    def get_form(self, form_class=None):
-        form = super().get_form(form_class)
-        form.fields['related_inventory_item'].queryset = InventoryItem.objects.filter(
-            user=self.request.user
-        )
-        form.fields['related_pet'].queryset = Pet.objects.filter(
-            user=self.request.user
-        )
-        return form
-
     def form_valid(self, form):
-        form.instance.user = self.request.user
-        # Track if created via AI Camera scan
-        source = self.request.GET.get('source')
-        if source == 'ai_camera':
-            form.instance.created_via = Document.CREATED_VIA_AI_CAMERA
-        messages.success(self.request, f"Document '{form.instance.title}' uploaded.")
-        return super().form_valid(form)
+        from apps.life.services.document_upload import DocumentUploadError, save_document_upload
+
+        created_via = None
+        if self.request.GET.get('source') == 'ai_camera':
+            created_via = Document.CREATED_VIA_AI_CAMERA
+        try:
+            self.object, created = save_document_upload(
+                form, self.request.user, created_via=created_via)
+        except DocumentUploadError as exc:
+            form.add_error(exc.field, exc.user_message)
+            return self.form_invalid(form)
+        if created:
+            messages.success(self.request, f"Document '{self.object.title}' uploaded.")
+        else:
+            messages.info(self.request, f"'{self.object.title}' was already saved.")
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse('life:document_list')
 
 
 class DocumentUpdateView(LifeAccessMixin, UpdateView):
-    """Edit document metadata and optionally replace file."""
+    """Edit document metadata and optionally replace file.
+
+    When a replacement file is uploaded, the OLD blob is removed only after the new
+    row has committed. It used to be deleted first — so a failed save left the row
+    pointing at a file that no longer existed.
+    """
     model = Document
+    form_class = DocumentForm
     template_name = "life/document_form.html"
-    fields = [
-        'title', 'description', 'category', 'file',
-        'document_date', 'expiration_date',
-        'related_inventory_item', 'related_pet', 'notes', 'is_archived'
-    ]
 
     def get_queryset(self):
         return Document.objects.filter(user=self.request.user)
 
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['user'] = self.request.user
+        return kwargs
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
-        # File is optional when editing (only required for new documents)
-        form.fields['file'].required = False
-        form.fields['related_inventory_item'].queryset = InventoryItem.objects.filter(
-            user=self.request.user
-        )
-        form.fields['related_pet'].queryset = Pet.objects.filter(
-            user=self.request.user
-        )
+        form.fields['is_archived'] = forms.BooleanField(
+            required=False, initial=self.object.is_archived)
         return form
 
     def form_valid(self, form):
-        # If a new file was uploaded, delete the old one from storage
-        if 'file' in form.changed_data and self.object.file:
-            old_file = Document.objects.get(pk=self.object.pk).file
-            if old_file:
+        from django.db import transaction as _tx
+
+        from apps.life.services.document_upload import DocumentUploadError, save_document_upload
+
+        replacing = 'file' in form.changed_data and bool(form.cleaned_data.get('file'))
+        old_name = Document.objects.get(pk=self.object.pk).file.name if replacing else None
+        form.instance.is_archived = bool(form.cleaned_data.get('is_archived'))
+        try:
+            self.object, _created = save_document_upload(form, self.request.user)
+        except DocumentUploadError as exc:
+            form.add_error(exc.field, exc.user_message)
+            return self.form_invalid(form)
+
+        if old_name and old_name != self.object.file.name:
+            storage = self.object.file.storage
+
+            def _drop_old():
                 try:
-                    old_file.delete(save=False)
+                    storage.delete(old_name)
                 except Exception:
-                    pass  # Don't fail if old file can't be deleted
-        return super().form_valid(form)
+                    logger.warning("document %s: previous file could not be removed",
+                                   self.object.pk, exc_info=True)
+            _tx.on_commit(_drop_old)
+        messages.success(self.request, f"Document '{self.object.title}' saved.")
+        return redirect(self.get_success_url())
 
     def get_success_url(self):
         return reverse('life:document_detail', kwargs={'pk': self.object.pk})

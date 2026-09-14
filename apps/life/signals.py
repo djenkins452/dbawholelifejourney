@@ -279,9 +279,18 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
 
     # Fire-and-forget: DocumentSignalExtractor can call an LLM (Tier-2), which
     # must never block the Document-save request. Runs inline under EAGER/tests.
+    #
+    # Deferred to COMMIT: the upload path saves inside transaction.atomic(), so this
+    # signal fires while the row is still uncommitted. A worker that picked the task
+    # up first would look for a document that does not exist yet — and if the
+    # transaction rolls back, must never look at all. on_commit runs immediately
+    # under autocommit, so nothing changes for callers outside a transaction.
+    from django.db import transaction
+
     from apps.core.celery_utils import safe_enqueue
     from apps.life.tasks.document_extraction import deferred_document_metadata_signals
-    safe_enqueue(deferred_document_metadata_signals, instance.pk)
+    pk = instance.pk
+    transaction.on_commit(lambda: safe_enqueue(deferred_document_metadata_signals, pk))
 
     # Phase 6A: Dispatch async content extraction (PDF/OCR → raw_text → facts)
     # This runs AFTER the Phase 5.5 metadata extraction (which is synchronous).
@@ -293,7 +302,7 @@ def handle_document_saved_for_extraction(sender, instance, created, **kwargs):
             from apps.life.tasks.document_extraction import (
                 extract_document_content_task,
             )
-            extract_document_content_task.delay(instance.pk)
+            transaction.on_commit(lambda: safe_enqueue(extract_document_content_task, pk))
         except Exception as e:
             logger.warning(
                 "Celery dispatch for content extraction failed for %s: %s",

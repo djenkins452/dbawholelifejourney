@@ -18,6 +18,36 @@ from apps.core.utils import get_user_today
 import json
 
 
+# The storage key budget. Cloudinary prepends the MEDIA prefix ("media/") and appends a
+# unique suffix ("_xxxxxx") to whatever Django hands it, and returns THAT as the name
+# Django then stores — so Django's own max_length check, which runs on the pre-upload
+# name, proves nothing about what lands in the column. A 75-character filename passed
+# the check at 98 and came back from Cloudinary at 111 against a varchar(100): the blob
+# uploaded, the INSERT failed, and the file was orphaned. The base name is bounded here
+# so no backend decoration can ever exceed the column; the user's real filename lives
+# in `original_filename`.
+DOCUMENT_STORAGE_BASENAME_MAX = 60
+
+
+def document_upload_path(instance, filename):
+    """Storage key for a Document: dated folder + a sanitised, BOUNDED base name.
+
+    The key is internal. It is never shown to the user (`original_filename` is), so
+    shortening it costs nothing and removes the whole class of "the storage returned a
+    longer name than the column holds".
+    """
+    import os
+    import re
+
+    from django.utils import timezone as _tz
+
+    base, ext = os.path.splitext(os.path.basename((filename or "").replace("\\", "/")))
+    ext = re.sub(r"[^a-z0-9.]", "", ext.lower())[:10]
+    base = re.sub(r"[^A-Za-z0-9_-]+", "_", base).strip("_") or "document"
+    base = base[:DOCUMENT_STORAGE_BASENAME_MAX].rstrip("_")
+    return _tz.now().strftime("life/documents/%Y/%m/") + base + ext
+
+
 def get_document_storage():
     """
     Return the appropriate storage backend for document files.
@@ -1214,9 +1244,26 @@ class Document(UserOwnedModel):
 
     # File upload - uses RawMediaCloudinaryStorage for PDFs and raw files
     file = models.FileField(
-        upload_to='life/documents/%Y/%m/',
+        upload_to=document_upload_path,
         storage=get_document_storage,
+        max_length=500,
         help_text="Upload document (PDF, image, or other file)"
+    )
+    original_filename = models.CharField(
+        max_length=255,
+        blank=True,
+        default='',
+        help_text="The filename the user uploaded, as they know it. The storage key is internal.",
+    )
+    # One submission, one document. The form carries a token minted when it renders; a
+    # retry or a double-click re-sends the same token and lands on the existing row
+    # instead of creating a second one. A DB constraint, not a cache — a best-effort
+    # cache is not a duplicate-prevention control.
+    upload_token = models.CharField(
+        max_length=36,
+        null=True,
+        blank=True,
+        help_text="Idempotency token from the upload form (unique per user).",
     )
     file_type = models.CharField(
         max_length=50,
@@ -1347,6 +1394,11 @@ class Document(UserOwnedModel):
                 condition=models.Q(source='email'),
                 name='unique_email_source_document',
             ),
+            models.UniqueConstraint(
+                fields=['user', 'upload_token'],
+                condition=models.Q(upload_token__isnull=False),
+                name='unique_document_upload_token',
+            ),
         ]
 
     def __str__(self):
@@ -1395,6 +1447,22 @@ class Document(UserOwnedModel):
             user_today = get_user_today(self.user) if self.user_id else timezone.now().date()
             return self.expiration_date < user_today
         return False
+
+    @property
+    def display_filename(self):
+        """What the user calls this file. Falls back to the storage key's basename for
+        documents saved before `original_filename` existed."""
+        import os
+        if self.original_filename:
+            return self.original_filename
+        return os.path.basename(self.file.name) if self.file else ""
+
+    @property
+    def file_type_display(self):
+        return {
+            'pdf': 'PDF', 'image/jpeg': 'JPEG image', 'image/png': 'PNG image',
+            'word': 'Word document', 'excel': 'Excel spreadsheet',
+        }.get(self.file_type or '', 'File')
 
     @property
     def file_size_display(self):

@@ -13,7 +13,7 @@ Life Forms - Forms for life module models.
 from django import forms
 from django.forms import inlineformset_factory
 
-from .models import Routine, RoutineSchedule, SignificantEvent
+from .models import Document, Routine, RoutineSchedule, SignificantEvent
 
 
 # Reminder days options for checkbox selection
@@ -300,3 +300,95 @@ RoutineScheduleFormSet = inlineformset_factory(
     min_num=0,
     validate_min=False,
 )
+
+
+# =============================================================================
+# Documents
+# =============================================================================
+
+DOCUMENT_MAX_UPLOAD_BYTES = 10 * 1024 * 1024        # 10 MB — Cloudinary's raw-file ceiling
+
+# Extension → (human label, magic-byte prefixes that must open the file, or None when the
+# format has no reliable signature). The extension is what the user sees; the bytes are
+# what we trust. A ".pdf" that does not start with %PDF is refused before storage, with
+# the reason beside the file control rather than as a 500 from somewhere downstream.
+DOCUMENT_ALLOWED_TYPES = {
+    ".pdf":  ("PDF",   (b"%PDF",)),
+    ".jpg":  ("JPEG",  (b"\xff\xd8\xff",)),
+    ".jpeg": ("JPEG",  (b"\xff\xd8\xff",)),
+    ".png":  ("PNG",   (b"\x89PNG\r\n\x1a\n",)),
+    ".doc":  ("Word",  (b"\xd0\xcf\x11\xe0",)),
+    ".docx": ("Word",  (b"PK\x03\x04",)),
+    ".xls":  ("Excel", (b"\xd0\xcf\x11\xe0",)),
+    ".xlsx": ("Excel", (b"PK\x03\x04",)),
+}
+
+
+def _human_size(n):
+    return f"{n / (1024 * 1024):.1f} MB" if n >= 1024 * 1024 else f"{n / 1024:.0f} KB"
+
+
+class DocumentForm(forms.ModelForm):
+    """Create / edit a Document. Every recoverable problem is a field error, never a 500."""
+
+    # Minted when the form renders; returned on submit. See Document.upload_token.
+    upload_token = forms.CharField(required=False, widget=forms.HiddenInput, max_length=36)
+
+    class Meta:
+        model = Document
+        fields = [
+            'title', 'description', 'category', 'file',
+            'document_date', 'expiration_date',
+            'related_inventory_item', 'related_pet', 'notes',
+        ]
+
+    def __init__(self, *args, user=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user = user
+        if user is not None:
+            from .models import InventoryItem, Pet
+            self.fields['related_inventory_item'].queryset = InventoryItem.objects.filter(user=user)
+            self.fields['related_pet'].queryset = Pet.objects.filter(user=user)
+        # A new document must have a file; an edit may keep the current one.
+        self.fields['file'].required = self.instance.pk is None
+        if not self.is_bound and not self.initial.get('upload_token'):
+            import uuid
+            self.fields['upload_token'].initial = uuid.uuid4().hex
+
+    def clean_file(self):
+        import os
+        f = self.cleaned_data.get('file')
+        # Unchanged on edit (a FieldFile, not an upload) — nothing to validate.
+        if not f or not hasattr(f, 'content_type'):
+            return f
+
+        name = os.path.basename(getattr(f, 'name', '') or '')
+        ext = os.path.splitext(name)[1].lower()
+        if ext not in DOCUMENT_ALLOWED_TYPES:
+            raise forms.ValidationError(
+                "That file type isn't supported. Upload a PDF, JPG, PNG, Word or Excel file.",
+                code='type')
+
+        if f.size == 0:
+            raise forms.ValidationError("That file is empty.", code='empty')
+        if f.size > DOCUMENT_MAX_UPLOAD_BYTES:
+            raise forms.ValidationError(
+                f"That file is {_human_size(f.size)}. The limit is "
+                f"{_human_size(DOCUMENT_MAX_UPLOAD_BYTES)}.", code='size')
+
+        label, signatures = DOCUMENT_ALLOWED_TYPES[ext]
+        if signatures:
+            head = f.read(16)
+            f.seek(0)
+            if not any(head.startswith(sig) for sig in signatures):
+                raise forms.ValidationError(
+                    f"This doesn't look like a real {label} file, even though it's named "
+                    f"{ext}. Check the file and try again.", code='signature')
+        return f
+
+    def clean(self):
+        cleaned = super().clean()
+        d, e = cleaned.get('document_date'), cleaned.get('expiration_date')
+        if d and e and e < d:
+            self.add_error('expiration_date', "Expiration can't be before the document date.")
+        return cleaned

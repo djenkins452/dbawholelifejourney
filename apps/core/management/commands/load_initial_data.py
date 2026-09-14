@@ -746,6 +746,7 @@ class Command(BaseCommand):
         self._reset_finance_2_0_completion(DataLoadConfig, force, verbosity)
         self._reset_dashboard_financial_clarity(DataLoadConfig, force, verbosity)
         self._reset_recurring_intelligence(DataLoadConfig, force, verbosity)
+        self._reset_document_upload_release_notes(DataLoadConfig, force, verbosity)
 
         # One-time: Reset fixtures for CoS consolidation (PK 70 release note, help_topics PK 17)
         self._reset_cos_consolidation_fixtures(DataLoadConfig, force, verbosity)
@@ -8947,6 +8948,31 @@ Tasks are sorted by priority (ascending) then creation date.""",
             if verbosity >= 1:
                 self.stdout.write(self.style.ERROR(
                     f'Reset Finance 2.0 completion fixtures FAILED: {e}'))
+
+    def _reset_document_upload_release_notes(self, DataLoadConfig, force=False, verbosity=1):
+        """One-time reset to reload release_notes after adding PK 320 (document upload:
+        attached-file state, sticky Save, all-or-nothing saving)."""
+        reset_tracker_name = 'reset_document_upload_2026_09_13'
+        try:
+            if self._is_loader_complete(DataLoadConfig, reset_tracker_name):
+                return
+            try:
+                config = DataLoadConfig.objects.get(loader_name='release_notes')
+                if config.is_loaded:
+                    config.is_loaded = False
+                    config.save()
+                    if verbosity >= 1:
+                        self.stdout.write('  Reset release_notes for document upload (PK 320)')
+            except DataLoadConfig.DoesNotExist:
+                pass
+            self._mark_loader_complete(
+                DataLoadConfig, reset_tracker_name,
+                'Reset release_notes for document upload', 'command',
+                'One-time reset: added PK 320 for the document upload experience')
+        except Exception as e:
+            if verbosity >= 1:
+                self.stdout.write(self.style.ERROR(
+                    f'Reset document upload release notes FAILED: {e}'))
 
     def _reset_recurring_intelligence(self, DataLoadConfig, force=False, verbosity=1):
         """One-time reset for detected recurring commitments (release + help + nav)."""

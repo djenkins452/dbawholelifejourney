@@ -11,30 +11,120 @@
         <span>/</span>
         <span>{% if object %}Edit{% else %}Upload{% endif %}</span>
     </nav>
-    
+
     <div class="form-page">
         <div class="form-header">
             <h1 class="page-title">{% if object %}Edit Document{% else %}Upload Document{% endif %} {% include "components/favorite_toggle.html" with page_title="Document Form" %}</h1>
             <p class="page-subtitle">Store important files securely</p>
         </div>
-        
-        <form method="post" enctype="multipart/form-data" class="life-form">
+
+        <form method="post" enctype="multipart/form-data" class="life-form" id="document-form" novalidate>
             {% csrf_token %}
-            
+            {{ form.upload_token }}
+
+            {% if form.non_field_errors %}
+            <div class="form-alert form-alert-error" role="alert" id="form-errors">
+                {% for err in form.non_field_errors %}<p>{{ err }}</p>{% endfor %}
+            </div>
+            {% endif %}
+
+            {# ---------------------------------------------------------------- #}
+            {# File first. It is the thing the user came here to do.            #}
+            {# ---------------------------------------------------------------- #}
+            <div class="form-section">
+                <div class="form-group">
+                    <label for="id_file" class="form-label">{% if object %}File{% else %}File to upload{% endif %}</label>
+
+                    {% if object %}
+                    {# ---- Edit: the current file, with a Replace action ---- #}
+                    <div class="attached-file attached-file-current" id="current-file" data-current-file>
+                        <div class="attached-file-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.75">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                            </svg>
+                        </div>
+                        <div class="attached-file-body">
+                            <div class="attached-file-name">{{ object.display_filename }}</div>
+                            <div class="attached-file-meta">
+                                <span>{{ object.file_size_display }}</span>
+                                <span class="attached-file-dot" aria-hidden="true">·</span>
+                                <span>{{ object.file_type_display }}</span>
+                                <span class="attached-file-dot" aria-hidden="true">·</span>
+                                <span>Current file</span>
+                            </div>
+                        </div>
+                        <div class="attached-file-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="replace-file-btn">Replace</button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {# ---- The drop zone (create: always; edit: after Replace) ---- #}
+                    <div class="file-upload-area{% if object %} is-hidden{% endif %}" id="file-drop-zone" tabindex="0" role="button"
+                         aria-label="Choose a file to upload"{% if object %} hidden{% endif %}>
+                        <input type="file" name="file" id="id_file" class="file-input"
+                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx"
+                               aria-describedby="file-help{% if form.file.errors %} file-error{% endif %}">
+                        <div class="file-upload-content">
+                            <svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                <polyline points="17 8 12 3 7 8"/>
+                                <line x1="12" y1="3" x2="12" y2="15"/>
+                            </svg>
+                            <p class="file-upload-cta"><span class="text-accent">Choose a file</span> or drag it here</p>
+                            <p class="file-types">PDF, JPG, PNG, Word or Excel · up to 10 MB</p>
+                        </div>
+                    </div>
+
+                    {# ---- The attached-file state: unmistakable ---- #}
+                    <div class="attached-file attached-file-selected" id="attached-file" hidden>
+                        <div class="attached-file-icon attached-file-icon-ok" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.25">
+                                <path d="M20 6L9 17l-5-5"/>
+                            </svg>
+                        </div>
+                        <div class="attached-file-body">
+                            <div class="attached-file-name" id="attached-file-name"></div>
+                            <div class="attached-file-meta">
+                                <span id="attached-file-size"></span>
+                                <span class="attached-file-dot" aria-hidden="true">·</span>
+                                <span id="attached-file-type"></span>
+                                <span class="attached-file-dot" aria-hidden="true">·</span>
+                                <span class="attached-file-state">Ready to upload</span>
+                            </div>
+                        </div>
+                        <div class="attached-file-actions">
+                            <button type="button" class="btn btn-ghost btn-sm" id="change-file-btn">Change</button>
+                            <button type="button" class="btn btn-ghost btn-sm attached-file-remove" id="remove-file-btn">Remove</button>
+                        </div>
+                    </div>
+
+                    <p id="file-help" class="form-help">The file uploads when you save the document — nothing is sent until then.</p>
+                    <p id="file-error" class="form-error" role="alert"{% if not form.file.errors %} hidden{% endif %}>{{ form.file.errors.0 }}</p>
+
+                    {% if object %}
+                    <button type="button" id="cancel-replace-btn" class="btn btn-ghost btn-sm mt-2" hidden>Keep current file</button>
+                    {% endif %}
+                </div>
+            </div>
+
             <div class="form-section">
                 <div class="form-group">
                     <label for="id_title" class="form-label">Document Title</label>
-                    <input type="text" name="title" id="id_title" class="form-input" 
-                           value="{{ form.title.value|default:'' }}" required
-                           placeholder="e.g., Home Insurance Policy 2024">
+                    <input type="text" name="title" id="id_title" class="form-input{% if form.title.errors %} is-invalid{% endif %}"
+                           value="{{ form.title.value|default:'' }}" required maxlength="200"
+                           placeholder="e.g., Home Insurance Policy 2024"
+                           {% if form.title.errors %}aria-invalid="true" aria-describedby="title-error"{% endif %}>
+                    {% if form.title.errors %}<p class="form-error" id="title-error" role="alert">{{ form.title.errors.0 }}</p>{% endif %}
                 </div>
-                
+
                 <div class="form-group">
                     <label for="id_description" class="form-label">Description</label>
                     <textarea name="description" id="id_description" class="form-textarea" rows="2"
                               placeholder="Brief description of this document...">{{ form.description.value|default:'' }}</textarea>
                 </div>
-                
+
                 <div class="form-group">
                     <label for="id_category" class="form-label">Category</label>
                     <select name="category" id="id_category" class="form-select">
@@ -50,124 +140,65 @@
                         <option value="warranty" {% if form.category.value == 'warranty' %}selected{% endif %}>Warranties & Manuals</option>
                         <option value="tax" {% if form.category.value == 'tax' %}selected{% endif %}>Tax Documents</option>
                     </select>
+                    {% if form.category.errors %}<p class="form-error" role="alert">{{ form.category.errors.0 }}</p>{% endif %}
                 </div>
-                
-                {% if not object %}
-                <div class="form-group">
-                    <label for="id_file" class="form-label">File</label>
-                    <div class="file-upload-area">
-                        <input type="file" name="file" id="id_file" class="file-input" required
-                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
-                        <div class="file-upload-content">
-                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="17 8 12 3 7 8"/>
-                                <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                            <p>Drag and drop or <span class="text-accent">browse</span></p>
-                            <p class="file-types">PDF, JPG, PNG, DOC, XLS</p>
-                        </div>
-                    </div>
-                    <p id="selected-file" class="form-help"></p>
-                </div>
-                {% else %}
-                <div class="form-group">
-                    <p class="form-label">Current File</p>
-                    <div class="current-file-container">
-                        <div class="file-info">
-                            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                <polyline points="14 2 14 8 20 8"/>
-                            </svg>
-                            <span>{{ object.file.name|slice:"20:" }}</span>
-                            <span class="file-size">{{ object.file_size_display }}</span>
-                        </div>
-                        <button type="button" id="replace-file-btn" class="btn btn-ghost btn-sm">
-                            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="17 8 12 3 7 8"/>
-                                <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                            Replace File
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Hidden file upload area for replacing -->
-                <div class="form-group replace-file-section" id="replace-file-section" style="display: none;">
-                    <label for="id_file" class="form-label">New File</label>
-                    <div class="file-upload-area">
-                        <input type="file" name="file" id="id_file" class="file-input"
-                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
-                        <div class="file-upload-content">
-                            <svg viewBox="0 0 24 24" width="48" height="48" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="17 8 12 3 7 8"/>
-                                <line x1="12" y1="3" x2="12" y2="15"/>
-                            </svg>
-                            <p>Drag and drop or <span class="text-accent">browse</span></p>
-                            <p class="file-types">PDF, JPG, PNG, DOC, XLS</p>
-                        </div>
-                    </div>
-                    <p id="selected-file" class="form-help"></p>
-                    <button type="button" id="cancel-replace-btn" class="btn btn-ghost btn-sm mt-2">Cancel</button>
-                </div>
-                {% endif %}
             </div>
-            
+
             <div class="form-section">
                 <h2 class="form-section-title">Dates</h2>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="id_document_date" class="form-label">Document Date</label>
-                        <input type="date" name="document_date" id="id_document_date" class="form-input"
-                               value="{{ form.document_date.value|date:'Y-m-d'|default:'' }}">
-                        <p class="form-help">Date on the document</p>
+                        <input type="date" name="document_date" id="id_document_date" class="form-input{% if form.document_date.errors %} is-invalid{% endif %}"
+                               value="{{ form.document_date.value|date:'Y-m-d'|default:form.document_date.value|default:'' }}">
+                        {% if form.document_date.errors %}<p class="form-error" role="alert">{{ form.document_date.errors.0 }}</p>
+                        {% else %}<p class="form-help">Date on the document</p>{% endif %}
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="id_expiration_date" class="form-label">Expiration Date</label>
-                        <input type="date" name="expiration_date" id="id_expiration_date" class="form-input"
-                               value="{{ form.expiration_date.value|date:'Y-m-d'|default:'' }}">
-                        <p class="form-help">When does this expire?</p>
+                        <input type="date" name="expiration_date" id="id_expiration_date" class="form-input{% if form.expiration_date.errors %} is-invalid{% endif %}"
+                               value="{{ form.expiration_date.value|date:'Y-m-d'|default:form.expiration_date.value|default:'' }}">
+                        {% if form.expiration_date.errors %}<p class="form-error" role="alert">{{ form.expiration_date.errors.0 }}</p>
+                        {% else %}<p class="form-help">When does this expire?</p>{% endif %}
                     </div>
                 </div>
             </div>
-            
+
             <div class="form-section">
                 <h2 class="form-section-title">Related Items (Optional)</h2>
-                
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="id_related_inventory_item" class="form-label">Inventory Item</label>
                         <select name="related_inventory_item" id="id_related_inventory_item" class="form-select">
                             <option value="">None</option>
                             {% for item in form.fields.related_inventory_item.queryset %}
-                            <option value="{{ item.pk }}" {% if form.related_inventory_item.value == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>
+                            <option value="{{ item.pk }}" {% if form.related_inventory_item.value|stringformat:"s" == item.pk|stringformat:"s" %}selected{% endif %}>{{ item.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
-                    
+
                     <div class="form-group">
                         <label for="id_related_pet" class="form-label">Pet</label>
                         <select name="related_pet" id="id_related_pet" class="form-select">
                             <option value="">None</option>
                             {% for pet in form.fields.related_pet.queryset %}
-                            <option value="{{ pet.pk }}" {% if form.related_pet.value == pet.pk|stringformat:"s" %}selected{% endif %}>{{ pet.name }}</option>
+                            <option value="{{ pet.pk }}" {% if form.related_pet.value|stringformat:"s" == pet.pk|stringformat:"s" %}selected{% endif %}>{{ pet.name }}</option>
                             {% endfor %}
                         </select>
                     </div>
                 </div>
             </div>
-            
+
             <div class="form-section">
                 <div class="form-group">
                     <label for="id_notes" class="form-label">Notes</label>
                     <textarea name="notes" id="id_notes" class="form-textarea" rows="3"
                               placeholder="Any additional notes...">{{ form.notes.value|default:'' }}</textarea>
                 </div>
-                
+
                 {% if object %}
                 <div class="form-group">
                     <label class="checkbox-label">
@@ -178,199 +209,290 @@
                 </div>
                 {% endif %}
             </div>
-            
-            <div class="form-actions">
-                <button type="submit" class="btn btn-primary">
-                    {% if object %}Save Changes{% else %}Upload Document{% endif %}
-                </button>
-                <a href="{% url 'life:document_list' %}" class="btn btn-ghost">Cancel</a>
+
+            {# ---------------------------------------------------------------- #}
+            {# Sticky action bar: Save is always in reach, fields stay usable.  #}
+            {# ---------------------------------------------------------------- #}
+            <div class="form-actions form-actions-sticky" id="form-actions">
+                <div class="form-actions-status" id="save-status" aria-live="polite">
+                    <span id="save-status-text"></span>
+                </div>
+                <div class="form-actions-buttons">
+                    <a href="{% if object %}{% url 'life:document_detail' object.pk %}{% else %}{% url 'life:document_list' %}{% endif %}" class="btn btn-ghost" id="cancel-btn">Cancel</a>
+                    <button type="submit" class="btn btn-primary btn-save" id="save-btn">
+                        <span class="btn-save-label">{% if object %}Save Changes{% else %}Save Document{% endif %}</span>
+                        <span class="btn-save-busy" hidden aria-hidden="true">
+                            <span class="spinner" aria-hidden="true"></span>
+                            Uploading…
+                        </span>
+                    </button>
+                </div>
+                <div class="upload-progress" id="upload-progress" hidden aria-hidden="true">
+                    <div class="upload-progress-bar"></div>
+                </div>
             </div>
         </form>
     </div>
 </div>
 
 <script nonce="{{ csp_nonce }}">
-// File input display
-document.getElementById('id_file')?.addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        document.getElementById('selected-file').textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+(function () {
+    'use strict';
+
+    var MAX_BYTES = 10 * 1024 * 1024;
+    var TYPES = {
+        pdf: 'PDF', jpg: 'JPEG image', jpeg: 'JPEG image', png: 'PNG image',
+        doc: 'Word document', docx: 'Word document', xls: 'Excel spreadsheet', xlsx: 'Excel spreadsheet'
+    };
+
+    var form = document.getElementById('document-form');
+    var input = document.getElementById('id_file');
+    var zone = document.getElementById('file-drop-zone');
+    var card = document.getElementById('attached-file');
+    var nameEl = document.getElementById('attached-file-name');
+    var sizeEl = document.getElementById('attached-file-size');
+    var typeEl = document.getElementById('attached-file-type');
+    var errEl = document.getElementById('file-error');
+    var changeBtn = document.getElementById('change-file-btn');
+    var removeBtn = document.getElementById('remove-file-btn');
+    var saveBtn = document.getElementById('save-btn');
+    var statusText = document.getElementById('save-status-text');
+    var progress = document.getElementById('upload-progress');
+    var current = document.getElementById('current-file');
+    var replaceBtn = document.getElementById('replace-file-btn');
+    var cancelReplaceBtn = document.getElementById('cancel-replace-btn');
+    var isEdit = !!current;
+    var submitting = false;
+
+    if (!form || !input) { return; }
+
+    function fmtSize(n) {
+        if (n >= 1024 * 1024) { return (n / (1024 * 1024)).toFixed(2) + ' MB'; }
+        if (n >= 1024) { return Math.round(n / 1024) + ' KB'; }
+        return n + ' B';
     }
-});
+    function ext(name) {
+        var m = /\.([A-Za-z0-9]+)$/.exec(name || '');
+        return m ? m[1].toLowerCase() : '';
+    }
+    function showError(msg) {
+        errEl.textContent = msg;
+        errEl.hidden = !msg;
+        zone.classList.toggle('is-invalid', !!msg);
+    }
+    function validate(file) {
+        var e = ext(file.name);
+        if (!TYPES[e]) { return "That file type isn't supported. Upload a PDF, JPG, PNG, Word or Excel file."; }
+        if (file.size === 0) { return 'That file is empty.'; }
+        if (file.size > MAX_BYTES) { return 'That file is ' + fmtSize(file.size) + '. The limit is 10 MB.'; }
+        return '';
+    }
 
-// Replace file toggle (edit mode only)
-const replaceBtn = document.getElementById('replace-file-btn');
-const cancelReplaceBtn = document.getElementById('cancel-replace-btn');
-const replaceSection = document.getElementById('replace-file-section');
-const currentFileContainer = document.querySelector('.current-file-container');
+    function showAttached(file) {
+        nameEl.textContent = file.name;
+        sizeEl.textContent = fmtSize(file.size);
+        typeEl.textContent = TYPES[ext(file.name)] || 'File';
+        card.hidden = false;
+        zone.hidden = true;
+        if (cancelReplaceBtn) { cancelReplaceBtn.hidden = true; }
+    }
+    function clearAttached() {
+        input.value = '';
+        card.hidden = true;
+        zone.hidden = false;
+        showError('');
+        if (isEdit && cancelReplaceBtn) { cancelReplaceBtn.hidden = false; }
+    }
 
-if (replaceBtn && replaceSection) {
-    replaceBtn.addEventListener('click', function() {
-        currentFileContainer.style.display = 'none';
-        replaceSection.style.display = 'block';
+    function onFileChosen() {
+        var file = input.files && input.files[0];
+        if (!file) { clearAttached(); return; }
+        var problem = validate(file);
+        if (problem) {
+            input.value = '';
+            card.hidden = true;
+            zone.hidden = false;
+            showError(problem);
+            return;
+        }
+        showError('');
+        showAttached(file);
+    }
+
+    // Browse
+    input.addEventListener('change', onFileChosen);
+
+    // Keyboard: the zone is focusable; Enter/Space opens the picker.
+    zone.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); }
     });
-}
 
-if (cancelReplaceBtn && replaceSection) {
-    cancelReplaceBtn.addEventListener('click', function() {
-        replaceSection.style.display = 'none';
-        currentFileContainer.style.display = 'flex';
-        // Clear the file input
-        const fileInput = document.getElementById('id_file');
-        if (fileInput) {
-            fileInput.value = '';
-            document.getElementById('selected-file').textContent = '';
+    // Drag and drop — the input covers the zone, so the browser delivers the drop to
+    // it natively; the highlight is the only thing we add.
+    ['dragenter', 'dragover'].forEach(function (evt) {
+        zone.addEventListener(evt, function (e) { e.preventDefault(); zone.classList.add('is-dragover'); });
+    });
+    ['dragleave', 'drop'].forEach(function (evt) {
+        zone.addEventListener(evt, function () { zone.classList.remove('is-dragover'); });
+    });
+    // Dropping anywhere else on the page must not navigate away from the form.
+    ['dragover', 'drop'].forEach(function (evt) {
+        document.addEventListener(evt, function (e) {
+            if (!zone.contains(e.target)) { e.preventDefault(); }
+        });
+    });
+
+    changeBtn.addEventListener('click', function () { input.click(); });
+    removeBtn.addEventListener('click', function () { clearAttached(); zone.focus(); });
+
+    // Edit mode: Replace reveals the drop zone; "Keep current file" puts it back.
+    if (replaceBtn) {
+        replaceBtn.addEventListener('click', function () {
+            current.hidden = true;
+            zone.hidden = false;
+            cancelReplaceBtn.hidden = false;
+            zone.focus();
+        });
+    }
+    if (cancelReplaceBtn) {
+        cancelReplaceBtn.addEventListener('click', function () {
+            input.value = '';
+            card.hidden = true;
+            zone.hidden = true;
+            cancelReplaceBtn.hidden = true;
+            current.hidden = false;
+            showError('');
+        });
+    }
+
+    // Submit: validate what we can, then lock the form so a second click cannot send
+    // a second request. The server holds the same line with the upload token.
+    form.addEventListener('submit', function (e) {
+        if (submitting) { e.preventDefault(); return; }
+        var file = input.files && input.files[0];
+        if (!isEdit && !file) {
+            e.preventDefault();
+            showError('Choose a file to upload first.');
+            zone.focus();
+            return;
+        }
+        if (file) {
+            var problem = validate(file);
+            if (problem) { e.preventDefault(); showError(problem); return; }
+        }
+        var title = document.getElementById('id_title');
+        if (title && !title.value.trim()) {
+            e.preventDefault();
+            title.focus();
+            title.reportValidity();
+            return;
+        }
+        submitting = true;
+        saveBtn.disabled = true;
+        saveBtn.querySelector('.btn-save-label').hidden = true;
+        saveBtn.querySelector('.btn-save-busy').hidden = false;
+        document.getElementById('cancel-btn').classList.add('is-disabled');
+        if (file) {
+            statusText.textContent = 'Uploading ' + file.name + ' (' + fmtSize(file.size) + ')…';
+            progress.hidden = false;
+        } else {
+            statusText.textContent = 'Saving…';
         }
     });
-}
+
+    // Back/forward cache can restore a locked form — unlock it.
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) {
+            submitting = false;
+            saveBtn.disabled = false;
+            saveBtn.querySelector('.btn-save-label').hidden = false;
+            saveBtn.querySelector('.btn-save-busy').hidden = true;
+            progress.hidden = true;
+            statusText.textContent = '';
+        }
+    });
+
+    // A server-side validation error re-renders the page; the browser has forgotten
+    // the file, so say so instead of leaving the zone silently empty.
+    if (!errEl.hidden && errEl.textContent.trim() && !isEdit) {
+        statusText.textContent = 'Fix the file and choose it again.';
+    }
+})();
 </script>
 
 <style nonce="{{ csp_nonce }}">
-.breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
+.breadcrumb { display: flex; align-items: center; gap: var(--space-2); font-size: var(--font-size-sm); color: var(--color-text-muted); }
+.breadcrumb a { color: var(--color-accent); }
+.form-page { max-width: 700px; }
+.form-section { background: var(--color-background); border: 1px solid var(--color-border); border-radius: var(--radius-lg); padding: var(--space-6); margin-bottom: var(--space-6); }
+.form-section-title { font-size: var(--font-size-base); margin: 0 0 var(--space-4) 0; padding-bottom: var(--space-3); border-bottom: 1px solid var(--color-border); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+@media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
 
-.breadcrumb a {
-    color: var(--color-accent);
-}
+/* `hidden` must win over the display: flex/inline-flex the states below set */
+#document-form [hidden] { display: none !important; }
 
-.form-page {
-    max-width: 700px;
-}
+.form-alert { padding: var(--space-3) var(--space-4); border-radius: var(--radius-md); margin-bottom: var(--space-4); font-size: var(--font-size-sm); }
+.form-alert p { margin: 0; }
+.form-alert p + p { margin-top: var(--space-1); }
+.form-alert-error { background: color-mix(in srgb, var(--color-error) 10%, transparent); color: var(--color-error); border: 1px solid color-mix(in srgb, var(--color-error) 35%, transparent); }
+.form-input.is-invalid, .form-select.is-invalid { border-color: var(--color-error); }
 
-.form-section {
-    background: var(--color-background);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-6);
-    margin-bottom: var(--space-6);
-}
+/* Drop zone */
+.file-upload-area { position: relative; border: 2px dashed var(--color-border); border-radius: var(--radius-lg); padding: var(--space-8) var(--space-4); text-align: center; transition: border-color var(--transition-fast), background var(--transition-fast); }
+.file-upload-area:hover, .file-upload-area:focus-within, .file-upload-area.is-dragover { border-color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 6%, transparent); }
+.file-upload-area.is-invalid { border-color: var(--color-error); }
+.file-upload-area:focus { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.file-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.file-upload-content svg { color: var(--color-text-muted); margin-bottom: var(--space-3); }
+.file-upload-content p { margin: 0; }
+.file-upload-cta { font-weight: 500; }
+.text-accent { color: var(--color-accent); }
+.file-types { font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: var(--space-2) !important; }
 
-.form-section-title {
-    font-size: var(--font-size-base);
-    margin: 0 0 var(--space-4) 0;
-    padding-bottom: var(--space-3);
-    border-bottom: 1px solid var(--color-border);
+/* Attached-file card — the state that used to be one grey line of text */
+.attached-file { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border-radius: var(--radius-lg); border: 1px solid var(--color-border); background: var(--color-surface); }
+.attached-file-selected { border-color: color-mix(in srgb, var(--color-success) 55%, transparent); background: color-mix(in srgb, var(--color-success) 8%, var(--color-surface)); }
+.attached-file-icon { flex-shrink: 0; display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 50%; color: var(--color-accent); background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.attached-file-icon-ok { color: #fff; background: var(--color-success); }
+.attached-file-body { flex: 1; min-width: 0; }
+.attached-file-name { font-weight: 600; overflow-wrap: anywhere; }
+.attached-file-meta { display: flex; flex-wrap: wrap; gap: var(--space-1) var(--space-2); font-size: var(--font-size-sm); color: var(--color-text-muted); margin-top: 2px; }
+.attached-file-state { color: var(--color-success); font-weight: 500; }
+.attached-file-actions { display: flex; gap: var(--space-1); flex-shrink: 0; }
+.attached-file-remove { color: var(--color-error); }
+@media (max-width: 480px) {
+    .attached-file { flex-wrap: wrap; }
+    .attached-file-actions { width: 100%; justify-content: flex-end; padding-top: var(--space-2); border-top: 1px solid var(--color-border); margin-top: var(--space-1); }
+    .attached-file-actions .btn { min-height: 44px; }
 }
+.btn-sm { padding: var(--space-2) var(--space-3); font-size: var(--font-size-sm); }
+.mt-2 { margin-top: var(--space-2); }
+.checkbox-label { display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.checkbox-label input { width: 18px; height: 18px; accent-color: var(--color-accent); }
 
-.form-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-4);
+/* Sticky action bar: Save is always on screen, the fields above stay usable */
+.form-actions-sticky { position: sticky; bottom: 0; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); margin: 0 calc(-1 * var(--space-2)); background: var(--color-background); border-top: 1px solid var(--color-border); box-shadow: 0 -6px 16px rgba(0, 0, 0, 0.06); }
+.form-actions-status { flex: 1 1 200px; min-width: 0; font-size: var(--font-size-sm); color: var(--color-text-muted); overflow-wrap: anywhere; }
+.form-actions-buttons { display: flex; gap: var(--space-2); margin-left: auto; }
+.btn-save { min-width: 150px; min-height: 44px; }
+.btn-save-busy { display: inline-flex; align-items: center; gap: var(--space-2); }
+.btn[disabled] { opacity: 0.75; cursor: progress; }
+.is-disabled { pointer-events: none; opacity: 0.5; }
+.spinner { width: 14px; height: 14px; border: 2px solid rgba(255, 255, 255, 0.45); border-top-color: #fff; border-radius: 50%; animation: wlj-spin 0.8s linear infinite; }
+@keyframes wlj-spin { to { transform: rotate(360deg); } }
+.upload-progress { flex-basis: 100%; height: 4px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.upload-progress-bar { width: 40%; height: 100%; background: var(--color-accent); border-radius: 2px; animation: wlj-indeterminate 1.2s ease-in-out infinite; }
+@keyframes wlj-indeterminate { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+/* Mobile: the layout fixes a tab bar and the assistant pull-up over the bottom 120px of
+   the viewport (see .main-content padding in main.css). Stick above that, not behind it. */
+@media (max-width: 768px) {
+    .form-actions-sticky { bottom: calc(120px + env(safe-area-inset-bottom, 0px)); border-bottom: 1px solid var(--color-border); border-radius: var(--radius-md); }
 }
-
-@media (max-width: 640px) {
-    .form-row {
-        grid-template-columns: 1fr;
-    }
+@media (max-width: 480px) {
+    .form-actions-buttons { width: 100%; }
+    .form-actions-buttons .btn { flex: 1; min-height: 44px; }
 }
-
-.file-upload-area {
-    position: relative;
-    border: 2px dashed var(--color-border);
-    border-radius: var(--radius-lg);
-    padding: var(--space-8);
-    text-align: center;
-    transition: all var(--transition-fast);
-}
-
-.file-upload-area:hover {
-    border-color: var(--color-accent);
-}
-
-.file-input {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-}
-
-.file-upload-content svg {
-    color: var(--color-text-muted);
-    margin-bottom: var(--space-4);
-}
-
-.file-upload-content p {
-    margin: 0;
-}
-
-.text-accent {
-    color: var(--color-accent);
-}
-
-.file-types {
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-    margin-top: var(--space-2);
-}
-
-.current-file-container {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    flex-wrap: wrap;
-}
-
-.file-info {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3);
-    background: var(--color-surface);
-    border-radius: var(--radius-md);
-    flex: 1;
-    min-width: 200px;
-}
-
-.file-info svg {
-    color: var(--color-accent);
-    flex-shrink: 0;
-}
-
-.file-size {
-    margin-left: auto;
-    font-size: var(--font-size-sm);
-    color: var(--color-text-muted);
-}
-
-.btn-sm {
-    padding: var(--space-2) var(--space-3);
-    font-size: var(--font-size-sm);
-}
-
-.replace-file-section {
-    margin-top: var(--space-4);
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--color-border);
-}
-
-.mt-2 {
-    margin-top: var(--space-2);
-}
-
-.checkbox-label {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    cursor: pointer;
-}
-
-.checkbox-label input {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--color-accent);
-}
-
-.form-actions {
-    display: flex;
-    gap: var(--space-3);
-}
+@media (prefers-reduced-motion: reduce) { .spinner, .upload-progress-bar { animation: none; } }
 </style>
 {% endblock %}

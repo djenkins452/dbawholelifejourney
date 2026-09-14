@@ -30,6 +30,8 @@ from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
 
+from apps.ai.llm_admission import RealLLMCallDenied
+
 logger = logging.getLogger(__name__)
 
 # LLM call resilience defaults
@@ -506,9 +508,19 @@ class AIService:
         bypass_breaker: bool = False,
         skip_current_context: bool = False,
         govern_budget: int = None,
+        raise_on_refusal: bool = False,
     ) -> Optional[str]:
         """
         Make an API call to OpenAI with retry, backoff, and observability.
+
+        A COST-GOVERNOR REFUSAL IS A DECISION, NOT A FAILURE. `RealLLMCallDenied` is
+        handled apart from provider errors: never retried, never slept on, never logged as
+        "LLM FAILED". By default the call still returns None so the seventeen callers that
+        expect a list-or-None contract are untouched; a caller that must tell "refused" from
+        "the model returned nothing" passes `raise_on_refusal=True` and catches the denial
+        itself. Before this, every proactive check-in refused by the gate was retried with
+        exponential backoff, logged as a provider outage, and recorded as `empty` — so an
+        intentional hold was indistinguishable from a broken pipeline (2026-09-14).
 
         `govern_budget` sizes the token governor for THIS call. Without it the governor
         falls back to the legacy 12,000-token default, which is smaller than the
@@ -649,6 +661,14 @@ class AIService:
                     logger.debug(f"Vision response (first 200 chars): {result[:200]}")
                 return result
 
+            except RealLLMCallDenied as denied:
+                # Not a provider error — the governor said no. Retrying asks the same
+                # question again; sleeping first wastes a worker (or a web request) doing
+                # nothing; logging it as a failure makes the logs accuse the provider.
+                logger.info("LLM REFUSED BY GOVERNOR endpoint=%s: %s", endpoint, denied)
+                if raise_on_refusal:
+                    raise
+                return None
             except Exception as e:
                 elapsed = time.monotonic() - start_time
                 last_error = e

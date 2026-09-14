@@ -63427,3 +63427,82 @@ uploaded through the deployed form, then removed.
 **Not touched**: security, storage backend, document behaviour, extraction pipeline.
 `apps.scan`'s image-analysis post_save runs inline for images on the request path — noted,
 out of scope.
+
+---
+
+## 2026-09-14 — Proactive assistance ON in the UI, Clara silent: a hold audited as a bug
+
+### Today's lifecycle (audit rows, `kind="checkin"`, user local day)
+
+**30 authoring decisions, every one `empty`.** One at 01:58 EDT from the scheduled
+health-trend producer (4 signal keys: events, goal_pace, intelligence, overall); **29 between
+07:28 and 07:36 EDT** with no signals — the dashboard opening-message path
+(`get_opening_message` → `build_cos_structured_output` → `author_checkin`), fired on each
+page load while Danny used the app. Every envelope was live (overdue 4, coming up 5), so
+`has_reason_to_interrupt` passed and authoring was attempted each time.
+
+```
+producer            → candidate  → prefs   → admission → authoring → outcome     → delivered
+health_trend (sched)  4 signals    allowed   REFUSED     attempted   empty (!)     no
+dashboard greeting ×29  live day   allowed   REFUSED     attempted   empty (!)     no
+```
+
+**First stopping point: the autonomous cost gate — refusing, as designed.** The operator
+hold is in place. **Silence was intentional.** But it was audited as `empty` rather than
+`refused`, and that is the defect.
+
+### The deterministic defect
+
+`_call_api` caught `RealLLMCallDenied` as a generic provider error: it **slept and retried
+with exponential backoff**, logged `LLM FAILED`, and returned None. So every refused check-in
+(a) asked the governor the same question again, (b) burned a worker — or a **web request**,
+on the greeting path — sleeping, (c) accused the provider in the logs, and (d) reached
+`author_checkin` as None → recorded `empty`. An intentional hold became indistinguishable
+from a broken pipeline. The `except RealLLMCallDenied` in `author_checkin` never fired
+because the denial had already been swallowed one layer down.
+
+**Fix.** `_call_api` handles `RealLLMCallDenied` apart from provider errors: never retried,
+never slept on, logged as `REFUSED BY GOVERNOR` at INFO. The default contract is unchanged
+(None) so the seventeen existing callers are untouched; `raise_on_refusal=True` lets a
+caller that must distinguish refused from empty catch it — `author_checkin` now does, and
+records `refused`.
+
+### Preference / gate precedence (now written down)
+
+1. **`WLJ_PROACTIVE_AI_ENABLED`** (environment, admission seam) — the operator hold. Refuses
+   every autonomous provider call in every environment when off. Default off.
+2. **`preferences.proactive_assistance_enabled`** — the UI checkbox "Let it start things on
+   its own". Filters the scheduler's user set (`scheduler_runner`). Default False.
+3. **`preferences.assistant_proactive_checkins`** — legacy per-type chat check-in switch
+   (default True); each producer also checks it.
+4. Per-type throttles, the cross-producer interruption cooldown, then the model's judgment.
+
+Two user preferences remain from earlier implementations; both must be true. Neither can
+override (1) — which is correct, and is the state Danny's account is in.
+
+### Q1 — the flag's value, directly
+
+`WLJ_PROACTIVE_AI_ENABLED` was **not in the configuration contract**, so its presence was
+unobservable and its value had twice been inferred from behaviour, wrongly both times. It is
+now declared (`CLASS_CONFIG`, web + worker + beat) so every manifest shows set/unset, and the
+truth probe reports `proactive_gate.enabled_on_web` — the boolean the admission seam actually
+evaluates. **Value at deploy time is reported in the response to this incident, not
+guessed here.**
+
+### UI / configuration mismatch — REPORTED, not changed
+
+The preferences page shows "Let it start things on its own" checked, with copy promising
+check-ins and briefings, while the operator hold refuses every one. The product invariant —
+*if the UI says ON and a gate prevents it, make that state legible* — is currently violated.
+The honest surface is a single line on that page when the runtime gate is off ("Proactive
+assistance is currently held by the operator — your preference is saved and will apply when
+it is released"). Not built here: a product surface change while the hold is deliberate is
+Danny's call, and the instruction was to report a held pipeline before changing anything.
+
+**Tests.** `apps/core/tests/test_governor_refusal_is_a_decision.py` (9): no retry, no sleep,
+no "LLM FAILED", default contract preserved, opt-in raise, genuine errors still retry, the
+author records `refused`, the gate is in the contract and the probe reports it. **213 green.**
+
+**Files.** `apps/ai/services.py`, `apps/ai/checkin_author.py`,
+`apps/core/config_governance/contract.py`, `apps/admin_console/views.py`. Zero provider
+calls; no configuration changed; no check-in generated.

@@ -213,6 +213,20 @@ CONTRACT: tuple = (
         remediation=("Set FATSECRET_CLIENT_SECRET on Web AND Worker alongside the client "
                      "id; both are required for the service to authenticate."),
     ),
+    # The operator hold on provider-backed proactive work. Its VALUE was twice reported from
+    # admission behaviour — once as "on", once as "off", both inferred, both wrong to state.
+    # Declared here so each service's manifest shows whether it is set at all; the
+    # evaluated boolean is reported by the truth probe from the runtime that reads it.
+    VariableSpec(
+        name="WLJ_PROACTIVE_AI_ENABLED", classification=CLASS_CONFIG,
+        description="Operator gate for provider-backed autonomous (proactive) work.",
+        capability="Proactive check-ins, the Daily Executive Brief, conversation follow-ups",
+        required_services=(SERVICE_WEB, SERVICE_WORKER, SERVICE_BEAT), severity=SEV_ADVISORY,
+        preferred_source=SOURCE_SHARED, empty_valid=True,
+        remediation=("Unset or false = proactive AI is HELD (default). Set "
+                     "WLJ_PROACTIVE_AI_ENABLED=true on Web AND Worker to release it — a "
+                     "deliberate product decision, never something automation sets."),
+    ),
     VariableSpec(
         name="CLAUDE_API_KEY", classification=CLASS_SECRET,
         description="Operator/automation API key for admin task + ops-diagnostic endpoints.",

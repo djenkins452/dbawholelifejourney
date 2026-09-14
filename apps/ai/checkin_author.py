@@ -222,6 +222,8 @@ def author_checkin(user, *, phase=None, signals=None) -> str:
                 # Sized to the model, not to the legacy 12k default that truncated this
                 # prompt's task and truth away entirely.
                 govern_budget=CHECKIN_GOVERN_BUDGET,
+                # Refused and empty are different silences and must be audited apart.
+                raise_on_refusal=True,
             )
         except RealLLMCallDenied:
             # The cost gate refused an unattended call. That is the gate WORKING, and it

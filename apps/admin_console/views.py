@@ -3879,10 +3879,22 @@ class TruthProbeAPIView(APIRateLimitMixin, View):
         if food_query:
             food_probe = self._food_search_probe(food_query, user)
 
+        # --- PROACTIVE GATE, as the runtime actually evaluates it (a boolean, not a
+        # secret). Read here on WEB from the same function the admission seam calls;
+        # the worker's SET/UNSET state is in config_presence above. This is what stops
+        # the flag's value being inferred from whether calls were refused.
+        try:
+            from apps.ai.llm_admission import proactive_ai_enabled
+            proactive_gate = {'enabled_on_web': bool(proactive_ai_enabled()),
+                              'authority': 'settings.WLJ_PROACTIVE_AI_ENABLED'}
+        except Exception as exc:
+            proactive_gate = {'error': repr(exc)[:200]}
+
         return JsonResponse({
             'web_commit': web_commit,
             'worker_build': worker_build,
             'config_presence': config_presence,
+            'proactive_gate': proactive_gate,
             'food_probe': food_probe,
             'probe': {'email': user.email, 'domain': domain, 'subject': subject,
                       'period': period},

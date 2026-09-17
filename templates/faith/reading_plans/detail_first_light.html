@@ -65,14 +65,22 @@
 
         {# The first week, at a glance — what the road looks like. #}
         {% if days %}
-        <h2 class="fl-section-heading">The first days</h2>
+        {# When the preview IS the whole plan, say so; "the first days" implies more follow. #}
+        <h2 class="fl-section-heading">{% if plan.duration_days > days|length %}The first {{ days|length }} days{% else %}Every day of the journey{% endif %}</h2>
         <div class="fl-days-preview">
           {% for d in days %}
           <div class="fl-day-row">
             <span class="fl-day-num fl-tnum">{{ d.day_number }}</span>
             <span class="fl-day-info">
-              <span class="fl-day-title">{{ d.title|default:d.scripture_references|join:", " }}</span>
-              {% if d.title and d.scripture_references %}<span class="fl-day-ref fl-tnum">{{ d.scripture_references|join:", " }}</span>{% endif %}
+              {% comment %}Filters chain left to right: `title|default:refs|join` handed the
+              TITLE STRING to join, which iterated its characters. A string and a list need
+              different rendering — branch, don't chain.{% endcomment %}
+              {% if d.title %}
+              <span class="fl-day-title">{{ d.title }}</span>
+              {% if d.scripture_references %}<span class="fl-day-ref fl-tnum">{{ d.scripture_references|join:", " }}</span>{% endif %}
+              {% else %}
+              <span class="fl-day-title">{{ d.scripture_references|join:", " }}</span>
+              {% endif %}
             </span>
           </div>
           {% endfor %}

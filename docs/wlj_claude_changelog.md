@@ -63597,3 +63597,32 @@ suites.
 
 **Files.** `apps/users/views.py`, `templates/users/preferences.html`. No behaviour change
 to proactive authoring. Zero provider calls.
+
+## 2026-09-16 — Reading-plan day titles rendered as letters ("D, o, I, H, a, v, e…")
+
+**Where:** `/faith/reading-plans/<slug>/` under First Light (`detail_first_light.html`).
+
+**Data was correct.** Checked production read-only: every `ReadingPlanDay.title` is a string,
+every `scripture_references` is a list — for every plan, not just this one. Nothing was
+patched in the database.
+
+**The defect was one template expression:**
+`{{ d.title|default:d.scripture_references|join:", " }}`. Django filters chain left to
+right. When a title exists, `default` returns the title — a *string* — and `join` then
+iterates it character by character. The fallback (no title → join the reference list) was
+the only case that worked, which is why it looked like a data problem. A string and a list
+need different rendering; the template now branches instead of chaining.
+
+**Heading:** "The first days" is grammatical but was untrue for this plan — it previews up
+to 7 days, and a 6-day plan shows all of them. It now reads "The first 7 days" when more
+follow and "Every day of the journey" when the preview is the whole plan.
+
+**Audit:** every `|join` in `templates/faith/` now sits on a known list field
+(`scripture_references`, `scripture_refs`, `topics`); a static contract test rejects any
+`|default:…|join` chain and any `|join` on a value that is not a known list.
+
+**Verified:** 8 focused tests push the real titles through the real template (First Light
+and classic), assert each day once in order with references, the untitled fallback, the
+honest heading, and the static guard — proven to fail with the original expression
+reinstated. `apps.faith` + request-path contract: 304 OK. Browser: hero starts below the
+fixed header on desktop and 375px; no horizontal overflow; zero rows overflow at 375px.

@@ -63705,3 +63705,15 @@ then committed), and a normal run. Rehearsal databases and files were deleted af
 `apps/core/management/commands/prune_telemetry.py`, `config/settings.py`,
 `apps/core/tests/test_data_retention.py`, `apps/core/ai_observability/tests_diagnostics.py`,
 `scripts/ops/*.py` (new), `docs/WLJ_TELEMETRY_RETENTION_RUNBOOK.md` (new), `.gitignore`.
+
+---
+
+## 2026-10-21 (c) — Restore verification: sequence check corrected for a live database
+
+First production backup (315 MB, 566 tables) restored with every table's row count and max(id)
+exact, but 6 sequences on continuously-written tables differed from the manifest. Sequences are
+not MVCC — pg_dump records each value when it reaches it, not at the exported snapshot — so on a
+live database exact equality is the wrong test. `wlj_restore_verify.py` now fails on: a missing
+sequence, a used/unused mismatch with production, or a restored value below max() of the column
+it feeds (the collision invariant). Drift is reported, not failed. Re-verification: PASS.
+Files: `scripts/ops/wlj_restore_verify.py`.

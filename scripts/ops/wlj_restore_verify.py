@@ -10,7 +10,8 @@ restored copy is the source for telemetry_recover.py).
 
 Checks: sha256 of the dump; pg_restore exits 0 with --exit-on-error; every
 manifest table exists with the same row count and max(id); every sequence has
-the same last_value.
+the restored sequence at least max() of the column it feeds (sequences are not
+MVCC, so their exact value on a live database is reported, not compared).
 
 Usage:
     python3 scripts/ops/wlj_restore_verify.py ~/WLJ-Backups/wlj-<stamp>.dump [--keep]
@@ -101,11 +102,37 @@ def main() -> int:
                 got = cur.fetchone()[0]
                 if got != expected["max_id"]:
                     failures.append(f"{table}: max(id) {got} != {expected['max_id']}")
+        # Sequences are not MVCC: pg_dump records each value when it reaches it,
+        # not at the snapshot, so on a live database it can differ from the
+        # manifest either way. That difference is reported, not failed. What must
+        # hold is "no collision": a restored sequence that has been used is >= the
+        # max() of the restored column it feeds; an unused one (NULL) matches prod.
         cur.execute("select sequencename, last_value from pg_sequences where schemaname='public'")
         restored_seq = dict(cur.fetchall())
+        drifted = 0
         for name, last in manifest["sequences"].items():
-            if restored_seq.get(name) != last:
-                failures.append(f"sequence {name}: {restored_seq.get(name)} != {last}")
+            if name not in restored_seq:
+                failures.append(f"sequence {name}: missing")
+            elif (last is None) != (restored_seq[name] is None):
+                failures.append(f"sequence {name}: used/unused state differs (restored {restored_seq[name]}, prod {last})")
+            elif restored_seq[name] != last:
+                drifted += 1
+        cur.execute(
+            """select s.relname, t.relname, a.attname from pg_class s
+               join pg_depend d on d.objid = s.oid and d.deptype in ('a', 'i')
+               join pg_class t on t.oid = d.refobjid
+               join pg_attribute a on a.attrelid = t.oid and a.attnum = d.refobjsubid
+               where s.relkind = 'S'"""
+        )
+        for seq, table, col in cur.fetchall():
+            got = restored_seq.get(seq)
+            if got is None:
+                continue  # unused in production too (checked above)
+            cur.execute(f'select max("{col}") from public."{table}"')
+            top = cur.fetchone()[0]
+            if isinstance(top, int) and got < top:
+                failures.append(f"sequence {seq}: restored {got} < max({table}.{col}) {top}")
+        print(f"sequences whose value moved between dump and manifest (live writes, expected): {drifted}")
         cur.execute("select pg_database_size('wlj_restore')")
         size = cur.fetchone()[0]
         conn.close()
@@ -122,7 +149,7 @@ def main() -> int:
     if failures:
         print("FAIL\n  " + "\n  ".join(failures[:50]), file=sys.stderr)
         return 1
-    print("PASS restored copy matches the manifest exactly")
+    print("PASS rows and max(id) exact for every table; sequences collision-safe")
     if args.keep:
         print(f"restored cluster left running: host={sock} port={args.port} db=wlj_restore user=postgres")
         print(f"stop + delete with: {pg}/pg_ctl -D {cluster} -m fast stop && rm -rf {cluster} {sock}")

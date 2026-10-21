@@ -116,3 +116,8 @@ frontend/tiptap/node_modules/
 
 # Isolated Renpho auth POC (experimental — never commit/deploy)
 poc_renpho/
+
+# Database backups / restore clusters must never be committed
+*.dump
+*.manifest.json
+*.restore-cluster/

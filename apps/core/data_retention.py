@@ -24,6 +24,14 @@ Deletion is bounded and resumable:
   run continues where it stopped;
 - ``dry_run`` counts eligible rows and deletes nothing.
 
+Activation is OFF by default. Live deletion only touches tables named in
+``settings.WLJ_TELEMETRY_RETENTION_TABLES`` (env, comma list; ``all`` = every
+policy). Empty = nothing is deleted by the nightly task, ``prune_telemetry``, or
+the legacy ``cleanup_*`` aliases — all of which route through ``run_retention``.
+Live runs hold a DB lock (``core_scheduler_lock`` row ``telemetry_retention``)
+so a scheduled and a manual run can never overlap; if the lock cannot be
+checked the run refuses (fail closed).
+
 None of these models is referenced by a ForeignKey/OneToOne from any other
 model and none has delete signals, so a batch delete is a single DELETE.
 """
@@ -31,14 +39,18 @@ model and none has delete signals, so a batch delete is a single DELETE.
 from __future__ import annotations
 
 import logging
+import os
+import socket
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Callable
 
 from django.apps import apps as django_apps
 from django.conf import settings
-from django.db.models import Q, QuerySet
+from django.db import IntegrityError
+from django.db.models import Exists, OuterRef, Q, QuerySet
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -65,6 +77,27 @@ def _protect_latest_run_per_engine(qs: QuerySet) -> QuerySet:
         for name in model.objects.values_list("engine_name", flat=True).distinct().order_by()
     ]
     return qs.exclude(pk__in=latest_ids)
+
+
+def _protect_conversation_referenced_briefings(qs: QuerySet) -> QuerySet:
+    """Never delete a snapshot that was live when the user sent a chat message.
+
+    The CoS injects the latest non-expired snapshot into the prompt
+    (cos_context._build_health_briefing_slot); prompts are not persisted, so the
+    snapshot itself is the only record of what the assistant was told. A
+    snapshot whose [generated_at, expires_at) window covers a user turn is kept
+    regardless of age (a deliberate superset: it does not depend on which
+    runtime served the turn).
+    """
+    from apps.ai.models import AssistantMessage
+
+    turns = AssistantMessage.objects.filter(
+        conversation__user=OuterRef("user"),
+        role="user",
+        created_at__gte=OuterRef("generated_at"),
+        created_at__lt=OuterRef("expires_at"),
+    )
+    return qs.exclude(Exists(turns))
 
 
 @dataclass(frozen=True)
@@ -155,9 +188,11 @@ RETENTION_POLICIES: tuple[RetentionPolicy, ...] = (
         model_label="core.HealthBriefingSnapshot",
         timestamp_field="generated_at",
         retention_days=30,
-        rationale="Only reader: CoS context, latest snapshot under its 30-min TTL "
-        "(cos_context._build_health_briefing_slot). Older rows are kept 30 days for the "
-        "documented forensic replay by briefing_id (which appears only in logs).",
+        rationale="Only code reader: CoS context, latest snapshot under its 30-min TTL "
+        "(cos_context._build_health_briefing_slot). Prompts are not persisted, so a snapshot that "
+        "was live during a user's chat turn is the only record of what the assistant was told — "
+        "those are kept forever. The rest (never shown to a conversation) are kept 30 days.",
+        protect=_protect_conversation_referenced_briefings,
     ),
 )
 
@@ -174,6 +209,7 @@ class PurgeResult:
     batches: int = 0
     complete: bool = True
     error: str | None = None
+    skipped: str | None = None  # "disabled" when the table is not activated
 
     def as_dict(self) -> dict:
         return {
@@ -185,7 +221,61 @@ class PurgeResult:
             "batches": self.batches,
             "complete": self.complete,
             "error": self.error,
+            "skipped": self.skipped,
         }
+
+
+class RetentionBusy(RuntimeError):
+    """Another live retention run holds the lock (or it could not be checked)."""
+
+
+LOCK_NAME = "telemetry_retention"
+LOCK_STALE_SECONDS = 900  # refreshed after every batch; stale only if the holder died
+
+
+def enabled_keys() -> set[str]:
+    """Tables activated for LIVE deletion. Empty by default (nothing deleted)."""
+    configured = [k.strip() for k in getattr(settings, "WLJ_TELEMETRY_RETENTION_TABLES", []) or [] if k.strip()]
+    if "all" in configured:
+        return set(POLICIES_BY_KEY)
+    return {k for k in configured if k in POLICIES_BY_KEY}
+
+
+@contextmanager
+def retention_run_lock():
+    """Exclusive lock for live runs. Fails CLOSED: any error checking it refuses the run."""
+    from apps.core.ai_scheduler.scheduler_models import SchedulerLock
+
+    me = f"{socket.gethostname()}-{os.getpid()}-{time.monotonic_ns()}"
+    now = timezone.now()
+    try:
+        lock, created = SchedulerLock.objects.get_or_create(
+            lock_name=LOCK_NAME, defaults={"locked_at": now, "locked_by": me}
+        )
+        if not created:
+            if (now - lock.locked_at).total_seconds() < LOCK_STALE_SECONDS:
+                raise RetentionBusy(f"retention already running ({lock.locked_by})")
+            # Stale holder: take over only if nobody else did first (compare-and-set).
+            taken = SchedulerLock.objects.filter(pk=lock.pk, locked_at=lock.locked_at).update(
+                locked_at=now, locked_by=me
+            )
+            if not taken:
+                raise RetentionBusy("retention lock taken by another run")
+            logger.warning("Telemetry retention took over stale lock from %s", lock.locked_by)
+    except RetentionBusy:
+        raise
+    except IntegrityError as exc:
+        raise RetentionBusy("retention lock race") from exc
+    except Exception as exc:
+        raise RetentionBusy(f"retention lock unavailable: {exc}") from exc
+
+    def refresh():
+        SchedulerLock.objects.filter(lock_name=LOCK_NAME, locked_by=me).update(locked_at=timezone.now())
+
+    try:
+        yield refresh
+    finally:
+        SchedulerLock.objects.filter(lock_name=LOCK_NAME, locked_by=me).delete()
 
 
 def eligible_queryset(policy: RetentionPolicy, now=None) -> QuerySet:
@@ -215,6 +305,7 @@ def purge(
     max_batches: int | None = None,
     deadline: float | None = None,
     pause_seconds: float = 0.0,
+    on_batch: Callable[[], None] | None = None,
     now=None,
 ) -> PurgeResult:
     """Delete one policy's expired rows oldest-first in bounded batches."""
@@ -243,6 +334,8 @@ def purge(
         deleted, _ = model.objects.filter(pk__in=ids).delete()
         result.deleted += deleted
         result.batches += 1
+        if on_batch is not None:
+            on_batch()
         if len(ids) < batch_size:
             break
         if pause_seconds:
@@ -259,21 +352,45 @@ def run_retention(
     time_budget_seconds: float | None = None,
     pause_seconds: float = 0.0,
 ) -> list[PurgeResult]:
-    """Run every (or the named) retention policy. One table's failure never
-    stops the others; failures are logged at ERROR and reported in the result."""
+    """Run every (or the named) retention policy.
+
+    Dry runs count every requested table and need no activation or lock. Live
+    runs delete only from activated tables (``enabled_keys``), under the run
+    lock (raises ``RetentionBusy`` if held). One table's failure never stops
+    the others; failures are logged at ERROR and reported in the result.
+    """
     policies = [POLICIES_BY_KEY[k] for k in keys] if keys else list(RETENTION_POLICIES)
-    deadline = time.monotonic() + time_budget_seconds if time_budget_seconds else None
+    if dry_run:
+        return _run(policies, dry_run=True, batch_size=batch_size)
+
+    active = enabled_keys()
+    disabled = [
+        PurgeResult(key=p.key, table=p.model._meta.db_table, retention_days=p.days(), skipped="disabled")
+        for p in policies
+        if p.key not in active
+    ]
+    runnable = [p for p in policies if p.key in active]
+    if not runnable:
+        logger.info("Telemetry retention: no activated tables (WLJ_TELEMETRY_RETENTION_TABLES); nothing deleted")
+        return disabled
+    with retention_run_lock() as refresh:
+        results = _run(
+            runnable,
+            dry_run=False,
+            batch_size=batch_size,
+            max_batches=max_batches,
+            deadline=time.monotonic() + time_budget_seconds if time_budget_seconds else None,
+            pause_seconds=pause_seconds,
+            on_batch=refresh,
+        )
+    return results + disabled
+
+
+def _run(policies, **kwargs) -> list[PurgeResult]:
     results = []
     for policy in policies:
         try:
-            result = purge(
-                policy,
-                dry_run=dry_run,
-                batch_size=batch_size,
-                max_batches=max_batches,
-                deadline=deadline,
-                pause_seconds=pause_seconds,
-            )
+            result = purge(policy, **kwargs)
         except Exception as exc:  # report, continue with the next table
             logger.error("Telemetry retention failed for %s", policy.key, exc_info=True)
             result = PurgeResult(

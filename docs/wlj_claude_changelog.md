@@ -63665,3 +63665,43 @@ walk the pk index.
 **Not done (needs approval):** no production rows deleted, no table compacted, nothing
 merged or pushed. Found during review: the WLJ Postgres volume has **no Railway backups and
 no backup schedule**.
+
+---
+
+## 2026-10-21 (b) — Telemetry retention: activation gate, run lock, briefing preservation, backup/recovery tooling (branch `telemetry-retention`, NOT deployed)
+
+**Why:** review of the first retention change before any production execution.
+
+- **Off by default.** `WLJ_TELEMETRY_RETENTION_TABLES` (env, empty by default; keys or `all`). With it
+  empty, the nightly task, `prune_telemetry`, and the legacy `cleanup_api_logs` / `cleanup_diagnostics`
+  aliases delete nothing; dry runs always work. Activation is per table.
+- **No overlap.** Live runs hold the `telemetry_retention` row in `core_scheduler_lock`, refreshed every
+  batch, stale after 15 min; fail CLOSED if it cannot be checked. Nightly run reports `busy`, manual
+  run exits non-zero.
+- **Health-briefing history.** Prompts are not persisted, so a snapshot live during a user's chat turn
+  is the only record of what the assistant was told. Any snapshot whose [generated_at, expires_at)
+  window covers that user's message is kept forever (production: 1,472 snapshots, 2.5 MB). Only
+  snapshots no conversation could have seen expire at 30 days.
+- **Weight-tuner cadence** tested: a purge moves which decision triggers tuning (count % 50), not the
+  interval; feedback rows survive; with no feedback (production today) it never fires either way.
+- **Ops tools** (`scripts/ops/`): `wlj_db_backup.py` (pg_dump on an exported snapshot + an exact
+  manifest; 0700/0600; refuses git work trees), `wlj_restore_verify.py` (restore into an isolated
+  socket-only cluster, exact count/max-id/sequence check), `telemetry_recover.py` (TEMP-table stage,
+  FK-orphan filter, ON CONFLICT DO NOTHING, monotonic sequence), `telemetry_compact_pilot.py`
+  (VACUUM FULL with separate lock_timeout / statement_timeout, blocked-session + health monitor
+  that auto-cancels, temp-space preflight). Runbook: `docs/WLJ_TELEMETRY_RETENTION_RUNBOOK.md`.
+- `.gitignore` guards `*.dump`, `*.manifest.json`, `*.restore-cluster/`.
+
+**Verified:** 40 retention tests (activation, lock, briefing, tuner, windows) and the affected suites
+(452 tests) pass on local Postgres. Local rehearsal (synthetic data only): backup → isolated restore
+PASS (562 tables, 532 sequences exact); a tampered manifest FAILs. Selective recovery handled an
+overlapping window (96 already present, 552 inserted), post-backup rows (intact), a deleted user
+(120 FK orphans skipped), an idempotent re-run (0 inserted), and a lagging sequence (100 → 1446,
+next id 1447). The compaction pilot was exercised on four paths: lock timeout (3.08 s, nothing
+changed), statement timeout (rolled back), a blocked writer (auto-cancelled at 1.0 s, the writer
+then committed), and a normal run. Rehearsal databases and files were deleted afterwards.
+
+**Files:** `apps/core/data_retention.py`, `apps/core/jobs.py`, `apps/core/tasks.py`,
+`apps/core/management/commands/prune_telemetry.py`, `config/settings.py`,
+`apps/core/tests/test_data_retention.py`, `apps/core/ai_observability/tests_diagnostics.py`,
+`scripts/ops/*.py` (new), `docs/WLJ_TELEMETRY_RETENTION_RUNBOOK.md` (new), `.gitignore`.

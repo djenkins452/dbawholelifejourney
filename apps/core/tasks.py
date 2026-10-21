@@ -814,8 +814,7 @@ def cleanup_soft_deletes_task():
 def prune_telemetry_task():
     """Daily telemetry retention. Bounded to ~8 min; resumes next run."""
     from apps.core.jobs import prune_telemetry
-    result = prune_telemetry()
-    return {"status": "ok", **result}
+    return prune_telemetry()
 
 
 @shared_task(

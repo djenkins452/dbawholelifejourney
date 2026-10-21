@@ -1651,6 +1651,11 @@ WLJ_PROACTIVE_AI_ENABLED = env.bool('WLJ_PROACTIVE_AI_ENABLED', default=False)
 # Resolver: apps.core.operations.recovery.mode.get_recovery_mode(). An explicit mode
 # always wins; the legacy OPS_RECOVERY_ENABLED=True below bridges to ACTIVE ONLY when
 # mode is left at the DISABLED default (never upgrades an explicit SHADOW). Ships DISABLED.
+# Telemetry retention activation (apps/core/data_retention.py). Comma list of
+# policy keys whose expired rows may be DELETED, or "all". EMPTY by default:
+# the nightly task, prune_telemetry and the legacy cleanup_* aliases delete
+# nothing until an operator activates tables after backup verification.
+WLJ_TELEMETRY_RETENTION_TABLES = env.list('WLJ_TELEMETRY_RETENTION_TABLES', default=[])
 OPS_RECOVERY_MODE = env.str('OPS_RECOVERY_MODE', default='DISABLED')
 # Legacy master switch (retained for back-compat + the existing pilot allowlists).
 # True → ACTIVE when OPS_RECOVERY_MODE is unset/DISABLED. Default OFF.

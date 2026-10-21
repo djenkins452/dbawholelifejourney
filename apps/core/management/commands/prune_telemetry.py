@@ -14,7 +14,9 @@ Usage:
     python manage.py prune_telemetry --time-budget 3600     # initial backlog run
     python manage.py prune_telemetry --list                 # show policies + rationale
 
-Exits non-zero if any table failed, so a scheduler records the failure.
+Live deletion only touches tables activated in WLJ_TELEMETRY_RETENTION_TABLES
+(empty by default — a live run then deletes nothing and says so). --dry-run
+always works. Exits non-zero if any table failed or another run holds the lock.
 """
 
 from django.core.management.base import BaseCommand, CommandError
@@ -23,6 +25,8 @@ from apps.core.data_retention import (
     DEFAULT_BATCH_SIZE,
     POLICIES_BY_KEY,
     RETENTION_POLICIES,
+    RetentionBusy,
+    enabled_keys,
     run_retention,
 )
 
@@ -43,22 +47,29 @@ class Command(BaseCommand):
 
     def handle(self, *args, **opts):
         if opts["list"]:
+            active = enabled_keys()
             for p in RETENTION_POLICIES:
-                self.stdout.write(f"{p.key:28} {p.model._meta.db_table:34} {p.days():>3}d  {p.rationale}")
+                state = "ACTIVE  " if p.key in active else "disabled"
+                self.stdout.write(f"{p.key:28} {state} {p.model._meta.db_table:34} {p.days():>3}d  {p.rationale}")
             return
 
-        results = run_retention(
-            opts["only"],
-            dry_run=opts["dry_run"],
-            batch_size=opts["batch_size"],
-            max_batches=opts["max_batches"],
-            time_budget_seconds=opts["time_budget"],
-            pause_seconds=opts["pause"],
-        )
+        try:
+            results = run_retention(
+                opts["only"],
+                dry_run=opts["dry_run"],
+                batch_size=opts["batch_size"],
+                max_batches=opts["max_batches"],
+                time_budget_seconds=opts["time_budget"],
+                pause_seconds=opts["pause"],
+            )
+        except RetentionBusy as exc:
+            raise CommandError(f"Telemetry retention not started: {exc}") from exc
         mode = "DRY RUN" if opts["dry_run"] else "LIVE"
         self.stdout.write(f"Telemetry retention ({mode})")
         for r in results:
-            if r.error:
+            if r.skipped:
+                line = f"  {r.table:34} skipped ({r.skipped}; not in WLJ_TELEMETRY_RETENTION_TABLES)"
+            elif r.error:
                 line = f"  {r.table:34} FAILED: {r.error}"
             elif opts["dry_run"]:
                 line = f"  {r.table:34} keep {r.retention_days:>3}d  eligible={r.eligible}"

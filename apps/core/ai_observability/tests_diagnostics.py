@@ -1006,6 +1006,7 @@ class OpsFeedTests(TestCase):
 # ==========================================================================
 
 
+@override_settings(WLJ_TELEMETRY_RETENTION_TABLES=["all"])
 class CleanupDiagnosticsCommandTests(TestCase):
     """Test the cleanup_diagnostics management command."""
 

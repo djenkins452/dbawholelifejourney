@@ -61,16 +61,24 @@ def prune_telemetry():
     Scheduled: Daily at 3:45 AM UTC
     """
     logger.info("Starting telemetry retention job...")
-    from apps.core.data_retention import run_retention
+    from apps.core.data_retention import RetentionBusy, enabled_keys, run_retention
 
-    results = run_retention(time_budget_seconds=480, pause_seconds=0.05)
-    summary = {r.key: r.deleted for r in results}
+    if not enabled_keys():
+        logger.info("Telemetry retention job: disabled (WLJ_TELEMETRY_RETENTION_TABLES empty)")
+        return {"status": "disabled"}
+    try:
+        results = run_retention(time_budget_seconds=480, pause_seconds=0.05)
+    except RetentionBusy as exc:
+        # A manual run holds the lock — skipping is correct, not a failure.
+        logger.warning("Telemetry retention job skipped: %s", exc)
+        return {"status": "busy"}
+    summary = {r.key: r.deleted for r in results if not r.skipped}
     partial = [r.key for r in results if not r.complete and not r.error]
     failed = [r.key for r in results if r.error]
     logger.info("Telemetry retention deleted=%s partial=%s failed=%s", summary, partial, failed)
     if failed:
         raise RuntimeError(f"Telemetry retention failed for: {', '.join(failed)}")
-    return {"deleted": summary, "partial": partial}
+    return {"status": "ran", "deleted": summary, "partial": partial}
 
 
 def generate_faith_reminders():

@@ -188,6 +188,44 @@ class DiagnosticEngineUnitTests(TestCase):
         self.assertIn("status", result)
         self.assertIn("components", result)
 
+    def _engine_run(self, engine_name, hours_ago, status="success"):
+        import uuid
+        from datetime import timedelta
+
+        from apps.core.ai_observability.models import EngineRun
+
+        started = timezone.now() - timedelta(hours=hours_ago)
+        return EngineRun.objects.create(
+            trace_id=str(uuid.uuid4()), engine_name=engine_name, phase=3,
+            started_at=started, ended_at=started, status=status,
+        )
+
+    def test_engine_starvation_evidence_computes_real_status(self):
+        """Regression: queried a non-existent ``completed_at`` → always ERROR."""
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        self._engine_run("PIE", hours_ago=1)
+        self._engine_run("PRIE", hours_ago=30)
+
+        result = get_metric_evidence("ENGINE_STARVATION")
+        self.assertNotIn("error", result)
+        self.assertEqual(result["status"], "DEGRADED")
+        by_name = {c["name"]: c["status"] for c in result["components"]}
+        self.assertEqual(by_name, {"PIE": "OK", "PRIE": "FAIL"})
+
+    def test_error_spike_evidence_computes_real_status(self):
+        """Regression: filtered on a non-existent ``completed_at`` → always ERROR."""
+        from apps.core.ai_observability.diagnostic_engine import get_metric_evidence
+
+        self._engine_run("SAE", hours_ago=0.1, status="error")
+        self._engine_run("SAE", hours_ago=0.2, status="success")
+        self._engine_run("SAE", hours_ago=5, status="error")  # outside 1h window
+
+        result = get_metric_evidence("ERROR_SPIKE")
+        self.assertNotIn("error", result)
+        self.assertEqual(result["status"], "DEGRADED")
+        self.assertEqual(result["components"][0]["value"], "1/2 errors (50%)")
+
     def test_investigate_pipeline_action(self):
         """investigate_pipeline action returns structured result."""
         from apps.core.ai_observability.ops_telemetry import _execute_action

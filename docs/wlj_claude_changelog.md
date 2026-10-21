@@ -5,6 +5,17 @@
 # Created: 2025-12-28
 # Last Updated: 2026-08-20 (chore: retire the exec-sentinel harness + drop dead imports; repairs an orphaned reference) — previously 2026-08-21 (fix(cos): medication-question deflection — escalation re-keyed from TOPIC to DECISION; a bare referral is never a complete answer) — previously 2026-08-20 (fix(test-infra): remove the `apps.ai` suite deadlock — CoS context builders must never be parallelised inside an open transaction) — previously 2026-08-20 (docs: ENGINE_COS_REFERENCE documents the Model Interface runtime; legacy pipeline marked LEGACY) — previously 2026-08-02 (fix(cos): separate CONSIDER-all (mandatory) from PRESENT-all (a reporter's reflex) — reason over everything, say only the vital few; reason-over-all preserved)
 # ================================================================# WLJ Change History
+## 2026-10-21 — fix(ops): ENGINE_STARVATION / ERROR_SPIKE metric evidence always reported ERROR
+
+**Defect:** the Ops Wall evidence panel (`get_metric_evidence`, reached from `ops_views.py` metric-evidence endpoint) queried `EngineRun.completed_at` — a field that does not exist (model has `started_at`/`ended_at`/`created_at`). Both `_evidence_engine_starvation` (`Max("completed_at")`) and `_evidence_error_spike` (`completed_at__gte` 1h window) raised `FieldError`, which the broad `except` turned into `status: ERROR` on every call. The `_scan_*` diagnostics were unaffected (they already used `started_at`).
+
+**Fix:** both evidence checks now use `started_at` — always set (`ended_at` is NULL while a run is in flight), indexed `(engine_name, -started_at)`, and the same clock `_scan_engine_starvation` / `_scan_error_spike` use, so evidence and scan agree.
+
+**Why existing tests missed it:** they asserted only key presence, which an ERROR payload satisfies. New regression tests seed real `EngineRun` rows and assert computed statuses (proven red on the old code with `Cannot resolve keyword 'completed_at'`).
+
+- **Files:** `apps/core/ai_observability/diagnostic_engine.py`, `apps/core/ai_observability/tests_diagnostic_engine.py`
+- **Verification:** `apps.core.ai_observability` — 428 tests OK.
+
 ## 2026-09-05 — fix(cos): Nutrition correction — CoS can now ADDRESS, UPDATE, and DELETE a specific FoodEntry (no more duplicate-on-correct, no more removal loop)
 
 **Observable defect (production transcript):** told to *fix* an already-logged food, the CoS logged a **second** one (*"you duplicated everything by adding them again instead of 'Updating' them"*); told to *remove* the duplicates, it narrated *"I'll clean this up now"* three times and executed nothing. It also logged a whole dinner as 0/unknown and then **denied** it could estimate nutrition.

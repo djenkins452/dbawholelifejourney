@@ -138,9 +138,11 @@ def _evidence_engine_starvation():
         from apps.core.ai_observability.models import EngineRun
         from django.db.models import Max
 
-        # Get the latest run per engine
+        # Get the latest run per engine. EngineRun has no ``completed_at``;
+        # ``started_at`` is always set (``ended_at`` is NULL while in flight)
+        # and matches _scan_engine_starvation's clock.
         engines = EngineRun.objects.values("engine_name").annotate(
-            last_run=Max("completed_at"),
+            last_run=Max("started_at"),
         ).order_by("engine_name")
 
         starved = 0
@@ -187,7 +189,7 @@ def _evidence_error_spike():
         # Error rates in last 1h per engine
         window = now - timedelta(hours=1)
         engines = EngineRun.objects.filter(
-            completed_at__gte=window,
+            started_at__gte=window,
         ).values("engine_name").annotate(
             total=Count("id"),
             errors=Count("id", filter=models_Q(status="error")),

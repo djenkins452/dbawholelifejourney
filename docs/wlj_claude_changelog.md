@@ -63626,3 +63626,42 @@ and classic), assert each day once in order with references, the untitled fallba
 honest heading, and the static guard — proven to fail with the original expression
 reinstated. `apps.faith` + request-path contract: 304 OK. Browser: hero starts below the
 fixed header on desktop and 375px; no horizontal overflow; zero rows overflow at 375px.
+
+---
+
+## 2026-10-21 — Telemetry retention: one policy registry, bounded batched purge (branch `telemetry-retention`, NOT deployed)
+
+**Why:** Railway cost review. WLJ Postgres holds ~7.15 GB of RAM (≈$73/mo) and its memory
+has tracked on-disk size in lockstep since July (+~0.85 GB/month). The database is 6.5 GB;
+**5.74 GB (88%) is eight append-only telemetry tables** whose cleanup either never existed
+(heartbeat, integrity snapshot, arbitration log, health-briefing snapshot) or existed as
+commands nothing ever scheduled (`cleanup_diagnostics`, `cleanup_api_logs`).
+
+**What:** `apps/core/data_retention.py` — ONE registry of per-table retention, each window
+derived from the longest lookback of any traced reader (rationale stored per policy), and
+ONE purge path: oldest-first primary-key batches (keyset), each its own short transaction;
+time budget / batch cap with resumable `complete=False`; dry-run counts; per-table failure
+isolation, logged at ERROR and raised so the scheduled-task monitor records it.
+Preserved by design: the latest `EngineRun` per engine (a purge must never turn a stalled
+weekly engine's MISSED into a silent NEVER_RUN), arbitration rows with user feedback
+(the weight tuner's only signal), anomaly API logs for 90 days.
+- `prune_telemetry` management command (`--dry-run`, `--only`, `--time-budget`, `--list`).
+- `cleanup_diagnostics` / `cleanup_api_logs` now delegate to it. The old fixed 7-day
+  diagnostics window was removed: it deleted the only run of weekly engines.
+- Daily crontab beat `telemetry-retention-daily-345am-utc` → `core.prune_telemetry`.
+
+**Files:** `apps/core/data_retention.py` (new), `apps/core/management/commands/prune_telemetry.py`
+(new), `cleanup_diagnostics.py`, `cleanup_api_logs.py`, `apps/core/jobs.py`, `apps/core/tasks.py`,
+`config/settings.py`, `apps/core/tests/test_data_retention.py` (new),
+`apps/core/ai_observability/tests_diagnostics.py`, `docs/ENGINE_COS_REFERENCE.md`.
+
+**Verified:** 22 new tests + updated diagnostics test; affected suites (ai_observability
+diagnostics, beat durability, scheduled-task monitor, health_briefing, ai_arbitration,
+request-path contract) 435 OK. Local Postgres rehearsal (2M heartbeat + 1M run rows):
+2.27M rows purged in 83 s; DELETE alone left files at 493 MB/445 MB, VACUUM FULL brought
+them to 48 MB/176 MB in 0.5 s/5 s. Production planner (read-only EXPLAIN): batch lookups
+walk the pk index.
+
+**Not done (needs approval):** no production rows deleted, no table compacted, nothing
+merged or pushed. Found during review: the WLJ Postgres volume has **no Railway backups and
+no backup schedule**.

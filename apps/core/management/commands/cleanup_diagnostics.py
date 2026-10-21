@@ -1,50 +1,32 @@
 """
 Cleanup old diagnostics data (EngineRun, EngineSpan, DecisionRecord).
 
+Thin alias for ``prune_telemetry --only engine_run --only engine_span
+--only decision_record``. Retention windows live in apps/core/data_retention.py.
+The old fixed 7-day window was removed: it deleted the only run of weekly
+engines, which hid their MISSED/starvation alerts (heartbeat NEVER_RUN).
+
 Usage:
-    python manage.py cleanup_diagnostics          # 7 day default
-    python manage.py cleanup_diagnostics --days 3  # custom retention
+    python manage.py cleanup_diagnostics
+    python manage.py cleanup_diagnostics --dry-run
 
 Project: Whole Life Journey
 """
 
-from datetime import timedelta
-
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 
 class Command(BaseCommand):
-    help = "Delete diagnostics data older than N days (default 7)."
+    help = "Delete expired diagnostics rows (policy windows in apps/core/data_retention.py)."
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--days",
-            type=int,
-            default=7,
-            help="Retention period in days (default: 7).",
-        )
+        parser.add_argument("--dry-run", action="store_true")
 
     def handle(self, *args, **options):
-        from apps.core.ai_observability.models import (
-            DecisionRecord,
-            EngineRun,
-            EngineSpan,
-        )
-
-        days = options["days"]
-        cutoff = timezone.now() - timedelta(days=days)
-
-        runs_deleted, _ = EngineRun.objects.filter(created_at__lt=cutoff).delete()
-        spans_deleted, _ = EngineSpan.objects.filter(started_at__lt=cutoff).delete()
-        decisions_deleted, _ = DecisionRecord.objects.filter(
-            created_at__lt=cutoff
-        ).delete()
-
-        self.stdout.write(
-            self.style.SUCCESS(
-                f"Cleaned up diagnostics data older than {days} days: "
-                f"runs={runs_deleted}, spans={spans_deleted}, "
-                f"decisions={decisions_deleted}"
-            )
+        call_command(
+            "prune_telemetry",
+            only=["engine_run", "engine_span", "decision_record"],
+            dry_run=options["dry_run"],
+            stdout=self.stdout,
         )

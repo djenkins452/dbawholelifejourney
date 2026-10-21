@@ -806,6 +806,19 @@ def cleanup_soft_deletes_task():
 
 
 @shared_task(
+    name="core.prune_telemetry",
+    soft_time_limit=540,
+    time_limit=600,
+    acks_late=True,
+)
+def prune_telemetry_task():
+    """Daily telemetry retention. Bounded to ~8 min; resumes next run."""
+    from apps.core.jobs import prune_telemetry
+    result = prune_telemetry()
+    return {"status": "ok", **result}
+
+
+@shared_task(
     name="core.generate_faith_reminders",
     soft_time_limit=60,
     time_limit=90,

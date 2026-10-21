@@ -178,6 +178,7 @@ Phase 1 (Interpretation)        Phase 2 (Execution)          Phase 3 (Post-Execu
 | Job | Schedule | Purpose |
 |-----|----------|---------|
 | `cleanup_soft_deletes()` | Weekly Sun 3AM UTC | Hard-delete soft-deleted records |
+| `prune_telemetry()` (`core.prune_telemetry`) | Daily 3:45AM UTC (crontab) | Bounded batched purge of 8 append-only telemetry tables per `apps/core/data_retention.py` (heartbeat 7d, integrity 14d, spans 14d, runs/decisions/API log/arbitration/health-briefing 30d; anomalies 90d; latest run per engine + arbitration feedback rows always kept). 8-min budget, resumes next run; raises on any table failure. |
 | `generate_faith_reminders()` | Daily 6AM UTC | Faith module reminders |
 | `generate_health_reminders_morning()` | Daily 12PM UTC | Morning health reminders |
 | `generate_health_reminders_evening()` | Daily 12AM UTC | Evening health reminders |

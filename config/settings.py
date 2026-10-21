@@ -1390,6 +1390,10 @@ CELERY_BEAT_SCHEDULE = {
         "task": "core.cleanup_soft_deletes",
         "schedule": crontab(hour=3, minute=0, day_of_week="sun"),  # Weekly Sunday (was APScheduler)
     },
+    "telemetry-retention-daily-345am-utc": {
+        "task": "core.prune_telemetry",
+        "schedule": crontab(hour=3, minute=45),  # Daily — bounded batched purge (apps/core/data_retention.py)
+    },
     "expired-image-cleanup-daily-315am-utc": {
         "task": "apps.ai.tasks.purge_expired_images",
         "schedule": crontab(hour=3, minute=15),  # Daily — drains 72h expired image bytes (OPS-8b gap)

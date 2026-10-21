@@ -50,6 +50,29 @@ def cleanup_soft_deletes():
         raise
 
 
+def prune_telemetry():
+    """
+    Delete expired telemetry rows (policies in apps/core/data_retention.py).
+
+    Bounded: stops cleanly after a time budget and continues on the next run,
+    so a backlog never produces one long-running task. Raises if any table
+    failed so the scheduled-task monitor records the run as failed.
+
+    Scheduled: Daily at 3:45 AM UTC
+    """
+    logger.info("Starting telemetry retention job...")
+    from apps.core.data_retention import run_retention
+
+    results = run_retention(time_budget_seconds=480, pause_seconds=0.05)
+    summary = {r.key: r.deleted for r in results}
+    partial = [r.key for r in results if not r.complete and not r.error]
+    failed = [r.key for r in results if r.error]
+    logger.info("Telemetry retention deleted=%s partial=%s failed=%s", summary, partial, failed)
+    if failed:
+        raise RuntimeError(f"Telemetry retention failed for: {', '.join(failed)}")
+    return {"deleted": summary, "partial": partial}
+
+
 def generate_faith_reminders():
     """
     Generate in-app and email notifications for faith module reminders.

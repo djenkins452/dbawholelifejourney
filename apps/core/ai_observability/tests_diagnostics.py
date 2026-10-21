@@ -15,6 +15,7 @@ Project: Whole Life Journey
 """
 
 import base64
+from io import StringIO
 import secrets
 from datetime import timedelta
 from unittest.mock import patch
@@ -1016,7 +1017,7 @@ class CleanupDiagnosticsCommandTests(TestCase):
         )
 
         now = timezone.now()
-        old = now - timedelta(days=10)
+        old = now - timedelta(days=40)  # past every diagnostics retention window
 
         # Create old and new records
         EngineRun.objects.create(
@@ -1042,11 +1043,13 @@ class CleanupDiagnosticsCommandTests(TestCase):
         EngineSpan.objects.filter(trace_id="old-span").update(started_at=old)
         DecisionRecord.objects.filter(trace_id="old-dec").update(created_at=old)
 
-        call_command("cleanup_diagnostics", "--days", "7")
+        call_command("cleanup_diagnostics", stdout=StringIO())
 
         # Old records deleted, new ones remain
         self.assertEqual(EngineRun.objects.count(), 1)
         self.assertEqual(EngineRun.objects.first().trace_id, "new-run")
+        self.assertFalse(EngineSpan.objects.exists())
+        self.assertFalse(DecisionRecord.objects.exists())
 
 
 # ==========================================================================
